@@ -29,6 +29,22 @@
                         <a class="nav-link" href="/page3">Page 3</a>
                     </li>
                 </ul>
+
+                <!-- User login info and logout button -->
+                <ul class="navbar-nav ms-auto">
+                    {% if session['loggedin'] %}
+                        <li class="nav-item">
+                            <span class="navbar-text me-3">Logged in as {{ session['username'] }}</span>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+                        </li>
+                    {% endif %}
+                </ul>
             </div>
         </div>
     </nav>
