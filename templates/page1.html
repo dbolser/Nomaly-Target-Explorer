@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Page 1 - Data Tables</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center">Data Tables with Search</h1>
+        
+        <!-- Table: Individual Phenotypes -->
+        <h2>Individual Phenotypes</h2>
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Sex <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 0, 'individualTable')"></th>
+                    <th>Population <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 1, 'individualTable')"></th>
+                    <th>ICD10 <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 2, 'individualTable')"></th>
+                    <th>Phecode <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 3, 'individualTable')"></th>
+                </tr>
+            </thead>
+            <tbody id="individualTable">
+                {% for row in individual_phenotypes %}
+                <tr>
+                    <td>{{ row.sex }}</td>
+                    <td>{{ row.population }}</td>
+                    <td>{{ row.icd10 }}</td>
+                    <td>{{ row.phecode }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Table: Phecode -->
+        <h2>Phecode</h2>
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Phecode <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 0, 'phecodeTable')"></th>
+                    <th>Description <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 1, 'phecodeTable')"></th>
+                    <th>Sex <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 2, 'phecodeTable')"></th>
+                    <th>Group <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 3, 'phecodeTable')"></th>
+                    <th>Phecode Exclude <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 4, 'phecodeTable')"></th>
+                    <th>Cases <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 5, 'phecodeTable')"></th>
+                    <th>Excluded <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 6, 'phecodeTable')"></th>
+                </tr>
+            </thead>
+            <tbody id="phecodeTable">
+                {% for row in phecode %}
+                <tr>
+                    <td>{{ row.phecode }}</td>
+                    <td>{{ row.description }}</td>
+                    <td>{{ row.sex }}</td>
+                    <td>{{ row.group }}</td>
+                    <td>{{ row.phecode_exclude }}</td>
+                    <td>{{ row.cases }}</td>
+                    <td>{{ row.excluded }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Table: ICD10 Coding -->
+        <h2>ICD10 Coding</h2>
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Coding <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 0, 'icd10Table')"></th>
+                    <th>Meaning <input type="text" class="form-control" placeholder="Search" onkeyup="searchTable(this, 1, 'icd10Table')"></th>
+                </tr>
+            </thead>
+            <tbody id="icd10Table">
+                {% for row in icd10_coding %}
+                <tr>
+                    <td>{{ row.coding }}</td>
+                    <td>{{ row.meaning }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- JavaScript for filtering -->
+    <script>
+        function searchTable(input, columnIndex, tableId) {
+            // Get the filter text
+            const filter = input.value.toUpperCase();
+            // Get the table body and all rows within
+            const tableBody = document.getElementById(tableId);
+            const rows = tableBody.getElementsByTagName("tr");
+
+            // Loop through all rows and hide those that don't match the filter
+            for (let i = 0; i < rows.length; i++) {
+                const cell = rows[i].getElementsByTagName("td")[columnIndex];
+                if (cell) {
+                    const textValue = cell.textContent || cell.innerText;
+                    if (textValue.toUpperCase().indexOf(filter) > -1) {
+                        rows[i].style.display = "";
+                    } else {
+                        rows[i].style.display = "none";
+                    }
+                }
+            }
+        }
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

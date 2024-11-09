@@ -4,6 +4,10 @@ from flask_session import Session
 import MySQLdb.cursors
 import re
 
+# Import blueprints after creating the app
+from blueprints.main import main_bp
+# from blueprints.page1 import page1_bp
+
 app = Flask(__name__)
 
 # Secret key for session management
@@ -57,6 +61,10 @@ def logout():
     return redirect(url_for('login'))
 
 # Protected routes
+# register main search blueprint
+app.register_blueprint(main_bp)
+
+# app.register_blueprint(page1_bp)
 @app.route('/page1')
 def page1():
     if 'loggedin' in session:
