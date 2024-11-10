@@ -6,6 +6,7 @@ import re
 
 # Import blueprints after creating the app
 from blueprints.main import main_bp
+from blueprints.phecode import phecode_bp
 # from blueprints.page1 import page1_bp
 
 app = Flask(__name__)
@@ -61,8 +62,11 @@ def logout():
     return redirect(url_for('login'))
 
 # Protected routes
-# register main search blueprint
+# register main blueprint: /diseasesearch
 app.register_blueprint(main_bp)
+
+# register phecode blueprint: /phecode/<string:phecode>
+app.register_blueprint(phecode_bp)
 
 # app.register_blueprint(page1_bp)
 @app.route('/page1')
