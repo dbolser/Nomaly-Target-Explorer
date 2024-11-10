@@ -126,15 +126,16 @@
                         <h3>${item.description}</h3>
                         
                         <p class="p-2 bg-light rounded">
-                            <span><a href="/plot/${item.phecode}" target="_blank">Phecode: ${item.phecode}</a></span> |
+                            <span><a href="/phecode/${item.phecode}" target="_blank">Phecode: ${item.phecode}</a></span> |
                             <span>Sex: ${item.sex}</span> |
                             <span>Affected: <strong>${item.affected}</strong></span> |
                             <span>Excluded: ${item.excluded} (${item.phecode_exclude})</span> |
                             <span>Disease: ${item.phecode_group}</span>
-                        </p>
                         <ul class="meaning-list">
                             ${item.meaning.map(meaning => `<li>${meaning}</li>`).join('')}
                         </ul>
+                        </p>
+                        
                     `;
                     resultsList.appendChild(listItem);
                 });
