@@ -1,8 +1,18 @@
 from flask import Blueprint, render_template, request, jsonify, session
 import threading
 import time
-from db import get_db_connection
 import pandas as pd
+import os
+import traceback
+
+from blueprints.gwas import variant_level_assoc, GWAS_PHENO_DIR
+from db import get_db_connection
+
+# ----------------------------------------------------- #
+# global variables
+# ----------------------------------------------------- #
+# GWAS_PHENO_DIR = '/data/clu/ukbb/by_pheno/'
+
 
 # Create the blueprint
 phecode_bp = Blueprint('phecode', __name__, template_folder='../templates')
@@ -66,12 +76,66 @@ def show_phecode(phecode):
 
 # Background task function
 def background_task(phecode):
-    # Simulate a time-consuming process
-    time.sleep(5)
-    result = f"Processed data for Phecode {phecode}"
+    # ----------------------------------------------------- #
+    # Task is to run GWAS and read the results
+    # ----------------------------------------------------- #
+    try:
+        run_gwas_and_read_results(phecode)
+    except Exception:
+        task_results['result'] = f"Failed to get variant-level stats for Phecode {phecode}, exception was <br> {traceback.format_exc()}"
+    
+
+def run_gwas_and_read_results(phecode):
+    # ----------------------------------------------------- #
+    # GWAS results file path
+    # ----------------------------------------------------- #
+    output_prefix = f'phecode_{phecode}'
+    gwas_path = f'{GWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv'
+
+    # ----------------------------------------------------- #
+    # Check if GWAS has been run for this Phecode
+    # ----------------------------------------------------- #
+    if not os.path.exists(gwas_path):
+        task_results[phecode] = 'No GWAS data found for this Phecode. Processing...'
+        assoc = variant_level_assoc(pheno_type = 'PheCode', code = phecode)
+    else:
+        assoc = pd.read_csv(gwas_path, sep='\t')
+    
+    # ----------------------------------------------------- #
+    # If assoc is empty, return error message
+    # ----------------------------------------------------- #
+    if assoc is None:
+        result = f"Failed to get variant-level stats for Phecode {phecode}, ask admin to check logs."
+
+    # ----------------------------------------------------- #
+    # If assoc is not empty, process the data
+    # ----------------------------------------------------- #
+    # remove any na in the columns
+    assoc = assoc.dropna()
+
+    # assoc columns are:  Index(['nomaly_variant', 'gene_id', 'RSID', 'CHR_BP_A1_A2', 'F_A', 'F_U', 'OR', 'P'], dtype='object')
+    # rename columns DataFrame
+    assoc = assoc.rename(columns={
+        'nomaly_variant': 'Variant',
+        'gene_id': 'Gene',
+        # 'RSID': 'RSID',
+        # 'F_A': 'F_A',
+        # 'F_U': 'F_U',
+        # 'OR': 'OR',
+        # 'P': 'P'
+    })
+    # columns to keep
+    columns_to_keep = ['Variant', 'Gene', 'P', 'OR', 'F_A', 'F_U', 'RSID']
+    assoc = assoc[columns_to_keep]
+
+    assoc_sig = assoc[assoc['P']<0.05]
+    result = f"GWAS identified {assoc_sig.shape[0]} variants in {assoc_sig['Gene'].nunique()} unique genes has association p<0.05."
     
     # Store the result in the task_results dictionary
-    task_results[phecode] = result
+    task_results['result'] = result    
+
+    task_results['associations'] = assoc_sig.to_dict(orient='records')
+
 
 # Endpoint to trigger the background task
 @phecode_bp.route('/run-task/<string:phecode>', methods=['POST'])
@@ -84,5 +148,7 @@ def run_task(phecode):
 # Endpoint to get the result of the background task
 @phecode_bp.route('/task-result/<string:phecode>', methods=['GET'])
 def get_task_result(phecode):
-    result = task_results.get(phecode, "Processing...")
-    return jsonify({"result": result})
+    result = task_results.get('result', "Processing...")
+    associations = task_results.get('associations', [])
+    return jsonify({"result": result,
+                    "associations": associations})

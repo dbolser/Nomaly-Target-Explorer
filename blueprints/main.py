@@ -28,10 +28,10 @@ def search():
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # filter the phecodes and the ICD10 table based on the query
+        # Step 1: Search for matching Phecodes and the ICD10 table based on the query
         cur.execute(
             f"""
-            SELECT p.phecode, p.description, p.sex, p.phecode_group, p.phecode_exclude, p.affected, p.excluded, icd10.icd10, icd10.meaning, icd10.icd10_count
+            SELECT p.phecode
             FROM phecode_definition p
             JOIN icd10_phecode ip ON p.phecode = ip.phecode
             JOIN icd10_coding icd10 ON ip.icd10 = icd10.icd10
@@ -39,6 +39,25 @@ def search():
                 OR icd10.meaning LIKE '%{query}%';
             """
         )
+        results = cur.fetchall()
+        phecodes = [row[0] for row in results]
+
+        # If no phecodes found, return an empty result
+        if not phecodes:
+            print("No matching Phecodes found.")
+            return []
+
+        # Step 2: Retrieve detailed information for the matching Phecodes
+        placeholders = ', '.join(['%s'] * len(phecodes))
+        details_query = f"""
+        SELECT p.phecode, p.description, p.sex, p.phecode_group, p.phecode_exclude,
+                p.affected, p.excluded, icd10.icd10, icd10.meaning, icd10.icd10_count
+        FROM phecode_definition p
+        JOIN icd10_phecode ip ON p.phecode = ip.phecode
+        JOIN icd10_coding icd10 ON ip.icd10 = icd10.icd10
+        WHERE p.phecode IN ({placeholders});
+        """
+        cur.execute(details_query, tuple(phecodes))
         results = cur.fetchall()
 
         cur.close()
