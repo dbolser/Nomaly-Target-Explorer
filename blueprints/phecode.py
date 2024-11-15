@@ -239,13 +239,22 @@ def get_nomaly_stats(phecode):
     # filter gene by assoc var
     var_assoc_sig = read_gwas(phecode)
     genefilter = set([x['Gene'] for x in var_assoc_sig])
-    term_gene_df = term_gene_df[term_gene_df['gene'].isin(genefilter)]
+    term_gene_df_sig = term_gene_df[term_gene_df['gene'].isin(genefilter)]
+    # term_gene_df_other = term_gene_df[~term_gene_df['gene'].isin(genefilter)]
 
     # group by term
-    term_gene_df = term_gene_df.groupby('term')['gene'].apply(
+    term_gene_df_sig = term_gene_df_sig.groupby('term')['gene'].apply(
         lambda x: ', '.join(x)
         ).reset_index()
-    plot_df = plot_df.merge(term_gene_df, on='term', how='left')
+    term_gene_df_other = term_gene_df.groupby('term')['gene'].apply(
+        lambda x: ', '.join(x)
+        ).reset_index().set_index('term')
+    # fill term_gene_df_sig NA with term_gene_df_other 
+    term_gene_df_sig['gene'] = term_gene_df_sig['gene'].fillna(
+        term_gene_df_sig['term'].map(lambda x: f"None ({term_gene_df_other.loc[x, 'gene']})")
+    )
+
+    plot_df = plot_df.merge(term_gene_df_sig, on='term', how='left')
 
     # print(plot_df, flush=True)
 
