@@ -80,12 +80,12 @@ def background_task(phecode):
     # Task is to run GWAS and read the results
     # ----------------------------------------------------- #
     try:
-        run_gwas_and_read_results(phecode)
+        run_gwas_if_not_done(phecode)
     except Exception:
         task_results['result'] = f"Failed to get variant-level stats for Phecode {phecode}, exception was <br> {traceback.format_exc()}"
     
 
-def run_gwas_and_read_results(phecode):
+def run_gwas_if_not_done(phecode):
     # ----------------------------------------------------- #
     # GWAS results file path
     # ----------------------------------------------------- #
@@ -113,6 +113,28 @@ def run_gwas_and_read_results(phecode):
     # remove any na in the columns
     assoc = assoc.dropna()
 
+    assoc_sig = assoc[assoc['P']<0.05]
+    result = f"GWAS identified {assoc_sig.shape[0]} variants in {assoc_sig['gene_id'].nunique()} unique genes has association p<0.05."
+    
+    # Store the result in the task_results dictionary
+    task_results[phecode] = result    
+
+
+def read_gwas(phecode):
+    # ----------------------------------------------------- #
+    # GWAS results file path
+    # ----------------------------------------------------- #
+    output_prefix = f'phecode_{phecode}'
+    gwas_path = f'{GWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv'
+
+    if not os.path.exists(gwas_path):
+        return []
+    
+    assoc = pd.read_csv(gwas_path, sep='\t')
+
+    # remove any na in the columns
+    assoc = assoc.dropna()
+
     # assoc columns are:  Index(['nomaly_variant', 'gene_id', 'RSID', 'CHR_BP_A1_A2', 'F_A', 'F_U', 'OR', 'P'], dtype='object')
     # rename columns DataFrame
     assoc = assoc.rename(columns={
@@ -129,12 +151,8 @@ def run_gwas_and_read_results(phecode):
     assoc = assoc[columns_to_keep]
 
     assoc_sig = assoc[assoc['P']<0.05]
-    result = f"GWAS identified {assoc_sig.shape[0]} variants in {assoc_sig['Gene'].nunique()} unique genes has association p<0.05."
-    
-    # Store the result in the task_results dictionary
-    task_results['result'] = result    
 
-    task_results['associations'] = assoc_sig.to_dict(orient='records')
+    return assoc_sig.to_dict(orient='records')
 
 
 # Endpoint to trigger the background task
@@ -148,7 +166,7 @@ def run_task(phecode):
 # Endpoint to get the result of the background task
 @phecode_bp.route('/task-result/<string:phecode>', methods=['GET'])
 def get_task_result(phecode):
-    result = task_results.get('result', "Processing...")
-    associations = task_results.get('associations', [])
+    result = task_results.get(phecode, "Processing...")
+    associations = read_gwas(phecode)
     return jsonify({"result": result,
                     "associations": associations})
