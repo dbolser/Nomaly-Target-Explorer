@@ -8,17 +8,28 @@ import traceback
 from blueprints.gwas import variant_level_assoc, GWAS_PHENO_DIR
 from db import get_db_connection
 
+from blueprints.nomaly import nomaly_stats, make_qqplot
+import plotly.express as px
+import plotly.io as pio
+
+
 # ----------------------------------------------------- #
 # global variables
 # ----------------------------------------------------- #
 # GWAS_PHENO_DIR = '/data/clu/ukbb/by_pheno/'
 
+# # load ontology_info.tsv
+# ontology_info = pd.read_csv('/home/snow/datadir/1.3/GRCh38/ontology_info.tsv', sep='\t')
+# # keep columns 0, 2
+# ontology_info = ontology_info.iloc[:, [0, 2]]
+# ontology_info.columns = ['term', 'name']
+
+# ----------------------------------------------------- #
+# Phecode Blueprint
+# ----------------------------------------------------- #
 
 # Create the blueprint
 phecode_bp = Blueprint('phecode', __name__, template_folder='../templates')
-
-# Dictionary to store background task results (in-memory for simplicity)
-task_results = {}
 
 # Route to render the Phecode page
 @phecode_bp.route('/phecode/<string:phecode>', methods=['GET'])
@@ -73,6 +84,96 @@ def show_phecode(phecode):
     #     "phecode_group": "Cardiovascular"
     # }
     return render_template('phecode.html', data=data)
+
+# ----------------------------------------------------- #
+# Nomaly Stats
+# ----------------------------------------------------- #
+@phecode_bp.route('/nomaly-stats/<string:phecode>', methods=['POST'])
+def get_nomaly_stats(phecode):
+    # Get the Nomaly stats for the Phecode
+    # rows: term, columns: phecode, 3rd dim: statstype
+    # num_rp num_rn mwu_pvalue tti_pvalue metric1_pvalue roc_stats_mcc_value roc_stats_mcc_pvalue roc_stats_yjs_value roc_stats_yjs_pvalue roc_stats_lrp_value roc_stats_lrp_pvalue roc_stats_lrp_protective_value roc_stats_lrp_protective_pvalue roc_stats_lrn_value roc_stats_lrn_pvalue roc_stats_lrn_protective_value roc_stats_lrn_protective_pvalue
+    
+    # ----------------------------------------------------- #
+    # qq plot
+    # ----------------------------------------------------- #
+    try:
+        diseasestats = nomaly_stats.get_stats_by_disease(phecode)
+    except:
+        return jsonify({"error": f"Failed to get Nomaly stats for Phecode {phecode}, ask admin to check logs."})
+    # rename colums
+    for col in diseasestats.columns:
+        if '_p_value' in col:
+            diseasestats = diseasestats.rename(columns={col: col.replace('_p_value', '_pvalue')})
+            col = col.replace('_p_value', '_pvalue')
+        if col.startswith('roc_stats_'):
+            diseasestats = diseasestats.rename(columns={col: col.replace('roc_stats_', '')})
+
+    # ['mwu_pvalue', 'mcc_pvalue', 'metric1_pvalue', 'yjs_pvalue', 'lrp_pvalue', 'lrn_protective_pvalue']
+
+    # get columns with pvalues
+    pval_nondirect = ['mwu_pvalue', 'mcc_pvalue']
+    pval_pos = ['metric1_pvalue', 'yjs_pvalue', 'lrp_pvalue']
+    pval_neg = ['lrn_protective_pvalue']
+    columns_pval = pval_nondirect + pval_pos + pval_neg
+
+    plot_df = diseasestats[columns_pval]
+    plot_df['term'] = plot_df.index
+
+    # print(columns_pval, flush=True)
+
+    # Generate an interactive plot using Plotly
+    fig = make_qqplot(plot_df)
+
+    # Convert the plot to HTML
+    graph_html = pio.to_html(fig, full_html=False)
+
+    statstype = [x for x in diseasestats.columns]
+    print(statstype, flush=True)
+
+    # speed up by requiring at least one pvalue<0.05
+    plot_df = plot_df[(plot_df[pval_nondirect + pval_pos + pval_neg] < 0.05).any(axis=1)]
+
+    # add minimum rank from any of the pvalues
+    columns_rank =[]
+    for col in pval_nondirect + pval_pos:
+        plot_df[col.replace('_pvalue', '_minrank')] = plot_df[col].rank(method='min')
+        columns_rank.append(col.replace('_pvalue', '_minrank'))
+        
+    plot_df['minrank'] = plot_df[columns_rank].min(axis=1)
+    plot_df.drop(columns = columns_rank, inplace=True)
+    plot_df.sort_values('minrank', inplace=True)
+
+    # Replace NaN values with None (valid JSON format)
+    plot_df = plot_df.fillna('None')
+
+    nomalyResults = {
+        'qqplot': graph_html,
+        'data': plot_df.to_dict(orient='records'),
+        'columns': ['term', 'minrank'] + columns_pval,
+        'defaultColumns': ['minrank','term'] + ['mwu_pvalue'
+                                            # , 'metric1_pvalue', 'yjs_pvalue','mcc_pvalue'
+                                                       ],
+    }
+
+    # # plot_df = plot_df.merge(ontology_info, on='term', how='left')
+
+    # nomalyResults = {
+    #     'qqplot': graph_html,
+    #     'data': plot_df.to_dict(orient='records'),
+    #     'columns': ['term', 'name', 'minrank'] + columns_pval,
+    #     'defaultColumns': ['minrank','term','name'] + ['mwu_pvalue'
+    #                                         # , 'metric1_pvalue', 'yjs_pvalue','mcc_pvalue'
+    #                                                    ],
+    # }
+    return nomalyResults
+
+# ----------------------------------------------------- #
+# Background task to run GWAS
+# ----------------------------------------------------- #
+
+# Dictionary to store background task results (in-memory for simplicity)
+task_results = {}
 
 # Background task function
 def background_task(phecode):
