@@ -85,6 +85,83 @@ def show_phecode(phecode):
     # }
     return render_template('phecode.html', data=data)
 
+def get_term_names(terms_list):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    placeholders = ", ".join(f"'{x}'" for x in terms_list)
+    query = f"SELECT term, name FROM term_info WHERE term IN ({placeholders})"
+
+    # filter the phecodes and the ICD10 table based on the query
+    cur.execute(query)
+    results = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    # turn into a dictionary
+    term_name_dict = {term: name for term, name in results}
+
+    return term_name_dict
+
+def get_term_domains(terms_list):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    placeholders = ", ".join(f"'{x}'" for x in terms_list)
+    query = f"SELECT term, domain, domaintype FROM term_domain WHERE term IN ({placeholders})"
+
+    # filter the phecodes and the ICD10 table based on the query
+    cur.execute(query)
+    results = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    # turn into a dictionary
+    term_domain_dict = {term: {'domain': domain, 'domaintype': domaintype} for term, domain, domaintype in results}
+
+    return term_domain_dict
+
+def get_term_genes(terms_list):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    placeholders = ", ".join(f"'{x}'" for x in terms_list)
+
+    query = f"""
+    SELECT DISTINCT td.term, vc.gene
+    FROM term_domain td
+    JOIN variants_consequences vc ON td.domain = vc.sf
+    WHERE td.domaintype = 'sf' AND td.term IN ({placeholders})
+    """
+    # filter the phecodes and the ICD10 table based on the query
+    cur.execute(query)
+    results = cur.fetchall()
+
+    # dataframe
+    term_gene_df = pd.DataFrame(results, columns=['term', 'gene'])
+    
+    query = f"""
+    SELECT DISTINCT td.term, vc.gene
+    FROM term_domain td
+    JOIN variants_consequences vc ON td.domain = vc.fa
+    WHERE td.domaintype = 'fa' AND td.term IN ({placeholders})
+    """
+    cur.execute(query)
+    results = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    # dataframe
+    term_gene_df = pd.concat([term_gene_df, pd.DataFrame(results, columns=['term', 'gene'])], axis=0)
+
+    # drop duplicates
+    term_gene_df.drop_duplicates(inplace=True)
+
+    return term_gene_df
+
 # ----------------------------------------------------- #
 # Nomaly Stats
 # ----------------------------------------------------- #
@@ -128,11 +205,14 @@ def get_nomaly_stats(phecode):
     # Convert the plot to HTML
     graph_html = pio.to_html(fig, full_html=False)
 
-    statstype = [x for x in diseasestats.columns]
-    print(statstype, flush=True)
+    # ----------------------------------------------------- #
+    # Plot done, dataTable now
+    # ----------------------------------------------------- #
+
+    TERM_THRESHOLD = 0.001
 
     # speed up by requiring at least one pvalue<0.05
-    plot_df = plot_df[(plot_df[pval_nondirect + pval_pos + pval_neg] < 0.05).any(axis=1)]
+    plot_df = plot_df[(plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1)]
 
     # add minimum rank from any of the pvalues
     columns_rank =[]
@@ -144,28 +224,42 @@ def get_nomaly_stats(phecode):
     plot_df.drop(columns = columns_rank, inplace=True)
     plot_df.sort_values('minrank', inplace=True)
 
+    plot_df = plot_df.iloc[:50]
+
+    # get term names
+    term_name_dict = get_term_names(plot_df['term'].tolist())
+
+    plot_df['name'] = plot_df['term'].map(lambda x: term_name_dict.get(x, '-'))
+
+    # get term to gene mapping
+    print('getting term to gene mapping', flush=True)
+    term_gene_df = get_term_genes(plot_df['term'].tolist())
+    print('got term to gene mapping', flush=True)
+
+    # filter gene by assoc var
+    var_assoc_sig = read_gwas(phecode)
+    genefilter = set([x['Gene'] for x in var_assoc_sig])
+    term_gene_df = term_gene_df[term_gene_df['gene'].isin(genefilter)]
+
+    # group by term
+    term_gene_df = term_gene_df.groupby('term')['gene'].apply(
+        lambda x: ', '.join(x)
+        ).reset_index()
+    plot_df = plot_df.merge(term_gene_df, on='term', how='left')
+
+    # print(plot_df, flush=True)
+
     # Replace NaN values with None (valid JSON format)
     plot_df = plot_df.fillna('None')
 
     nomalyResults = {
         'qqplot': graph_html,
         'data': plot_df.to_dict(orient='records'),
-        'columns': ['term', 'minrank'] + columns_pval,
-        'defaultColumns': ['minrank','term'] + ['mwu_pvalue'
-                                            # , 'metric1_pvalue', 'yjs_pvalue','mcc_pvalue'
-                                                       ],
+        'columns': ['minrank', 'term', 'name', 'gene'] + columns_pval,
+        'defaultColumns': ['minrank','name', 'gene'],
+        #   + ['mwu_pvalue', 'metric1_pvalue', 'yjs_pvalue','mcc_pvalue'],
+        'numColumns': columns_pval,
     }
-
-    # # plot_df = plot_df.merge(ontology_info, on='term', how='left')
-
-    # nomalyResults = {
-    #     'qqplot': graph_html,
-    #     'data': plot_df.to_dict(orient='records'),
-    #     'columns': ['term', 'name', 'minrank'] + columns_pval,
-    #     'defaultColumns': ['minrank','term','name'] + ['mwu_pvalue'
-    #                                         # , 'metric1_pvalue', 'yjs_pvalue','mcc_pvalue'
-    #                                                    ],
-    # }
     return nomalyResults
 
 # ----------------------------------------------------- #

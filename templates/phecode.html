@@ -56,6 +56,11 @@
             <!-- <div id="plotContainer" class="mb-4"></div> -->
 
             <!-- Div for DataTable -->
+            <style>
+                #resultsTable {
+                    font-size: 0.85rem;  /* Adjust the size as needed */
+                }
+            </style>
             <div id="tableContainer" class="mb-4">
                 <table id="resultsTable" class="table table-striped table-bordered" style="width: 100%;"></table>
             </div>
@@ -100,7 +105,7 @@
         }
 
         // Function to initialize the DataTable
-        function renderDataTable(data, columns, defaultColumns) {
+        function renderDataTable(data, columns, defaultColumns, numColumns) {
             // Destroy existing table if it exists
             if ($.fn.DataTable.isDataTable('#resultsTable')) {
                 $('#resultsTable').DataTable().destroy();
@@ -111,9 +116,19 @@
                 data: data,
                 columns: columns.map(col => ({ 
                     title: col, data: col,
-                    visible: defaultColumns.includes(col)  // Show default columns initially
+                    visible: defaultColumns.includes(col),  // Show default columns initially
+                    render: function (data, type, row) {
+            // Client-side formatting for specific columns
+            if (numColumns.includes(col) && type === 'display') {
+                // Check if the value is a number before formatting
+                if (!isNaN(parseFloat(data))) {
+                    return parseFloat(data).toExponential(2); // Format as scientific notation with 3 decimal places
+                }
+            }
+            return data;
+        }
                 })),
-                order: [[1, 'asc']],
+                order: [[0, 'asc']],
                 responsive: true,
                 autoWidth: true,
                 dom: 'Bfrtip',  // Include buttons for column visibility
@@ -144,7 +159,7 @@
                 renderPlot(resultData.qqplot);
                 // resultDiv.innerHTML = `${resultData.statstype}`;
                 // Render DataTable
-                renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns);
+                renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
             }).catch(error => {
                 resultDiv.innerHTML = `Error: ${error.message}`;
             });
