@@ -18,3 +18,146 @@ def get_db_connection():
     except Exception as e:
         print(f"Error connecting to database: {e}")
         return None
+
+
+import pandas as pd
+
+def get_phecode_info(phecode):
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # filter the phecodes and the ICD10 table based on the query
+    cur.execute(
+        f"""
+        SELECT p.phecode, p.description, p.sex, p.phecode_group, p.phecode_exclude, p.affected, p.excluded, icd10.icd10, icd10.meaning, icd10.icd10_count
+        FROM phecode_definition p
+        JOIN icd10_phecode ip ON p.phecode = ip.phecode
+        JOIN icd10_coding icd10 ON ip.icd10 = icd10.icd10
+        WHERE p.phecode = '{phecode}';
+        """
+    )
+    results = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    # 4. Get the column names
+    columns = [desc[0] for desc in cur.description]
+
+    # 7. Convert the rows and columns into a Pandas DataFrame
+    filtered_df = pd.DataFrame(results, columns=columns)
+
+    # Add icd10_count to meaning
+    filtered_df['meaning'] = filtered_df['meaning'] + ' | ' + filtered_df['icd10_count'].astype(str)
+
+    # Group by 'description' and aggregate meanings into a list
+    grouped = filtered_df.groupby(['description', 'phecode', 'sex', 'affected', 'excluded', 'phecode_exclude', 'phecode_group'
+    ]).agg({
+        'meaning': lambda x: list(x)  # Group meanings into a list
+    }).reset_index()
+
+    # Convert results to a list of dictionaries
+    results = grouped.to_dict(orient='records')
+
+    # results only has one row
+    data = results[0]
+
+    # # Example data (replace with actual data retrieval logic)
+    # data = {
+    #     "phecode": phecode,
+    #     "sex": "Both",
+    #     "affected": 150,
+    #     "excluded": 10,
+    #     "phecode_exclude": "None",
+    #     "phecode_group": "Cardiovascular"
+    # }
+
+    return data
+
+def get_term_names(terms_list):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    placeholders = ", ".join(f"'{x}'" for x in terms_list)
+    query = f"SELECT term, name FROM term_info WHERE term IN ({placeholders})"
+
+    # filter the phecodes and the ICD10 table based on the query
+    cur.execute(query)
+    results = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    # turn into a dictionary
+    term_name_dict = {term: name for term, name in results}
+
+    return term_name_dict
+
+def get_term_domains(terms_list):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    placeholders = ", ".join(f"'{x}'" for x in terms_list)
+    query = f"SELECT term, domain, domaintype FROM term_domain WHERE term IN ({placeholders})"
+
+    # filter the phecodes and the ICD10 table based on the query
+    cur.execute(query)
+    results = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    # turn into a dictionary
+    term_domain_dict = {}
+    for term, domain, domaintype in results:
+        if term not in term_domain_dict:
+            term_domain_dict[term] = set()
+        # add domain with link
+        if domaintype == 'sf' or domaintype == 'fa':
+            term_domain_dict[term].add(f'<a href="https://supfam.org/SUPERFAMILY/cgi-bin/scop.cgi?sunid={domain}">{domain}</a>')
+        elif domain.startswith('PF'):
+            term_domain_dict[term].add(f'<a href="https://www.ebi.ac.uk/interpro/entry/pfam/{domain}">{domain}</a>')
+        else:
+            term_domain_dict[term].add(domain)
+
+    return term_domain_dict
+
+def get_term_genes(terms_list):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    placeholders = ", ".join(f"'{x}'" for x in terms_list)
+
+    query = f"""
+    SELECT DISTINCT td.term, vc.gene
+    FROM term_domain td
+    JOIN variants_consequences vc ON td.domain = vc.sf
+    WHERE td.domaintype = 'sf' AND td.term IN ({placeholders})
+    """
+    # filter the phecodes and the ICD10 table based on the query
+    cur.execute(query)
+    results = cur.fetchall()
+
+    # dataframe
+    term_gene_df = pd.DataFrame(results, columns=['term', 'gene'])
+    
+    query = f"""
+    SELECT DISTINCT td.term, vc.gene
+    FROM term_domain td
+    JOIN variants_consequences vc ON td.domain = vc.fa
+    WHERE td.domaintype = 'fa' AND td.term IN ({placeholders})
+    """
+    cur.execute(query)
+    results = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    # dataframe
+    term_gene_df = pd.concat([term_gene_df, pd.DataFrame(results, columns=['term', 'gene'])], axis=0)
+
+    # drop duplicates
+    term_gene_df.drop_duplicates(inplace=True)
+
+    return term_gene_df

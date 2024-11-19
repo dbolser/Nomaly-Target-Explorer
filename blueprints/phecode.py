@@ -6,7 +6,8 @@ import os
 import traceback
 
 from blueprints.gwas import variant_level_assoc, GWAS_PHENO_DIR
-from db import get_db_connection
+# from db import get_db_connection
+from db import get_term_domains, get_term_names, get_term_genes, get_phecode_info
 
 from blueprints.nomaly import nomaly_stats, make_qqplot
 import plotly.express as px
@@ -35,44 +36,7 @@ phecode_bp = Blueprint('phecode', __name__, template_folder='../templates')
 @phecode_bp.route('/phecode/<string:phecode>', methods=['GET'])
 def show_phecode(phecode):
 
-    conn = get_db_connection()
-    cur = conn.cursor()
-
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(
-        f"""
-        SELECT p.phecode, p.description, p.sex, p.phecode_group, p.phecode_exclude, p.affected, p.excluded, icd10.icd10, icd10.meaning, icd10.icd10_count
-        FROM phecode_definition p
-        JOIN icd10_phecode ip ON p.phecode = ip.phecode
-        JOIN icd10_coding icd10 ON ip.icd10 = icd10.icd10
-        WHERE p.phecode = '{phecode}';
-        """
-    )
-    results = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    # 4. Get the column names
-    columns = [desc[0] for desc in cur.description]
-
-    # 7. Convert the rows and columns into a Pandas DataFrame
-    filtered_df = pd.DataFrame(results, columns=columns)
-
-    # Add icd10_count to meaning
-    filtered_df['meaning'] = filtered_df['meaning'] + ' | ' + filtered_df['icd10_count'].astype(str)
-
-    # Group by 'description' and aggregate meanings into a list
-    grouped = filtered_df.groupby(['description', 'phecode', 'sex', 'affected', 'excluded', 'phecode_exclude', 'phecode_group'
-    ]).agg({
-        'meaning': lambda x: list(x)  # Group meanings into a list
-    }).reset_index()
-
-    # Convert results to a list of dictionaries
-    results = grouped.to_dict(orient='records')
-
-    # results only has one row
-    data = results[0]
+    data = get_phecode_info(phecode)
 
     # # Example data (replace with actual data retrieval logic)
     # data = {
@@ -83,84 +47,8 @@ def show_phecode(phecode):
     #     "phecode_exclude": "None",
     #     "phecode_group": "Cardiovascular"
     # }
+
     return render_template('phecode.html', data=data)
-
-def get_term_names(terms_list):
-    conn = get_db_connection()
-    cur = conn.cursor()
-
-    placeholders = ", ".join(f"'{x}'" for x in terms_list)
-    query = f"SELECT term, name FROM term_info WHERE term IN ({placeholders})"
-
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(query)
-    results = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    # turn into a dictionary
-    term_name_dict = {term: name for term, name in results}
-
-    return term_name_dict
-
-def get_term_domains(terms_list):
-    conn = get_db_connection()
-    cur = conn.cursor()
-
-    placeholders = ", ".join(f"'{x}'" for x in terms_list)
-    query = f"SELECT term, domain, domaintype FROM term_domain WHERE term IN ({placeholders})"
-
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(query)
-    results = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    # turn into a dictionary
-    term_domain_dict = {term: {'domain': domain, 'domaintype': domaintype} for term, domain, domaintype in results}
-
-    return term_domain_dict
-
-def get_term_genes(terms_list):
-    conn = get_db_connection()
-    cur = conn.cursor()
-
-    placeholders = ", ".join(f"'{x}'" for x in terms_list)
-
-    query = f"""
-    SELECT DISTINCT td.term, vc.gene
-    FROM term_domain td
-    JOIN variants_consequences vc ON td.domain = vc.sf
-    WHERE td.domaintype = 'sf' AND td.term IN ({placeholders})
-    """
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(query)
-    results = cur.fetchall()
-
-    # dataframe
-    term_gene_df = pd.DataFrame(results, columns=['term', 'gene'])
-    
-    query = f"""
-    SELECT DISTINCT td.term, vc.gene
-    FROM term_domain td
-    JOIN variants_consequences vc ON td.domain = vc.fa
-    WHERE td.domaintype = 'fa' AND td.term IN ({placeholders})
-    """
-    cur.execute(query)
-    results = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    # dataframe
-    term_gene_df = pd.concat([term_gene_df, pd.DataFrame(results, columns=['term', 'gene'])], axis=0)
-
-    # drop duplicates
-    term_gene_df.drop_duplicates(inplace=True)
-
-    return term_gene_df
 
 # ----------------------------------------------------- #
 # Nomaly Stats
@@ -224,7 +112,8 @@ def get_nomaly_stats(phecode):
     plot_df.drop(columns = columns_rank, inplace=True)
     plot_df.sort_values('minrank', inplace=True)
 
-    plot_df = plot_df.iloc[:50]
+    # limit to top 50
+    plot_df = plot_df.iloc[:100]
 
     # get term names
     term_name_dict = get_term_names(plot_df['term'].tolist())
@@ -239,33 +128,51 @@ def get_nomaly_stats(phecode):
     # filter gene by assoc var
     var_assoc_sig = read_gwas(phecode)
     genefilter = set([x['Gene'] for x in var_assoc_sig])
-    term_gene_df_sig = term_gene_df[term_gene_df['gene'].isin(genefilter)]
+    term_gene_df_sig = term_gene_df[term_gene_df['gene'].isin(genefilter)].rename(columns={'gene': 'sig gene'})
     # term_gene_df_other = term_gene_df[~term_gene_df['gene'].isin(genefilter)]
 
-    # group by term
-    term_gene_df_sig = term_gene_df_sig.groupby('term')['gene'].apply(
-        lambda x: ', '.join(x)
+    # group by term, no significance filter (to 
+    term_gene_df = term_gene_df.groupby('term')['gene'].apply(
+        lambda x: ', '.join(x) if len(x) < 5 else f"{len(x)} genes"
         ).reset_index()
-    term_gene_df_other = term_gene_df.groupby('term')['gene'].apply(
-        lambda x: ', '.join(x)
-        ).reset_index().set_index('term')
-    # fill term_gene_df_sig NA with term_gene_df_other 
-    term_gene_df_sig['gene'] = term_gene_df_sig['gene'].fillna(
-        term_gene_df_sig['term'].map(lambda x: f"None ({term_gene_df_other.loc[x, 'gene']})")
-    )
+    
+    # group by term, use sig filter, uncomment above)
+    term_gene_df_sig = term_gene_df_sig.groupby('term')['sig gene'].apply(
+        lambda x: ', '.join(x) if len(x) < 50 else f"{len(x)} genes"
+        ).reset_index()
+    
+    # # fill term_gene_df_sig NA with term_gene_df_other 
+    # term_gene_df_other = term_gene_df.groupby('term')['gene'].apply(
+    #     lambda x: ', '.join(x)
+    #     ).reset_index().set_index('term')
+    
+    # term_gene_df_sig['gene'] = term_gene_df_sig['gene'].fillna(
+    #     term_gene_df_sig['term'].map(lambda x: f"None ({term_gene_df_other.loc[x, 'gene']})")
+    # )
 
+    plot_df = plot_df.merge(term_gene_df, on='term', how='left')
     plot_df = plot_df.merge(term_gene_df_sig, on='term', how='left')
 
     # print(plot_df, flush=True)
 
+    # get term to domain mapping
+    term_domain_dict = get_term_domains(plot_df['term'].tolist())
+
+    plot_df['domain'] = plot_df['term'].map(
+        lambda x: ', '.join(term_domain_dict[x]) if len(term_domain_dict[x]) < 10 else [f"{len(term_domain_dict[x])} domains"]
+    )
+
     # Replace NaN values with None (valid JSON format)
     plot_df = plot_df.fillna('None')
+
+    # term to link
+    plot_df['term'] = plot_df['term'].map(lambda x: f'<a href="/phecode/{phecode}/term/{x}">{x}</a>')
 
     nomalyResults = {
         'qqplot': graph_html,
         'data': plot_df.to_dict(orient='records'),
-        'columns': ['minrank', 'term', 'name', 'gene'] + columns_pval,
-        'defaultColumns': ['minrank','name', 'gene'],
+        'columns': ['minrank', 'term', 'name', 'gene', 'sig gene', 'domain'] + columns_pval,
+        'defaultColumns': ['minrank','name', 'sig gene', 'domain'],
         #   + ['mwu_pvalue', 'metric1_pvalue', 'yjs_pvalue','mcc_pvalue'],
         'numColumns': columns_pval,
     }
@@ -318,7 +225,7 @@ def run_gwas_if_not_done(phecode):
     assoc = assoc.dropna()
 
     assoc_sig = assoc[assoc['P']<0.05]
-    result = f"GWAS identified {assoc_sig.shape[0]} variants in {assoc_sig['gene_id'].nunique()} unique genes has association p<0.05."
+    result = f"GWAS identified {assoc_sig.shape[0]} missense variants in {assoc_sig['gene_id'].nunique()} unique genes has association p<0.05."
     
     # Store the result in the task_results dictionary
     task_results[phecode] = result    
@@ -342,7 +249,7 @@ def read_gwas(phecode):
     # assoc columns are:  Index(['nomaly_variant', 'gene_id', 'RSID', 'CHR_BP_A1_A2', 'F_A', 'F_U', 'OR', 'P'], dtype='object')
     # rename columns DataFrame
     assoc = assoc.rename(columns={
-        'nomaly_variant': 'Variant',
+        'CHR_BP_A1_A2': 'Variant',
         'gene_id': 'Gene',
         # 'RSID': 'RSID',
         # 'F_A': 'F_A',
@@ -354,7 +261,13 @@ def read_gwas(phecode):
     columns_to_keep = ['Variant', 'Gene', 'P', 'OR', 'F_A', 'F_U', 'RSID']
     assoc = assoc[columns_to_keep]
 
+    # Only show significant associations
     assoc_sig = assoc[assoc['P']<0.05]
+
+    # change RSID to link
+    assoc_sig['RSID'] = assoc_sig['RSID'].map(lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/{x}">v</a>')
+    # assoc_sig['Variant'] = assoc_sig['Variant'].map(lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/?term={x.split('_')[0]}">{x}</a>')
+    # assoc_sig['Variant'] = assoc_sig['Variant'] + assoc_sig['RSID']
 
     return assoc_sig.to_dict(orient='records')
 
