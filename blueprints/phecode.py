@@ -77,15 +77,16 @@ def get_nomaly_stats(phecode):
     # ['mwu_pvalue', 'mcc_pvalue', 'metric1_pvalue', 'yjs_pvalue', 'lrp_pvalue', 'lrn_protective_pvalue']
 
     # get columns with pvalues
-    pval_nondirect = ['mwu_pvalue', 'mcc_pvalue']
-    pval_pos = ['metric1_pvalue', 'yjs_pvalue', 'lrp_pvalue']
+    pval_nondirect = ['mwu_pvalue', 'mcc_pvalue', 'yjs_pvalue', 'lrp_pvalue']
+    pval_pos = ['metric1_pvalue']
     pval_neg = ['lrn_protective_pvalue']
     columns_pval = pval_nondirect + pval_pos + pval_neg
 
     plot_df = diseasestats[columns_pval]
     plot_df['term'] = plot_df.index
 
-    # print(columns_pval, flush=True)
+    # set metric1_pvalue to na if it is 1
+    plot_df['metric1_pvalue'] = plot_df['metric1_pvalue'].map(lambda x: pd.NA if x == 1 else x)
 
     # Generate an interactive plot using Plotly
     fig = make_qqplot(plot_df)
@@ -97,10 +98,16 @@ def get_nomaly_stats(phecode):
     # Plot done, dataTable now
     # ----------------------------------------------------- #
 
-    TERM_THRESHOLD = 0.001
+    TERM_THRESHOLD = 0.000001
+    # set metric1 threshold by total number of terms non-zero
+    total_metric1 = sum(plot_df['metric1_pvalue']<1)
+    TERM_THRESHOLD_metric1 = 1/total_metric1
 
-    # speed up by requiring at least one pvalue<0.05
-    plot_df = plot_df[(plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1)]
+    # speed up by requiring at least one pvalue< threshold or metric1 < threshold
+    plot_df = plot_df[
+        (plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1) | (plot_df['metric1_pvalue'] < TERM_THRESHOLD_metric1)
+    ]
+    # plot_df = plot_df[(plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1)]
 
     # add minimum rank from any of the pvalues
     columns_rank =[]
@@ -113,7 +120,7 @@ def get_nomaly_stats(phecode):
     plot_df.sort_values('minrank', inplace=True)
 
     # limit to top 50
-    plot_df = plot_df.iloc[:100]
+    plot_df = plot_df.iloc[:50]
 
     # get term names
     term_name_dict = get_term_names(plot_df['term'].tolist())
