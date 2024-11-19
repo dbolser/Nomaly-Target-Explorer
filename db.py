@@ -161,3 +161,51 @@ def get_term_genes(terms_list):
     term_gene_df.drop_duplicates(inplace=True)
 
     return term_gene_df
+
+def get_term_domain_genes_variant(term):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # vc.aa, vc.hmm, vc.hmm_pos, vc.sf, vc.fa
+    query = f"""
+    SELECT DISTINCT vc.variant_id, vc.gene
+    FROM terms2snps ts
+    JOIN variants_consequences vc ON ts.variant_id = vc.variant_id
+    WHERE ts.term = '{term}'
+    """
+    # filter the phecodes and the ICD10 table based on the query
+    cur.execute(query)
+    results = cur.fetchall()
+
+    columns = [desc[0] for desc in cur.description]
+
+    cur.close()
+
+    # dataframe
+    term_df = pd.DataFrame(results, columns=columns)
+
+    return term_df
+
+def get_term_domain_genes(term):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # vc.aa, vc.hmm, vc.hmm_pos, vc.sf, vc.fa
+    query = f"""
+    SELECT DISTINCT vc.gene
+    FROM terms2snps ts
+    JOIN variants_consequences vc ON ts.variant_id = vc.variant_id
+    WHERE ts.term = '{term}'
+    """
+    # filter the phecodes and the ICD10 table based on the query
+    cur.execute(query)
+    results = cur.fetchall()
+
+    columns = [desc[0] for desc in cur.description]
+
+    cur.close()
+
+    # dataframe
+    term_df = pd.DataFrame(results, columns=columns)
+
+    return term_df

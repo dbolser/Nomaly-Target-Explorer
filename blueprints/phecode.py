@@ -1,6 +1,5 @@
-from flask import Blueprint, render_template, request, jsonify, session
+from flask import Blueprint, render_template, jsonify
 import threading
-import time
 import pandas as pd
 import os
 import traceback
@@ -18,12 +17,6 @@ import plotly.io as pio
 # global variables
 # ----------------------------------------------------- #
 # GWAS_PHENO_DIR = '/data/clu/ukbb/by_pheno/'
-
-# # load ontology_info.tsv
-# ontology_info = pd.read_csv('/home/snow/datadir/1.3/GRCh38/ontology_info.tsv', sep='\t')
-# # keep columns 0, 2
-# ontology_info = ontology_info.iloc[:, [0, 2]]
-# ontology_info.columns = ['term', 'name']
 
 # ----------------------------------------------------- #
 # Phecode Blueprint
@@ -54,27 +47,27 @@ def show_phecode(phecode):
 # Nomaly Stats
 # ----------------------------------------------------- #
 @phecode_bp.route('/nomaly-stats/<string:phecode>', methods=['POST'])
-def get_nomaly_stats(phecode):
-    # Get the Nomaly stats for the Phecode
+def get_nomaly_stats(phecode):    
+    # ----------------------------------------------------- #
+    # get the stats for the phecode
+    # ----------------------------------------------------- #
     # rows: term, columns: phecode, 3rd dim: statstype
     # num_rp num_rn mwu_pvalue tti_pvalue metric1_pvalue roc_stats_mcc_value roc_stats_mcc_pvalue roc_stats_yjs_value roc_stats_yjs_pvalue roc_stats_lrp_value roc_stats_lrp_pvalue roc_stats_lrp_protective_value roc_stats_lrp_protective_pvalue roc_stats_lrn_value roc_stats_lrn_pvalue roc_stats_lrn_protective_value roc_stats_lrn_protective_pvalue
-    
-    # ----------------------------------------------------- #
-    # qq plot
-    # ----------------------------------------------------- #
+
     try:
         diseasestats = nomaly_stats.get_stats_by_disease(phecode)
     except:
         return jsonify({"error": f"Failed to get Nomaly stats for Phecode {phecode}, ask admin to check logs."})
     # rename colums
     for col in diseasestats.columns:
-        if '_p_value' in col:
-            diseasestats = diseasestats.rename(columns={col: col.replace('_p_value', '_pvalue')})
-            col = col.replace('_p_value', '_pvalue')
         if col.startswith('roc_stats_'):
             diseasestats = diseasestats.rename(columns={col: col.replace('roc_stats_', '')})
 
     # ['mwu_pvalue', 'mcc_pvalue', 'metric1_pvalue', 'yjs_pvalue', 'lrp_pvalue', 'lrn_protective_pvalue']
+    print(diseasestats.columns, flush=True)
+    # ----------------------------------------------------- #
+    # select qqplot columns
+    # ----------------------------------------------------- #
 
     # get columns with pvalues
     pval_nondirect = ['mwu_pvalue', 'mcc_pvalue', 'yjs_pvalue', 'lrp_pvalue']
@@ -86,7 +79,7 @@ def get_nomaly_stats(phecode):
     plot_df['term'] = plot_df.index
 
     # set metric1_pvalue to na if it is 1
-    plot_df['metric1_pvalue'] = plot_df['metric1_pvalue'].map(lambda x: pd.NA if x == 1 else x)
+    plot_df.loc[:, 'metric1_pvalue'] = plot_df['metric1_pvalue'].map(lambda x: None if x == 1 else x)
 
     # Generate an interactive plot using Plotly
     fig = make_qqplot(plot_df)
