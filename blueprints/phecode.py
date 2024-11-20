@@ -96,12 +96,16 @@ def get_nomaly_stats(phecode):
     total_metric1 = sum(plot_df['metric1_pvalue']<1)
     TERM_THRESHOLD_metric1 = 1/total_metric1
 
-    # speed up by requiring at least one pvalue< threshold or metric1 < threshold
-    plot_df = plot_df[
-        (plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1) | (plot_df['metric1_pvalue'] < TERM_THRESHOLD_metric1)
-    ]
-    # plot_df = plot_df[(plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1)]
+    number_passed_the_stage = sum((plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1) | (plot_df['metric1_pvalue'] < TERM_THRESHOLD_metric1))
 
+    if number_passed_the_stage > 0:
+        # speed up by requiring at least one pvalue< threshold or metric1 < threshold
+        plot_df = plot_df[
+            (plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1) | (plot_df['metric1_pvalue'] < TERM_THRESHOLD_metric1)
+        ]
+    else:
+        plot_df = plot_df.iloc[:50]
+    
     # add minimum rank from any of the pvalues
     columns_rank =[]
     for col in pval_nondirect + pval_pos:
@@ -172,7 +176,7 @@ def get_nomaly_stats(phecode):
         'qqplot': graph_html,
         'data': plot_df.to_dict(orient='records'),
         'columns': ['minrank', 'term', 'name', 'gene', 'sig gene', 'domain'] + columns_pval,
-        'defaultColumns': ['minrank','name', 'sig gene', 'domain'],
+        'defaultColumns': ['minrank','term','name', 'sig gene', 'domain'],
         #   + ['mwu_pvalue', 'metric1_pvalue', 'yjs_pvalue','mcc_pvalue'],
         'numColumns': columns_pval,
     }
