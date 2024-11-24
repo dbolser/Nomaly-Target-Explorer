@@ -15,10 +15,6 @@ pharos = pd.read_csv(pharos_path, sep="\t", encoding='ISO-8859-1').rename(column
 pp = pd.read_csv(pp_path, sep="\t", index_col=0).rename(columns={'Description': 'drug_program_indication'})
 pp['gene'] = pp.index
 
-NOMALY_RESULTS_DIR = '/data/general/UKBB/Run-v1/DatabaseInputs/'
-nomaly_stats_h5 = NOMALY_RESULTS_DIR + 'stats.h5'
-nomaly_genotype_h5 = NOMALY_RESULTS_DIR + 'genotypes.h5'
-nomaly_scores_h5 = NOMALY_RESULTS_DIR + 'float16_scores.h5'
 # ------------------------------------------------------------------------------#
 # Nomaly stats pre-calculated
 # ------------------------------------------------------------------------------#
@@ -193,9 +189,23 @@ class ScoreHDF5:
 # ------------------------------------------------------------------------------#
 # Initiate classes
 # ------------------------------------------------------------------------------#
+NOMALY_RESULTS_DIR = '/data/general/UKBB/Run-v1/DatabaseInputs/'
+nomaly_stats_h5 = NOMALY_RESULTS_DIR + 'stats.h5'
+nomaly_genotype_h5 = NOMALY_RESULTS_DIR + 'genotypes.h5'
+nomaly_scores_h5 = NOMALY_RESULTS_DIR + 'float16_scores.h5'
+
 nomaly_stats = StatsHDF5(nomaly_stats_h5)
 nomaly_genotype = GenotypeHDF5(nomaly_genotype_h5)
 nomaly_scores = ScoreHDF5(nomaly_scores_h5)
+
+NOMALY_RESULTS_DIR_V2 = '/data/general/UKBB/Run-v2/DatabaseInputs/'
+nomaly_stats_h5_v2 = NOMALY_RESULTS_DIR_V2 + 'stats.h5'
+nomaly_genotype_h5_v2 = NOMALY_RESULTS_DIR_V2 + 'genotypes.h5'
+nomaly_scores_h5_v2 = NOMALY_RESULTS_DIR_V2 + 'float16_scores.h5'
+
+nomaly_stats_v2 = StatsHDF5(nomaly_stats_h5_v2)
+nomaly_genotype_v2 = GenotypeHDF5(nomaly_genotype_h5_v2)
+nomaly_scores_v2 = ScoreHDF5(nomaly_scores_h5_v2)
 
 icd10_cases = ICD10HDF5(icd10_cases_h5)
 # ------------------------------------------------------------------------------#

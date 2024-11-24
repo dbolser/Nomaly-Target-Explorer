@@ -10,7 +10,7 @@
     <!-- Navbar with tab links -->
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">SearchApp</a>
+            <a class="navbar-brand" href="#">NomalyApp</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -58,29 +58,31 @@
         </div>
         <!-- Section 1 -->
         <div class="mb-4">
-            <h3>Search Disease Keyword</h3>
+            <h3>Search in Run-v1</h3>
             <form method="GET" action="/search1">
                 <div class="input-group mb-3">
                     <!-- <input type="text" class="form-control" placeholder="Search here..." name="query1" required>
                     <button class="btn btn-primary" type="submit">Search</button> -->
                     
-                    <input type="text" id="search-box" class="form-control" placeholder="Type disease to search..." onkeyup="searchData()">
+                    <input type="text" id="search-box1" class="form-control" placeholder="Type disease to search..." onkeyup="searchData1()">
                 
                 </div>
-                <ul id="results-list" class="results"></ul>
+                <ul id="results-list1" class="results"></ul>
             </form>
         </div>
 
         <!-- Section 2 -->
-        <!-- <div class="mb-4">
-            <h3>Search by Gene</h3>
+        <div class="mb-4">
+            <h3>Search in Run-v2</h3>
             <form method="GET" action="/search2">
                 <div class="input-group mb-3">
-                    <input type="text" class="form-control" placeholder="Search here..." name="query2" required>
-                    <button class="btn btn-primary" type="submit">Search</button>
+
+                    <input type="text" id="search-box2" class="form-control" placeholder="Type disease to search..." onkeyup="searchData2()">
+
                 </div>
+                <ul id="results-list2" class="results"></ul>
             </form>
-        </div> -->
+        </div>
 
         <!-- Section 3 -->
         <!-- <div class="mb-4">
@@ -99,9 +101,9 @@
     <!-- Customized scripts -->
     <script>
         // Function to search data via server-side API call
-        async function searchData() {
-            const query1 = document.getElementById('search-box').value.toLowerCase();
-            const resultsList = document.getElementById('results-list');
+        async function searchData1() {
+            const query1 = document.getElementById('search-box1').value.toLowerCase();
+            const resultsList = document.getElementById('results-list1');
             
             if (query1.length < 4) {
                 resultsList.innerHTML = '';  // Clear the results if less than 5 characters
@@ -130,6 +132,53 @@
                         
                         <p class="p-2 bg-light rounded">
                             <span><a href="/phecode/${item.phecode}" target="_blank">Phecode: ${item.phecode}</a></span> |
+                            <span>Sex: ${item.sex}</span> |
+                            <span>Affected: <strong>${item.affected}</strong></span> |
+                            <span>Excluded: ${item.excluded} (${item.phecode_exclude})</span> |
+                            <span>Disease: ${item.phecode_group}</span>
+                        <ul class="meaning-list">
+                            ${item.meaning.map(meaning => `<li>${meaning}</li>`).join('')}
+                        </ul>
+                        </p>
+                        
+                    `;
+                    resultsList.appendChild(listItem);
+                });
+            }
+        }
+
+        // Function to search data via server-side API call
+        async function searchData2() {
+            const query2 = document.getElementById('search-box2').value.toLowerCase();
+            const resultsList = document.getElementById('results-list2');
+            
+            if (query2.length < 4) {
+                resultsList.innerHTML = '';  // Clear the results if less than 5 characters
+                return;
+            }
+
+            const response = await fetch(`/diseasesearch?query=${query2}`);
+
+            const data = await response.json();
+
+            resultsList.innerHTML = '';
+            if (data.length === 0) {
+                const noResultItem = document.createElement('li');
+                noResultItem.className = 'result-item';
+                noResultItem.textContent = 'No results found.';
+                resultsList.appendChild(noResultItem);
+            } else {
+                data.forEach(item => {
+                    const listItem = document.createElement('li');
+                    listItem.className = 'result-item';
+
+                    // Render the search results with a clickable phecode link
+                    // Oneliner:<p>Phecode: <a href="/plot/${item.phecode}" target="_blank">${item.phecode}</a> | Sex: ${item.sex} | Affected: ${item.affected} | Excluded: ${item.excluded} (${item.phecode_exclude}) | Disease: ${item.phecode_group} </p>
+                    listItem.innerHTML = `
+                        <h3>${item.description}</h3>
+                        
+                        <p class="p-2 bg-light rounded">
+                            <span><a href="/phecode2/${item.phecode}" target="_blank">Phecode: ${item.phecode}</a></span> |
                             <span>Sex: ${item.sex}</span> |
                             <span>Affected: <strong>${item.affected}</strong></span> |
                             <span>Excluded: ${item.excluded} (${item.phecode_exclude})</span> |

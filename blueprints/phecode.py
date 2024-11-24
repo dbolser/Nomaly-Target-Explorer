@@ -9,6 +9,7 @@ from blueprints.gwas import variant_level_assoc, GWAS_PHENO_DIR
 from db import get_term_domains, get_term_names, get_term_genes, get_phecode_info
 
 from blueprints.nomaly import nomaly_stats, make_qqplot
+from blueprints.nomaly import nomaly_stats_v2
 import plotly.express as px
 import plotly.io as pio
 
@@ -43,14 +44,16 @@ def show_phecode(phecode):
 
     return render_template('phecode.html', data=data)
 
+@phecode_bp.route('/phecode2/<string:phecode>', methods=['GET'])
+def show_phecode2(phecode):
+    data = get_phecode_info(phecode)
+    return render_template('phecode2.html', data=data)
+
 # ----------------------------------------------------- #
 # Nomaly Stats
 # ----------------------------------------------------- #
-@phecode_bp.route('/nomaly-stats/<string:phecode>', methods=['POST'])
-def get_nomaly_stats(phecode):    
-    # ----------------------------------------------------- #
-    # get the stats for the phecode
-    # ----------------------------------------------------- #
+
+def read_disease_stats_from_nomaly_statsHDF5(nomaly_stats, phecode):
     # rows: term, columns: phecode, 3rd dim: statstype
     # num_rp num_rn mwu_pvalue tti_pvalue metric1_pvalue roc_stats_mcc_value roc_stats_mcc_pvalue roc_stats_yjs_value roc_stats_yjs_pvalue roc_stats_lrp_value roc_stats_lrp_pvalue roc_stats_lrp_protective_value roc_stats_lrp_protective_pvalue roc_stats_lrn_value roc_stats_lrn_pvalue roc_stats_lrn_protective_value roc_stats_lrn_protective_pvalue
 
@@ -62,36 +65,45 @@ def get_nomaly_stats(phecode):
     for col in diseasestats.columns:
         if col.startswith('roc_stats_'):
             diseasestats = diseasestats.rename(columns={col: col.replace('roc_stats_', '')})
-
     # ['mwu_pvalue', 'mcc_pvalue', 'metric1_pvalue', 'yjs_pvalue', 'lrp_pvalue', 'lrn_protective_pvalue']
-    print(diseasestats.columns, flush=True)
-    # ----------------------------------------------------- #
-    # select qqplot columns
-    # ----------------------------------------------------- #
+    # print(diseasestats.columns, flush=True)
 
-    # get columns with pvalues
+    # select columns with pvalues
     pval_nondirect = ['mwu_pvalue', 'mcc_pvalue', 'yjs_pvalue', 'lrp_pvalue']
     pval_pos = ['metric1_pvalue']
     pval_neg = ['lrn_protective_pvalue']
     columns_pval = pval_nondirect + pval_pos + pval_neg
 
-    plot_df = diseasestats[columns_pval]
-    plot_df['term'] = plot_df.index
+    plot_df_pval = diseasestats[columns_pval]
+    plot_df_pval['term'] = plot_df_pval.index
 
     # set metric1_pvalue to na if it is 1
-    plot_df.loc[:, 'metric1_pvalue'] = plot_df['metric1_pvalue'].map(lambda x: None if x == 1 else x)
+    plot_df_pval.loc[:, 'metric1_pvalue'] = plot_df_pval['metric1_pvalue'].map(lambda x: None if x == 1 else x)
 
+    return diseasestats, plot_df_pval
+
+def make_qqplot_html(plot_df_pval):
+
+    # ----------------------------------------------------- #
+    # select qqplot columns
+    # ----------------------------------------------------- #
+    
     # Generate an interactive plot using Plotly
-    fig = make_qqplot(plot_df)
+    fig = make_qqplot(plot_df_pval)
 
     # Convert the plot to HTML
     graph_html = pio.to_html(fig, full_html=False)
 
-    # ----------------------------------------------------- #
-    # Plot done, dataTable now
-    # ----------------------------------------------------- #
+    return graph_html
 
+def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
     TERM_THRESHOLD = 0.000001
+
+    pval_nondirect = ['mwu_pvalue', 'mcc_pvalue', 'yjs_pvalue', 'lrp_pvalue']
+    pval_pos = ['metric1_pvalue']
+    pval_neg = ['lrn_protective_pvalue']
+    columns_pval = pval_nondirect + pval_pos + pval_neg
+
     # set metric1 threshold by total number of terms non-zero
     total_metric1 = sum(plot_df['metric1_pvalue']<1)
     TERM_THRESHOLD_metric1 = 1/total_metric1
@@ -124,7 +136,23 @@ def get_nomaly_stats(phecode):
 
     plot_df['name'] = plot_df['term'].map(lambda x: term_name_dict.get(x, '-'))
 
-    # get term to gene mapping
+    # get term to domain mapping
+    term_domain_dict = get_term_domains(plot_df['term'].tolist())
+
+    plot_df['domain'] = plot_df['term'].map(
+        lambda x: ', '.join(term_domain_dict[x]) if len(term_domain_dict[x]) < 10 else [f"{len(term_domain_dict[x])} domains"]
+    )
+
+    if addgene:
+        plot_df = add_gene_info_to_DataTable(plot_df, phecode)
+
+    # Replace NaN values with None (valid JSON format)
+    plot_df = plot_df.fillna('None')
+
+    return plot_df
+
+def add_gene_info_to_DataTable(plot_df, phecode):
+        # get term to gene mapping
     print('getting term to gene mapping', flush=True)
     term_gene_df = get_term_genes(plot_df['term'].tolist())
     print('got term to gene mapping', flush=True)
@@ -159,24 +187,72 @@ def get_nomaly_stats(phecode):
 
     # print(plot_df, flush=True)
 
-    # get term to domain mapping
-    term_domain_dict = get_term_domains(plot_df['term'].tolist())
+    return plot_df
 
-    plot_df['domain'] = plot_df['term'].map(
-        lambda x: ', '.join(term_domain_dict[x]) if len(term_domain_dict[x]) < 10 else [f"{len(term_domain_dict[x])} domains"]
-    )
+@phecode_bp.route('/nomaly-stats/<string:phecode>', methods=['POST'])
+def get_nomaly_stats(phecode):    
+    # ----------------------------------------------------- #
+    # get the stats for the phecode
+    # ----------------------------------------------------- #
+    diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(nomaly_stats, phecode)
 
-    # Replace NaN values with None (valid JSON format)
-    plot_df = plot_df.fillna('None')
+    # ----------------------------------------------------- #
+    #  qqplot 
+    # ----------------------------------------------------- #
+
+    graph_html = make_qqplot_html(plot_df)
+
+    # ----------------------------------------------------- #
+    # Plot done, dataTable now
+    # ----------------------------------------------------- #
+
+    plot_df = show_datatable_nomaly_stats(plot_df, phecode)
 
     # term to link
     plot_df['term'] = plot_df['term'].map(lambda x: f'<a href="/phecode/{phecode}/term/{x}">{x}</a>')
 
+    # select columns with pvalues
+    pval_nondirect = ['mwu_pvalue', 'mcc_pvalue', 'yjs_pvalue', 'lrp_pvalue']
+    pval_pos = ['metric1_pvalue']
+    pval_neg = ['lrn_protective_pvalue']
+    columns_pval = pval_nondirect + pval_pos + pval_neg
+
+
+    # if adding gene: add 'gene', 'sig gene',
     nomalyResults = {
         'qqplot': graph_html,
         'data': plot_df.to_dict(orient='records'),
-        'columns': ['minrank', 'term', 'name', 'gene', 'sig gene', 'domain'] + columns_pval,
-        'defaultColumns': ['minrank','term','name', 'sig gene', 'domain'],
+        'columns': ['minrank', 'term', 'name', 'domain'] + columns_pval,
+        'defaultColumns': ['minrank','term','name', 'domain'],
+        'numColumns': columns_pval,
+    }
+    return nomalyResults
+
+@phecode_bp.route('/nomaly-stats2/<string:phecode>', methods=['POST'])
+def get_nomaly_stats2(phecode):
+    diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(nomaly_stats_v2, phecode)
+    graph_html = make_qqplot_html(plot_df)
+
+    # ----------------------------------------------------- #
+    # Plot done, dataTable now
+    # ----------------------------------------------------- #
+
+    plot_df = show_datatable_nomaly_stats(plot_df, phecode)
+
+    # term to link
+    plot_df['term'] = plot_df['term'].map(lambda x: f'<a href="/phecode2/{phecode}/term/{x}">{x}</a>')
+
+    # select columns with pvalues
+    pval_nondirect = ['mwu_pvalue', 'mcc_pvalue', 'yjs_pvalue', 'lrp_pvalue']
+    pval_pos = ['metric1_pvalue']
+    pval_neg = ['lrn_protective_pvalue']
+    columns_pval = pval_nondirect + pval_pos + pval_neg
+
+    nomalyResults = {
+        'qqplot': graph_html,
+        'data': plot_df.to_dict(orient='records'),
+        'columns': ['minrank', 'term', 'name', 'domain'] + columns_pval,
+        'defaultColumns': ['minrank','term','name', 'domain'],
         #   + ['mwu_pvalue', 'metric1_pvalue', 'yjs_pvalue','mcc_pvalue'],
         'numColumns': columns_pval,
     }
