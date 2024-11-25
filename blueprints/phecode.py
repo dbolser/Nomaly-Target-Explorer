@@ -104,19 +104,19 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
     pval_neg = ['lrn_protective_pvalue']
     columns_pval = pval_nondirect + pval_pos + pval_neg
 
-    # set metric1 threshold by total number of terms non-zero
-    total_metric1 = sum(plot_df['metric1_pvalue']<1)
-    TERM_THRESHOLD_metric1 = 1/total_metric1
+    # # set metric1 threshold by total number of terms non-zero
+    # total_metric1 = sum(plot_df['metric1_pvalue']<1)
+    # TERM_THRESHOLD_metric1 = 1/total_metric1
 
-    number_passed_the_stage = sum((plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1) | (plot_df['metric1_pvalue'] < TERM_THRESHOLD_metric1))
+    # number_passed_the_stage = sum((plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1) | (plot_df['metric1_pvalue'] < TERM_THRESHOLD_metric1))
 
-    if number_passed_the_stage > 0:
-        # speed up by requiring at least one pvalue< threshold or metric1 < threshold
-        plot_df = plot_df[
-            (plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1) | (plot_df['metric1_pvalue'] < TERM_THRESHOLD_metric1)
-        ]
-    else:
-        plot_df = plot_df.iloc[:50]
+    # if number_passed_the_stage > 0:
+    #     # speed up by requiring at least one pvalue< threshold or metric1 < threshold
+    #     plot_df = plot_df[
+    #         (plot_df[pval_nondirect + pval_pos + pval_neg] < TERM_THRESHOLD).any(axis=1) | (plot_df['metric1_pvalue'] < TERM_THRESHOLD_metric1)
+    #     ]
+    # else:
+    #     plot_df = plot_df.iloc[:10]
     
     # add minimum rank from any of the pvalues
     columns_rank =[]
@@ -129,7 +129,7 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
     plot_df.sort_values('minrank', inplace=True)
 
     # limit to top 50
-    plot_df = plot_df.iloc[:50]
+    plot_df = plot_df.iloc[:1000]
 
     # get term names
     term_name_dict = get_term_names(plot_df['term'].tolist())
@@ -345,7 +345,7 @@ def read_gwas(phecode):
     assoc_sig = assoc[assoc['P']<0.05]
 
     # change RSID to link
-    assoc_sig['RSID'] = assoc_sig['RSID'].map(lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/{x}">v</a>')
+    assoc_sig['RSID'] = assoc_sig['RSID'].map(lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/{x}">{x}</a>')
     # assoc_sig['Variant'] = assoc_sig['Variant'].map(lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/?term={x.split('_')[0]}">{x}</a>')
     # assoc_sig['Variant'] = assoc_sig['Variant'] + assoc_sig['RSID']
 
