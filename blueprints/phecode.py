@@ -31,6 +31,7 @@ phecode_bp = Blueprint('phecode', __name__, template_folder='../templates')
 def show_phecode(phecode):
 
     data = get_phecode_info(phecode)
+    data['runbatch'] = "Run v1"
 
     # # Example data (replace with actual data retrieval logic)
     # data = {
@@ -47,7 +48,8 @@ def show_phecode(phecode):
 @phecode_bp.route('/phecode2/<string:phecode>', methods=['GET'])
 def show_phecode2(phecode):
     data = get_phecode_info(phecode)
-    return render_template('phecode2.html', data=data)
+    data['runbatch'] = "Run v2"
+    return render_template('phecode.html', data=data)
 
 # ----------------------------------------------------- #
 # Nomaly Stats

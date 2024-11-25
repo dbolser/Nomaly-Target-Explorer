@@ -32,7 +32,7 @@
                         
         <div id="phecodeDetails" class="mb-4">
             <p class="p-2 bg-light rounded">
-                <span><a href="/phecode/{{ data.phecode }}" target="_blank">Phecode: {{ data.phecode }}</a></span> |
+                <span>Phecode: {{ data.phecode }} ({{data.runbatch}})</span> |
                 <span>Sex: {{ data.sex }}</span> |
                 <span>Affected: <strong>{{ data.affected }}</strong></span> |
                 <span>Excluded: {{ data.excluded }} ({{ data.phecode_exclude }})</span> |
@@ -46,18 +46,17 @@
         </div>
 
         <!-- Nomaly result display -->
+        <h3> Prioritised terms </h3>
 
-        <button id="nomalyButton" class="btn btn-success mb-3">Load Nomaly</button>
+        <!-- <button id="nomalyButton" class="btn btn-success mb-3">Load Nomaly</button> -->
 
         <div id="NomalyResultContainer" style="display: none;">
             <div id="nomalyResult" class="mt-3"></div>
 
-            <iframe id="plotIframe" style="width: 50%; height: 450px; border: none;"></iframe>
-            <!-- Div for Plotly Graph -->
-            <!-- <div id="plotContainer" class="mb-4"></div> -->
+            <!-- Div for QQplot -->
+            <iframe id="plotIframe" style="width: 80%; height: 450px; border: none;"></iframe>
 
             <!-- Div for DataTable -->
-            <p>List genes if < 5 in total, sig genes (Pval < 0.05) if < 50, list domains if < 10.</p>
             <style>
                 #resultsTable {
                     font-size: 0.85rem;  /* Adjust the size as needed */
@@ -143,29 +142,49 @@
                 ]
             });
         }
-        // Event listener for the button click Nomaly detail
-        document.getElementById('nomalyButton').addEventListener('click', function() {
+        // Event listener for the button click Nomaly detail Uncomment below to use the button
+        // document.getElementById('nomalyButton').addEventListener('click', function() {
             const phecode = "{{ data.phecode }}";
+            const runbatch = "{{ data.runbatch }}";
             
             const resultDiv = document.getElementById('nomalyResult');
 
             // Send a POST request to get the Nomaly result
-            fetch(`/nomaly-stats/${phecode}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            }).then(response => response.json())
-            .then(resultData =>{
-                // Render Plotly graph
-                renderPlot(resultData.qqplot);
-                // resultDiv.innerHTML = `${resultData.statstype}`;
-                // Render DataTable
-                renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-            }).catch(error => {
-                resultDiv.innerHTML = `Error: ${error.message}`;
-            });
-        });
+            if (runbatch == "Run v1") {
+                fetch(`/nomaly-stats/${phecode}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }).then(response => response.json())
+                .then(resultData =>{
+                    // Render Plotly graph
+                    renderPlot(resultData.qqplot);
+                    // resultDiv.innerHTML = `${resultData.statstype}`;
+                    // Render DataTable
+                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+                }).catch(error => {
+                    resultDiv.innerHTML = `Error: ${error.message}`;
+                });
+            } else
+            if (runbatch == "Run v2") {
+                fetch(`/nomaly-stats2/${phecode}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }).then(response => response.json())
+                .then(resultData =>{
+                    // Render Plotly graph
+                    renderPlot(resultData.qqplot);
+                    // resultDiv.innerHTML = `${resultData.statstype}`;
+                    // Render DataTable
+                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+                }).catch(error => {
+                    resultDiv.innerHTML = `Error: ${error.message}`;
+                });
+            }
+        // });
 
         // Event listener for the button click GWAS task
         document.getElementById('runTaskButton').addEventListener('click', function() {
