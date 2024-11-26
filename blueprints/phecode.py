@@ -76,9 +76,8 @@ def read_disease_stats_from_nomaly_statsHDF5(nomaly_stats, phecode):
     pval_pos = ['metric1_pvalue']
     pval_neg = ['lrn_protective_pvalue']
     columns_pval = pval_nondirect + pval_pos + pval_neg
-
-    plot_df_pval = diseasestats[columns_pval]
-    plot_df_pval['term'] = plot_df_pval.index
+    plot_df_pval = diseasestats[columns_pval].copy()
+    plot_df_pval.loc[:, 'term'] = plot_df_pval.index
 
     # set metric1_pvalue to na if it is 1
     plot_df_pval.loc[:, 'metric1_pvalue'] = plot_df_pval['metric1_pvalue'].map(lambda x: None if x == 1 else x)
@@ -137,7 +136,7 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
     # get term names
     term_name_dict = get_term_names(plot_df['term'].tolist())
 
-    plot_df['name'] = plot_df['term'].map(lambda x: term_name_dict.get(x, '-'))
+    plot_df = plot_df.assign(name=plot_df['term'].map(lambda x: term_name_dict.get(x, '-')))
 
     # get term to domain mapping
     term_domain_dict = get_term_domains(plot_df['term'].tolist())
