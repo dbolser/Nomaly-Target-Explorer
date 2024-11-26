@@ -211,11 +211,23 @@
         $('#GWAStableContainer').show();
 
         // Initialize DataTable if not already initialized
-        if (!$.fn.dataTable.isDataTable('#variantTable')) {
+        if (!$.fn.DataTable.isDataTable('#variantTable')) {
             $('#variantTable').DataTable({
                 data: data,
                 columns: [
-                    { data: 'Variant' },
+                    {
+                        data: 'Variant',
+                        render: function (data, type, row) {
+                            if (type === 'display') {
+                                // Format variant string: "5:33951588_C/G" -> "5_33951588_C_G"
+                                const formattedVariant = data
+                                    .replace(':', '_')
+                                    .replace('/', '_');
+                                return `<a href="/variant/${formattedVariant}" target="_blank">${data}</a>`;
+                            }
+                            return data;
+                        }
+                    },
                     { data: 'Gene', searchable: true },
                     { data: 'RSID' },
                     { data: 'F_A' },

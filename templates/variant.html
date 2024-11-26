@@ -1,0 +1,66 @@
+{% extends "data_base.html" %}
+
+{% block title %}Variant: {{ data.variant_id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3>Variant Details</h3>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Basic Information</h5>
+            <p class="card-text">
+                <strong>Variant ID:</strong> {{ data.variant_id }}<br>
+                <strong>Chromosome:</strong> {{ data.chromosome }}<br>
+                <strong>Position:</strong> {{ data.position }}<br>
+                <strong>Alleles:</strong> {{ data.alleles }}
+            </p>
+        </div>
+    </div>
+
+    <!-- Associated Phenotypes Section -->
+    {% if data.phenotypes %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Associated Phenotypes</h5>
+            <div class="table-responsive">
+                <table id="phenotypesTable" class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Phecode</th>
+                            <th>Description</th>
+                            <th>P-value</th>
+                            <th>OR</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pheno in data.phenotypes %}
+                        <tr>
+                            <td><a href="/phecode/{{ pheno.phecode }}">{{ pheno.phecode }}</a></td>
+                            <td>{{ pheno.description }}</td>
+                            <td>{{ pheno.pvalue }}</td>
+                            <td>{{ pheno.odds_ratio }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+    $(document).ready(function () {
+        if ($('#phenotypesTable').length) {
+            $('#phenotypesTable').DataTable({
+                order: [[2, 'asc']], // Order by p-value
+                pageLength: 25
+            });
+        }
+    });
+</script>
+{% endblock %}
