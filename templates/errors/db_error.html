@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container mt-5">
+        <h1>Database Error</h1>
+        <p>There was a problem connecting to the database. Please try again later.</p>
+        <p><a href="{{ url_for('main.index') }}">Return to Home</a></p>
+    </div>
+{% endblock %} 
