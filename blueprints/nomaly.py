@@ -186,6 +186,30 @@ class ScoreHDF5:
         mask_column_indices = np.where(mask_column)[0][0]
         return self.data_matrix[:, mask_column_indices]
 
+
+class PhenotypesHDF5:
+    def __init__(self, hdf5_file = phenotypes_h5):
+        self.hdf5_file = hdf5_file
+        self.f = h5py.File(hdf5_file, 'r')
+
+        # Load the data matrix and index information
+        self.data_matrix = self.f['phenotype_data']
+        self.eids = self.f['eids'][...]  # Load row data
+        self.phecodes = self.f['phecodes'][...]  # Load column data
+        self.populations = self.f['populations'][...]  # Load population data
+
+    def get_cases_for_phecode(self, phecode, population = None) -> tuple[np.ndarray, np.ndarray]:
+        phecode_mask = self.phecodes.astype(str) == phecode
+        if not phecode_mask.any():
+            raise ValueError(f"Phecode {phecode} not found in the data matrix")
+        
+        if population is None:
+            return self.eids, self.data_matrix[:, phecode_mask].T[0]
+        else:
+            # Match both EUR and EUR_S populations using regex-style matching
+            population_mask = np.char.startswith(self.populations.astype(str), population)
+            return self.eids[population_mask], self.data_matrix[:, phecode_mask][population_mask].T[0]
+
 # ------------------------------------------------------------------------------#
 # Initiate classes
 # ------------------------------------------------------------------------------#
@@ -206,6 +230,9 @@ nomaly_scores_h5_v2 = NOMALY_RESULTS_DIR_V2 + 'float16_scores.h5'
 nomaly_stats_v2 = StatsHDF5(nomaly_stats_h5_v2)
 nomaly_genotype_v2 = GenotypeHDF5(nomaly_genotype_h5_v2)
 nomaly_scores_v2 = ScoreHDF5(nomaly_scores_h5_v2)
+
+# Don't think we need this?
+# nomaly_phenotypes = PhenotypesHDF5(phenotypes_h5)
 
 icd10_cases = ICD10HDF5(icd10_cases_h5)
 # ------------------------------------------------------------------------------#
