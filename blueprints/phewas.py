@@ -70,7 +70,7 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
 
     # Get genotype data
     genotype_eids = nomaly_genotype.individual
-    genotype_matrix = nomaly_genotype.query_variants(test_variant)
+    genotype_matrix = nomaly_genotype.query_variants(variant)
     
     # Convert eids to integers and create a mapping array
     eid_array = genotype_eids.astype(int)
@@ -79,7 +79,7 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
     all_phecodes = get_all_phecodes()
     phenotype_data = PhenotypesHDF5()
 
-    for phecode in tqdm(all_phecodes.phecode, desc=f"Counting cases for each PheCode for {test_variant}"):
+    for phecode in tqdm(all_phecodes.phecode, desc=f"Counting cases for each PheCode for {variant}"):
         # Get case data for current phecode
         try:    
             eids_eur, cases_eur = phenotype_data.get_cases_for_phecode(phecode, "EUR")
