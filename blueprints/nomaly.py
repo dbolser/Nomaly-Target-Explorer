@@ -7,6 +7,7 @@ import plotly.express as px
 
 UKBB_PHENO_DIR = '/data/general/UKBB/Phenotypes/'
 icd10_cases_h5 = UKBB_PHENO_DIR + 'ukbbrun_icd10_2024-09-07_any.h5'
+phenotypes_h5 = UKBB_PHENO_DIR + 'phecode_cases_excludes.h5'
 
 RESOURCE_DATA_DIR = '/data/general/Data/'
 pharos_path = RESOURCE_DATA_DIR + 'pharos_api_query.out'
@@ -21,45 +22,55 @@ pp['gene'] = pp.index
 
 class StatsHDF5:
     def __init__(self, hdf5_file):
-        self.hdf5_file = hdf5_file
-        self.f = h5py.File(hdf5_file, 'r')
+        try:
+            self.hdf5_file = hdf5_file
+            if not os.path.exists(hdf5_file):
+                raise FileNotFoundError(f"HDF5 file not found: {hdf5_file}")
+            self.f = h5py.File(hdf5_file, 'r')
 
-        # Load the data matrix and index information
-        self.data_matrix = self.f['data']
-        self.rows = self.f['rows_term'][...].astype(str)  # Load term data
-        self.columns = self.f['columns_phecode'][...].astype(str)  # Load phecode data
-        self.third_dim = self.f['3rddim_statstype'][...].astype(str)  # Load statstype data
+            # Load the data matrix and index information
+            self.data_matrix = self.f['data']
+            self.rows = self.f['rows_term'][...].astype(str)  # Load term data
+            self.columns = self.f['columns_phecode'][...].astype(str)  # Load phecode data
+            self.third_dim = self.f['3rddim_statstype'][...].astype(str)  # Load statstype data
 
-        # rename third_dim that ends with _p_value to _pvalue
-        self.third_dim = np.array([x.replace('_p_value', '_pvalue') for x in self.third_dim])
+            # rename third_dim that ends with _p_value to _pvalue
+            self.third_dim = np.array([x.replace('_p_value', '_pvalue') for x in self.third_dim])
+        except Exception as e:
+            current_app.logger.error(f'StatsHDF5 initialization error: {e}\n{traceback.format_exc()}')
+            raise
 
     def get_stats_by_disease(self, disease, statstype=None):
-        if disease not in self.columns:
-            disease = disease + '.0'
+        try:
             if disease not in self.columns:
-                raise ValueError(f"{disease} not found in the columns of the data matrix.")
+                disease = disease + '.0'
+                if disease not in self.columns:
+                    raise ValueError(f"Disease {disease} not found in dataset")
 
-        mask_column = self.columns == disease
-        mask_column_indices = np.where(mask_column)[0][0]
-        if statstype is None:
-            # if statstype is not specified, return all statstypes for the disease
-            disease_data = self.data_matrix[:, mask_column_indices, :]
-            disease_DF = pd.DataFrame(
-                disease_data, index=self.rows.astype(str), columns=self.third_dim
-            )
-            return disease_DF
-        elif isinstance(statstype, str) and statstype in self.third_dim:
-            # if statstype is specified, return the data for the statstype
-            mask_3rd_dim = self.third_dim == statstype
-            mask_3rd_dim_indices = np.where(mask_3rd_dim)[0][0]
-            return self.data_matrix[:,mask_column_indices, mask_3rd_dim_indices]
-        elif isinstance(statstype, list):
-            # if statstype is a list of strings, return the data for the statstypes
-            mask_3rd_dim = np.isin(self.third_dim, statstype)
-            mask_3rd_dim_indices = np.where(mask_3rd_dim)[0]
-            return self.data_matrix[:,mask_column_indices, mask_3rd_dim_indices]
-        else:
-            raise ValueError(f"statstype must be a string or a list of strings. statstype: {statstype}")
+            mask_column = self.columns == disease
+            mask_column_indices = np.where(mask_column)[0][0]
+            if statstype is None:
+                # if statstype is not specified, return all statstypes for the disease
+                disease_data = self.data_matrix[:, mask_column_indices, :]
+                disease_DF = pd.DataFrame(
+                    disease_data, index=self.rows.astype(str), columns=self.third_dim
+                )
+                return disease_DF
+            elif isinstance(statstype, str) and statstype in self.third_dim:
+                # if statstype is specified, return the data for the statstype
+                mask_3rd_dim = self.third_dim == statstype
+                mask_3rd_dim_indices = np.where(mask_3rd_dim)[0][0]
+                return self.data_matrix[:,mask_column_indices, mask_3rd_dim_indices]
+            elif isinstance(statstype, list):
+                # if statstype is a list of strings, return the data for the statstypes
+                mask_3rd_dim = np.isin(self.third_dim, statstype)
+                mask_3rd_dim_indices = np.where(mask_3rd_dim)[0]
+                return self.data_matrix[:,mask_column_indices, mask_3rd_dim_indices]
+            else:
+                raise ValueError(f"statstype must be a string or a list of strings. statstype: {statstype}")
+        except Exception as e:
+            current_app.logger.error(f'Error getting stats for disease {disease}: {e}')
+            raise
     
     def get_stats_by_term_disease(self, term, disease):
         if disease not in self.columns:
