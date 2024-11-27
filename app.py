@@ -100,9 +100,6 @@ def search1():
 
 # register variant blueprint: /variant/<string:variant>
 app.register_blueprint(variant_bp)
-@app.route('/variant/<string:variant>', methods=['GET'])
-def show_variant(variant):
-    return render_template('variant.html', variant=variant)
 
 
 # Run app
