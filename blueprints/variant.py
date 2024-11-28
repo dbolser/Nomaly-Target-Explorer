@@ -151,8 +151,8 @@ def run_phewas_if_not_done(variant):
     # ----------------------------------------------------- #
     if assoc is None:
 
-    assoc_sig = assoc[assoc['P']<0.05]
-    result = f"PheWAS identified {assoc_sig.shape[0]} phecodes has association p<0.05."
+        assoc_sig = assoc[assoc['P']<0.05]
+        result = f"PheWAS identified {assoc_sig.shape[0]} phecodes has association p<0.05."
 
     # Store the result in the task_results dictionary
     phewas_results[variant] = result    
