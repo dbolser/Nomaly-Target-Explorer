@@ -19,10 +19,11 @@ import re
 # ----------------------------------------------------- #
 
 # Create the blueprint
-variant_bp = Blueprint('variant', __name__, template_folder='../templates')
+variant_bp = Blueprint("variant", __name__, template_folder="../templates")
+
 
 # Route to render the Variant page
-@variant_bp.route('/variant/<string:variant>', methods=['POST', 'GET'])
+@variant_bp.route("/variant/<string:variant>", methods=["POST", "GET"])
 def show_variant(variant):
     try:
         # Parse variant information regardless of format
@@ -70,44 +71,50 @@ def show_variant(variant):
     # ----------------------------------------------------- #
     # GenotypeHDF5, ICD10HDF5 and phecodeHDF5 are needed
 
+
 def add_gene_info_to_DataTable(plot_df, variant):
-        # get term to gene mapping
-    print('getting term to gene mapping', flush=True)
-    term_gene_df = get_term_genes(plot_df['term'].tolist())
-    print('got term to gene mapping', flush=True)
+    # get term to gene mapping
+    print("getting term to gene mapping", flush=True)
+    term_gene_df = get_term_genes(plot_df["term"].tolist())
+    print("got term to gene mapping", flush=True)
 
     # filter gene by assoc var
     var_assoc_sig = read_gwas(phecode)
-    genefilter = set([x['Gene'] for x in var_assoc_sig])
-    term_gene_df_sig = term_gene_df[term_gene_df['gene'].isin(genefilter)].rename(columns={'gene': 'sig gene'})
+    genefilter = set([x["Gene"] for x in var_assoc_sig])
+    term_gene_df_sig = term_gene_df[term_gene_df["gene"].isin(genefilter)].rename(
+        columns={"gene": "sig gene"}
+    )
     # term_gene_df_other = term_gene_df[~term_gene_df['gene'].isin(genefilter)]
 
-    # group by term, no significance filter (to 
-    term_gene_df = term_gene_df.groupby('term')['gene'].apply(
-        lambda x: ', '.join(x) if len(x) < 5 else f"{len(x)} genes"
-        ).reset_index()
-    
+    # group by term, no significance filter (to
+    term_gene_df = (
+        term_gene_df.groupby("term")["gene"]
+        .apply(lambda x: ", ".join(x) if len(x) < 5 else f"{len(x)} genes")
+        .reset_index()
+    )
+
     # group by term, use sig filter, uncomment above)
-    term_gene_df_sig = term_gene_df_sig.groupby('term')['sig gene'].apply(
-        lambda x: ', '.join(x) if len(x) < 50 else f"{len(x)} genes"
-        ).reset_index()
-    
-    # # fill term_gene_df_sig NA with term_gene_df_other 
+    term_gene_df_sig = (
+        term_gene_df_sig.groupby("term")["sig gene"]
+        .apply(lambda x: ", ".join(x) if len(x) < 50 else f"{len(x)} genes")
+        .reset_index()
+    )
+
+    # # fill term_gene_df_sig NA with term_gene_df_other
     # term_gene_df_other = term_gene_df.groupby('term')['gene'].apply(
     #     lambda x: ', '.join(x)
     #     ).reset_index().set_index('term')
-    
+
     # term_gene_df_sig['gene'] = term_gene_df_sig['gene'].fillna(
     #     term_gene_df_sig['term'].map(lambda x: f"None ({term_gene_df_other.loc[x, 'gene']})")
     # )
 
-    plot_df = plot_df.merge(term_gene_df, on='term', how='left')
-    plot_df = plot_df.merge(term_gene_df_sig, on='term', how='left')
+    plot_df = plot_df.merge(term_gene_df, on="term", how="left")
+    plot_df = plot_df.merge(term_gene_df_sig, on="term", how="left")
 
     # print(plot_df, flush=True)
 
     return plot_df
-
 
 
 # ----------------------------------------------------- #
@@ -117,6 +124,7 @@ def add_gene_info_to_DataTable(plot_df, variant):
 # Dictionary to store background task results
 phewas_results = {}
 
+
 # Background task function
 def background_task(variant):
     # ----------------------------------------------------- #
@@ -125,7 +133,9 @@ def background_task(variant):
     try:
         run_phewas_if_not_done(variant)
     except Exception:
-        phewas_results['result'] = f"Failed to get phecode-level stats for Variant {variant}, exception was <br> {traceback.format_exc()}"
+        phewas_results["result"] = (
+            f"Failed to get phecode-level stats for Variant {variant}, exception was <br> {traceback.format_exc()}"
+        )
 
 
 # Background task function for PheWAS
@@ -134,43 +144,45 @@ def run_phewas_if_not_done(variant):
     # ----------------------------------------------------- #
     # PheWAS result file path
     # ----------------------------------------------------- #
-    output_prefix = f'variant_{variant}'
-    phewas_path = f'{PHEWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv'
+    output_prefix = f"variant_{variant}"
+    phewas_path = f"{PHEWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv"
 
     # ----------------------------------------------------- #
     # Check if PheWAS has been run for this variant
     # ----------------------------------------------------- #
     if not os.path.exists(phewas_path):
-        phewas_results[variant] = 'No PheWAS data found for this variant. Processing...'
+        phewas_results[variant] = "No PheWAS data found for this variant. Processing..."
         assoc = phecode_level_assoc(variant)
     else:
-        assoc = pd.read_csv(phewas_path, sep='\t')
+        assoc = pd.read_csv(phewas_path, sep="\t")
 
     # ----------------------------------------------------- #
     # If assoc is empty, return error message
     # ----------------------------------------------------- #
     if assoc is None:
 
-        assoc_sig = assoc[assoc['P']<0.05]
-        result = f"PheWAS identified {assoc_sig.shape[0]} phecodes has association p<0.05."
+        assoc_sig = assoc[assoc["P"] < 0.05]
+        result = (
+            f"PheWAS identified {assoc_sig.shape[0]} phecodes has association p<0.05."
+        )
 
     # Store the result in the task_results dictionary
-    phewas_results[variant] = result    
-
+    phewas_results[variant] = result
 
 
 # Endpoint to trigger the PheWAS task
-@variant_bp.route('/run-phewas/<string:variant>', methods=['POST'])
+@variant_bp.route("/run-phewas/<string:variant>", methods=["POST"])
 def run_phewas(variant):
     # Start the background task using threading
     task_thread = threading.Thread(target=run_phewas_if_not_done, args=(variant,))
     task_thread.start()
     return jsonify({"status": "Task started"}), 202
 
+
 # Endpoint to get the PheWAS results
-@variant_bp.route('/phewas-result/<string:variant>', methods=['GET'])
+@variant_bp.route("/phewas-result/<string:variant>", methods=["GET"])
 def get_phewas_result(variant):
-    result = phewas_results.get(variant, {"result": "Processing...", "associations": []})
+    result = phewas_results.get(
+        variant, {"result": "Processing...", "associations": []}
+    )
     return jsonify(result)
-
-
