@@ -123,34 +123,11 @@
                 ]
             });
         }
-        // // Default rendering of resultsTable
-        // fetch(`/phecode/${phecode}/term/${term}/tableVar`, {
-        //     method: 'POST',
-        //     headers: {
-        //         'Content-Type': 'application/json'
-        //     }
-        // }).then(response => response.json())
-        //     .then(resultData => {// Render DataTable
-        // renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-        //     })
-        //     .catch(error => console.error('Error loading Table 1:', error));
 
         const phecode = "{{ phecode }}";
         const term = "{{ term }}";
         
         // Function to load Table 1
-        function loadTable1() {
-            fetch(`/phecode/${phecode}/term/${term}/tableVar`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            }).then(response => response.json())
-                .then(resultData => {// Render DataTable
-        renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-                })
-                .catch(error => console.error('Error loading Table 1:', error));
-        }
         function loadTable1() {
         const encodedTerm = encodeURIComponent(term);
         fetch(`/phecode/${phecode}/term/${encodedTerm}/tableVar`, {
