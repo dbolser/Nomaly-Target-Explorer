@@ -152,6 +152,11 @@ def run_phewas_if_not_done(variant):
     # ----------------------------------------------------- #
     if not os.path.exists(phewas_path):
         phewas_results[variant] = "No PheWAS data found for this variant. Processing..."
+        
+        print(variant)
+        variant = variant.replace("_", ":")
+        print(variant)
+
         assoc = phecode_level_assoc(variant)
     else:
         assoc = pd.read_csv(phewas_path, sep="\t")

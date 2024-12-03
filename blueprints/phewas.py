@@ -62,22 +62,28 @@ class PhecodeCounts:
         for item, count in sorted(self.counts.items()):
             string += f"Case={item.case}, Genotype={item.genotype}: {count}\n"
         return string
-    
+
 def phecode_level_assoc(variant: str) -> pd.DataFrame:
+
+    print(variant)
     output_prefix = f'phecode_{variant}'
 
     output_path = f'{PHEWAS_PHENO_DIR}{output_prefix}'
 
     # Get genotype data
     genotype_eids = nomaly_genotype.individual
+
+    print(variant)
     genotype_matrix = nomaly_genotype.query_variants(variant)
-    
+
     # Convert eids to integers and create a mapping array
     eid_array = genotype_eids.astype(int)
     genotype_array = genotype_matrix[0]  # First (and only) variant
-    
+
     all_phecodes = get_all_phecodes()
     phenotype_data = PhenotypesHDF5()
+
+    data_to_return = []
 
     for phecode in tqdm(all_phecodes.phecode, desc=f"Counting cases for each PheCode for {variant}"):
         # Get case data for current phecode
@@ -86,11 +92,11 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
         except ValueError:
             print(f"Phecode {phecode} not found in the data matrix")
             continue
-               
+
         # Find indices where eids_eur exists in eid_array
         mask = np.isin(eid_array, eids_eur)
         indices = np.where(mask)[0]
-        
+
         # Get corresponding genotypes and cases
         matched_genotypes = genotype_array[indices]
 
@@ -107,7 +113,19 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
         odds_ratio, p_value = phecode_counts.get_stats()
         print(f"Odds ratio: {odds_ratio}, p-value: {p_value}")
 
+        data_to_return.append({
+            "phecode": phecode,
+            "odds_ratio": odds_ratio,
+            "p_value": p_value
+        })
+
+        # DEBUGGING
+        if len(data_to_return) > 10:
+            break
+        
     print("Done!")
+
+    return pd.DataFrame(data_to_return)
 
 
 def main():
