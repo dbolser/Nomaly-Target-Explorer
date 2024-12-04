@@ -57,14 +57,13 @@ class PhecodeCounts:
             Odds ratio = (a/b) / (c/d)
             p-value = fisher_exact(table)
         """
-        table = np.zeros((2, 2))
+        table = np.zeros((2, 2)).astype(int)
         for item, count in self.counts.items():
             ref_alleles = item.genotype
             alt_alleles = 2 - item.genotype
             table[item.case, 0] += count * alt_alleles
             table[item.case, 1] += count * ref_alleles
-
-        return fisher_exact(table)
+        return table, fisher_exact(table)
 
     def __str__(self):
         string = ""
