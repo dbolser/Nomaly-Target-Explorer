@@ -20,7 +20,6 @@ def get_db_connection():
         return None
 
 
-
 def get_all_phecodes() -> pd.DataFrame:
 
     conn = get_db_connection()
@@ -44,18 +43,14 @@ def get_all_phecodes() -> pd.DataFrame:
     )
     results = cur.fetchall()
 
-    #cur.close()
-    #conn.close()
+    # cur.close()
+    # conn.close()
 
     # 4. Get the column names
     columns = [desc[0] for desc in cur.description]
 
     # 7. Convert the rows and columns into a Pandas DataFrame
     filtered_df = pd.DataFrame(results, columns=columns)
-
-    # Print the first 5 rows
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-        print(filtered_df.head())
 
     return filtered_df
 

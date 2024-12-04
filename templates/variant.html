@@ -85,8 +85,12 @@
             const resultDiv = document.getElementById('phewasResult');
             const variant = "{{ data.variant_id }}".replace(':', '_').replace('/', '_');
 
+            // Get the current URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const flushParam = urlParams.get('flush') || '0';
+
             // Send a POST request to start the background task
-            fetch(`/run-phewas/${variant}`, {
+            fetch(`/run-phewas/${variant}?flush=${flushParam}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -102,15 +106,26 @@
                         fetch(`/phewas-result/${variant}`)
                         .then(response => response.json())
                         .then(resultData => {
-                            if (resultData.result.includes("Failed")) {
+                            console.log("Received result:", resultData); // Add debugging
+
+                            if (resultData.result && resultData.result.includes("Failed")) {
                                 resultDiv.innerHTML = `Failed: ${resultData.result}`;
                                 clearInterval(checkResult);
-                            } else if (!resultData.result.includes("Processing...")) {
-                                resultDiv.innerHTML = `${resultData.result}`;
+                            } else if (resultData.result && !resultData.result.includes("Processing...")) {
+                                resultDiv.innerHTML = resultData.result;
+
+                                // Check if we have associations to display
+                                if (resultData.associations && resultData.associations.length > 0) {
+                                    populatePheWASTable(resultData.associations);
+                                }
+
                                 clearInterval(checkResult);
-                                // populate the table with the results
-                                populatePheWASTable(resultData.associations);
                             }
+                        })
+                            .catch(error => {
+                                console.error("Error fetching results:", error);
+                                resultDiv.innerHTML = `Error: ${error.message}`;
+                                clearInterval(checkResult);
                         });
                     }, 1000);
                 }

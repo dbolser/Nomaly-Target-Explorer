@@ -116,10 +116,10 @@ class GenotypeHDF5:
         self.variants = self.f['bim'][...]  # Load BIM data (variant information)
 
         # 6:42963149:A:C 0 is AA, 1 is AC, 2 is CC, -1 is missing
-    
+
     def get_genotype(self, i, j):
         return self.genotype_matrix[i, j]
-    
+
     def query_variants(self, variantsel) -> np.ndarray:
         if isinstance(variantsel, str):
             variant_mask = self._single_variant_mask(variantsel)
@@ -138,13 +138,13 @@ class GenotypeHDF5:
         submatrix = self.genotype_matrix[selected_variant_indices, :]
 
         return submatrix
-        
+
     def _single_variant_mask(self, varsel = '6:42963149:A:C'):
         return self.variants.astype(str) == varsel
 
     def _multiple_variant_mask(self, varsel = ['6:42963149:A:C', '1:930245:A:G']):
         return np.isin(self.variants.astype(str), varsel)
-    
+
 # ------------------------------------------------------------------------------#
 # icd10 = 'E831'
 # ------------------------------------------------------------------------------#
@@ -198,28 +198,76 @@ class ScoreHDF5:
         return self.data_matrix[:, mask_column_indices]
 
 
+import h5py
+import numpy as np
+from functools import cached_property
+
+from tqdm import tqdm
+
+try:
+    from line_profiler import profile
+
+    # If we have line_profiler, we can use it to profile the code
+    # kernprof -l -v Phenotype_Stuff/PhenotypesHDF5.py
+except ImportError:
+
+    def profile(func):
+        return func
+
+
 class PhenotypesHDF5:
     def __init__(self, hdf5_file = phenotypes_h5):
         self.hdf5_file = hdf5_file
         self.f = h5py.File(hdf5_file, 'r')
+        self._population_mask_cache = {}  # Add cache dictionary
+        self._population_eids_cache = {}  # Cache for filtered eids
 
-        # Load the data matrix and index information
-        self.data_matrix = self.f['phenotype_data']
+        # Load the data matrix and index information as numpy arrays
+        self.data_matrix = self.f["phenotype_data"][...][...]
         self.eids = self.f['eids'][...]  # Load row data
         self.phecodes = self.f['phecodes'][...]  # Load column data
         self.populations = self.f['populations'][...]  # Load population data
 
-    def get_cases_for_phecode(self, phecode, population = None) -> tuple[np.ndarray, np.ndarray]:
-        phecode_mask = self.phecodes.astype(str) == phecode
-        if not phecode_mask.any():
-            raise ValueError(f"Phecode {phecode} not found in the data matrix")
-        
+        # Convert to strings
+        self.phecodes = self.phecodes.astype(str)
+        self.populations = self.populations.astype(str)
+
+    @cached_property
+    def phecode_to_index(self):
+        phecodes = self.phecodes.astype(str)
+        return {phecode: index for index, phecode in enumerate(phecodes)}
+
+    def get_population_mask(self, population):
+        if population not in self._population_mask_cache:
+            self._population_mask_cache[population] = np.char.equal(
+                self.populations, population
+            )
+        return self._population_mask_cache[population]
+
+    def get_population_eids(self, population):
+        if population not in self._population_eids_cache:
+            population_mask = self.get_population_mask(population)
+            self._population_eids_cache[population] = self.eids[population_mask]
+        return self._population_eids_cache[population]
+
+    def get_cases_for_phecode(self, phecode, population=None):
+        try:
+            phecode_index = self.phecode_to_index[phecode]
+        except KeyError:
+            raise ValueError(f"Phecode '{phecode}' not found in the data matrix!")
+
         if population is None:
-            return self.eids, self.data_matrix[:, phecode_mask].T[0]
+            return self.eids, self.data_matrix[:, phecode_index]
         else:
-            # Match both EUR and EUR_S populations using regex-style matching
-            population_mask = np.char.startswith(self.populations.astype(str), population)
-            return self.eids[population_mask], self.data_matrix[:, phecode_mask][population_mask].T[0]
+            population_mask = self.get_population_mask(population)
+            if population_mask.sum() == 0:
+                raise ValueError(
+                    f"Population '{population}' not found in the data matrix!"
+                )
+            eids = self.get_population_eids(population)
+            cases_data = self.data_matrix[:, phecode_index][population_mask]
+            return eids, cases_data
+
 
 # ------------------------------------------------------------------------------#
 # Initiate classes

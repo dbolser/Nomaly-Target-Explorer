@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template, jsonify, request
 import threading
 import pandas as pd
 import os
@@ -126,21 +126,18 @@ phewas_results = {}
 
 
 # Background task function
-def background_task(variant):
-    # ----------------------------------------------------- #
-    # Task is to run PheWAS and read the results
-    # ----------------------------------------------------- #
+def background_task(variant, flush=False):
     try:
-        run_phewas_if_not_done(variant)
+        run_phewas_if_not_done(variant, flush)
     except Exception:
-        phewas_results["result"] = (
-            f"Failed to get phecode-level stats for Variant {variant}, exception was <br> {traceback.format_exc()}"
-        )
+        phewas_results[variant] = {
+            "result": f"Failed to get phecode-level stats for Variant {variant}, exception was <br> {traceback.format_exc()}",
+            "associations": [],
+        }
 
 
 # Background task function for PheWAS
-def run_phewas_if_not_done(variant):
-
+def run_phewas_if_not_done(variant, flush=False):
     # ----------------------------------------------------- #
     # PheWAS result file path
     # ----------------------------------------------------- #
@@ -150,36 +147,62 @@ def run_phewas_if_not_done(variant):
     # ----------------------------------------------------- #
     # Check if PheWAS has been run for this variant
     # ----------------------------------------------------- #
-    if not os.path.exists(phewas_path):
-        phewas_results[variant] = "No PheWAS data found for this variant. Processing..."
-        
-        print(variant)
-        variant = variant.replace("_", ":")
-        print(variant)
+    if flush or not os.path.exists(phewas_path):
+        phewas_results[variant] = {
+            "result": "No PheWAS data found for this variant. Processing...",
+            "associations": [],
+        }
 
-        assoc = phecode_level_assoc(variant)
+        variant_colon = variant.replace("_", ":")
+        assoc = phecode_level_assoc(variant_colon)
+
+        # Save results to file if successful
+        if assoc is not None and not assoc.empty:
+            assoc.to_csv(phewas_path, sep="\t", index=False)
     else:
+        # Read from cached file
         assoc = pd.read_csv(phewas_path, sep="\t")
 
-    # ----------------------------------------------------- #
-    # If assoc is empty, return error message
-    # ----------------------------------------------------- #
-    if assoc is None:
+    if assoc is None or assoc.empty:
+        result = "No associations found for this variant."
+        associations = []
+    else:
+        # Filter significant associations
+        assoc_sig = assoc[assoc["p_value"] < 0.05]
 
-        assoc_sig = assoc[assoc["P"] < 0.05]
+        # Format the results
         result = (
-            f"PheWAS identified {assoc_sig.shape[0]} phecodes has association p<0.05."
+            f"PheWAS identified {assoc_sig.shape[0]} phecodes with association p<0.05."
         )
 
-    # Store the result in the task_results dictionary
-    phewas_results[variant] = result
+        # Format associations for the table
+        associations = []
+        
+        for _, row in assoc_sig.iterrows():
+            associations.append(
+                {
+                    "Phecode": row["phecode"],
+                    "Sex": row.get("sex", "TBD"),
+                    "Description": row.get("description", "TBD"),
+                    "Group": row.get("phecode_group", "TBD"),
+                    "Cases": row.get("n_cases", "TBD"),
+                    "Controls": row.get("n_controls", "TBD"),
+                    "OR": f"{row['odds_ratio']:.3f}",
+                    "P": f"{row['p_value']:.3e}",
+                })
+
+    # Store both the result message and associations in the results dictionary
+    phewas_results[variant] = {"result": result, "associations": associations}
 
 
 # Endpoint to trigger the PheWAS task
 @variant_bp.route("/run-phewas/<string:variant>", methods=["POST"])
 def run_phewas(variant):
+    # Get flush parameter from request
+    flush = request.args.get("flush", default="0") == "1"
+
     # Start the background task using threading
-    task_thread = threading.Thread(target=run_phewas_if_not_done, args=(variant,))
+    task_thread = threading.Thread(target=background_task, args=(variant, flush))
     task_thread.start()
     return jsonify({"status": "Task started"}), 202
 
