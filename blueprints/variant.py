@@ -177,7 +177,7 @@ def run_phewas_if_not_done(variant, flush=False):
 
         # Format associations for the table
         associations = []
-        
+
         for _, row in assoc_sig.iterrows():
             associations.append(
                 {
@@ -187,9 +187,12 @@ def run_phewas_if_not_done(variant, flush=False):
                     "Group": row.get("phecode_group", "TBD"),
                     "Cases": row.get("n_cases", "TBD"),
                     "Controls": row.get("n_controls", "TBD"),
+                    "CasesRefAlt": f"Case Alt {row['n_cases_alt']}<br/>Case Ref {row['n_cases_ref']}",
+                    "ControlsRefAlt": f"Control Alt {row['n_controls_alt']}<br/>Control Ref {row['n_controls_ref']}",
                     "OR": f"{row['odds_ratio']:.3f}",
-                    "P": f"{row['p_value']:.3e}",
-                })
+                    "P": f"{row['p_value']:.5f}",
+                }
+            )
 
     # Store both the result message and associations in the results dictionary
     phewas_results[variant] = {"result": result, "associations": associations}
