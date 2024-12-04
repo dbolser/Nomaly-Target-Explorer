@@ -26,21 +26,11 @@
     <br>
 
     <!-- PheWAS Results Table -->
-    <div id="PheWASTableContainer" style="display: none;">
+    <div id="phewasTableContainer" style="display: none;">
         <h4>PheWAS Results</h4>
-        <table id="phewasTable" class="table table-striped table-bordered">
-            <thead>
-                <tr>
-                    <th>Phecode</th>
-                    <th>Description</th>
-                    <th>Cases</th>
-                    <th>Controls</th>
-                    <th>OR</th>
-                    <th>P</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+        <div class="datatable-container">
+            <!-- Table will be dynamically inserted here -->
+        </div>
     </div>
 
     <!-- Associated Phenotypes Section -->
@@ -137,41 +127,41 @@
 
         // Function to populate the PheWAS table
         function populatePheWASTable(data) {
-            // Show the table container
-            $('#PheWASTableContainer').show();
-
-            // Initialize DataTable if not already initialized
-            if (!$.fn.DataTable.isDataTable('#phewasTable')) {
-                $('#phewasTable').DataTable({
-                    data: data,
-                    columns: [
-                        { 
-                            data: 'Phecode',
-                            render: function(data, type, row) {
-                                if (type === 'display') {
-                                    return `<a href="/phecode/${data}" target="_blank">${data}</a>`;
-                                }
-                                return data;
-                            }
-                        },
-                        { data: 'Description' },
-                        { data: 'Cases' },
-                        { data: 'Controls' },
-                        { data: 'OR', orderable: true },
-                        { 
-                            data: 'P',
-                            orderable: true,
-                            render: function(data, type, row) {
-                                if (type === 'display') {
-                                    return parseFloat(data).toExponential(2);
-                                }
-                                return data;
-                            }
-                        }
-                    ],
-                    order: [[5, 'asc']] // Default ordering by P-value
-                });
+            if (!data || data.length === 0) {
+                console.error('No data available to populate the table.');
+                return;
             }
+
+            // Define the desired column order and display names
+            const columnDefinitions = [
+                { data: "Phecode", title: "Phecode" },
+                { data: "Sex", title: "Sex" },
+                { data: "Description", title: "Description" },
+                { data: "Group", title: "Group" },
+                { data: "Cases", title: "Cases" },
+                { data: "Controls", title: "Controls" },
+                { data: "CasesRefAlt", title: "Cases (Alt/Ref)" },
+                { data: "ControlsRefAlt", title: "Controls (Alt/Ref)" },
+                { data: "OR", title: "OR" },
+                { data: "P", title: "P" }
+            ];
+
+            // Create columns with custom rendering
+            const columns = columnDefinitions.map(col => ({
+                data: col.data,
+                title: col.title,
+                render: function (data, type, row) {
+                    if (type === 'display' && col.data === 'Phecode') {
+                        return `<a href="/phecode/${data}" target="_blank">${data}</a>`;
+                    }
+                    return data;
+                }
+            }));
+
+            // Initialize the DataTable using the common function
+            initializeDataTable('phewasTable', data, columns, {
+                order: [[columns.length - 1, 'asc']] // Default ordering by the last column (P-value)
+            });
         }
     });
 </script>
