@@ -78,16 +78,28 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
     output_path = f'{PHEWAS_PHENO_DIR}{output_prefix}'
 
     # Get genotype data
-    genotype_eids = nomaly_genotype.individual
+    genotype_eids = nomaly_genotype.individual.astype(int)
+    genotypes = nomaly_genotype.query_variants(variant)[0]
 
-    genotype_matrix = nomaly_genotype.query_variants(variant)
-
-    # Convert eids to integers and create a mapping array
-    genotype_eids_array = genotype_eids.astype(int)
-    genotype_array = genotype_matrix[0]  # First (and only) variant
+    print(
+        f"Genotype counts for variant '{variant}'\n",
+        np.unique(genotypes, return_counts=True),
+    )
 
     all_phecodes = get_all_phecodes()
     phenotype_data = PhenotypesHDF5()
+
+    # Find genotypes for all eids once, outside the loop
+    genotype_eids = nomaly_genotype.individual.astype(int)
+    genotypes = nomaly_genotype.query_variants(variant)[0]
+
+    print(
+        f"Genotype counts for variant '{variant}'\n",
+        np.unique(genotypes, return_counts=True),
+    )
+
+    # Create a mapping from genotype_eids to their indices for faster lookups
+    eid_to_idx = {eid: idx for idx, eid in enumerate(genotype_eids)}
 
     data_to_return = []
 
@@ -99,21 +111,43 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
             print(f"Phecode {phecode} not found in the data matrix")
             continue
 
-        # Find genotypes for eids
-        mask = np.isin(genotype_eids_array, eids)
+        print(
+            f"Phenotype counts for phecode '{phecode}'\n",
+            np.unique(cases, return_counts=True),
+        )
 
-        # Get corresponding genotypes and cases
-        matched_genotypes = genotype_array[mask]
+        # Create boolean mask for valid eids (those present in genotype data)
+        valid_mask = np.array([eid in eid_to_idx for eid in eids])
+        valid_eids = eids[valid_mask]
+        valid_cases = cases[valid_mask]
+
+        # Get indices for valid eids
+        indices = [eid_to_idx[eid] for eid in valid_eids]
+
+        # matched_genotype_eids = genotype_eids[indices]
+        matched_genotypes = genotypes[indices]
+        matched_cases = valid_cases
+
+        print(
+            f"Genotype counts for variant '{variant}'\n",
+            np.unique(matched_genotypes, return_counts=True),
+        )
 
         phecode_counts = PhecodeCounts()
 
         # Count combinations using numpy
-        for genotype in np.unique(matched_genotypes):
+
+        # 0 = Homozygous ALT, 1 = Heterozygous, 2 = Homozygous REF
+        for genotype in [0, 1, 2]:
             for case in [0, 1]:  # Using binary case/control
-                count = np.sum((matched_genotypes == genotype) & (cases == case))
+
+                count = np.sum(
+                    (matched_genotypes == genotype) & (matched_cases == case)
+                )
                 if count > 0:
                     phecode_counts.add(case, int(genotype), count)
-        odds_ratio, p_value = phecode_counts.get_stats()
+        two_table, stats = phecode_counts.get_stats()
+        odds_ratio, p_value = stats
 
         data_to_return.append(
             {
@@ -127,6 +161,10 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
                 "sex": all_phecodes[all_phecodes.phecode == phecode].sex.values[0],
                 "n_cases": phecode_counts.case_total,
                 "n_controls": phecode_counts.control_total,
+                "n_cases_alt": two_table[1, 0],
+                "n_cases_ref": two_table[1, 1],
+                "n_controls_alt": two_table[0, 0],
+                "n_controls_ref": two_table[0, 1],
                 # "n_cases_ref": phecode_counts.case_ref_total,
                 # "n_cases_alt": phecode_counts.case_alt_total,
                 # "n_controls_ref": phecode_counts.control_ref_total,
@@ -145,6 +183,9 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
 
 def main():
     test_variant = "11:69083946:T:C"
+    test_variant = "9:35066710:A:G"
+    test_variant = "19:44908684:C:T"
+
     phecode_level_assoc(test_variant)
 
 if __name__ == '__main__':
