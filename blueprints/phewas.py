@@ -89,44 +89,27 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
     all_phecodes = get_all_phecodes()
     phenotype_data = PhenotypesHDF5()
 
-    # Find genotypes for all eids once, outside the loop
+    # Sort genotype data by eid
     genotype_eids = nomaly_genotype.individual.astype(int)
-    genotypes = nomaly_genotype.query_variants(variant)[0]
-
-    # Create a mapping from genotype_eids to their indices for faster lookups
-    eid_to_idx = {eid: idx for idx, eid in enumerate(genotype_eids)}
+    sorted_indices = np.argsort(genotype_eids)
+    sorted_genotype_eids = genotype_eids[sorted_indices]
+    sorted_genotypes = genotypes[sorted_indices]
 
     data_to_return = []
 
     for phecode in tqdm(all_phecodes.phecode, desc=f"Counting cases for each PheCode for {variant}"):
-        # Get case data for current phecode
         try:    
             eids, cases = phenotype_data.get_cases_for_phecode(phecode)
         except ValueError:
             print(f"Phecode {phecode} not found in the data matrix")
             continue
 
-        # print(
-        #     f"Phenotype counts for phecode '{phecode}'\n",
-        #     np.unique(cases, return_counts=True),
-        # )
+        # Use np.searchsorted to find indices of phenotype eids in sorted genotype eids
+        indices = np.searchsorted(sorted_genotype_eids, eids)
+        valid_indices = indices[indices < len(sorted_genotype_eids)]  # Ensure indices are within bounds
 
-        # Create boolean mask for valid eids (those present in genotype data)
-        valid_mask = np.array([eid in eid_to_idx for eid in eids])
-        valid_eids = eids[valid_mask]
-        valid_cases = cases[valid_mask]
-
-        # Get indices for valid eids
-        indices = [eid_to_idx[eid] for eid in valid_eids]
-
-        # matched_genotype_eids = genotype_eids[indices]
-        matched_genotypes = genotypes[indices]
-        matched_cases = valid_cases
-
-        # print(
-        #     f"Genotype counts for variant '{variant}'\n",
-        #     np.unique(matched_genotypes, return_counts=True),
-        # )
+        matched_genotypes = sorted_genotypes[valid_indices]
+        matched_cases = cases
 
         phecode_counts = PhecodeCounts()
 
