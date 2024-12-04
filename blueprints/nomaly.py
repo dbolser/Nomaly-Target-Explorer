@@ -3,6 +3,8 @@ import h5py
 import numpy as np
 import pandas as pd
 
+from functools import cached_property
+
 import plotly.express as px
 
 UKBB_PHENO_DIR = '/data/general/UKBB/Phenotypes/'
@@ -198,23 +200,6 @@ class ScoreHDF5:
         return self.data_matrix[:, mask_column_indices]
 
 
-import h5py
-import numpy as np
-from functools import cached_property
-
-from tqdm import tqdm
-
-try:
-    from line_profiler import profile
-
-    # If we have line_profiler, we can use it to profile the code
-    # kernprof -l -v Phenotype_Stuff/PhenotypesHDF5.py
-except ImportError:
-
-    def profile(func):
-        return func
-
-
 class PhenotypesHDF5:
     def __init__(self, hdf5_file = phenotypes_h5):
         self.hdf5_file = hdf5_file
@@ -231,6 +216,9 @@ class PhenotypesHDF5:
         # Convert to strings
         self.phecodes = self.phecodes.astype(str)
         self.populations = self.populations.astype(str)
+
+    def __str__(self):
+        return f"PhenotypesHDF5: {self.hdf5_file}"
 
     @cached_property
     def phecode_to_index(self):
