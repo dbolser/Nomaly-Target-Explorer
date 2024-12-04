@@ -81,10 +81,10 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
     genotype_eids = nomaly_genotype.individual.astype(int)
     genotypes = nomaly_genotype.query_variants(variant)[0]
 
-    print(
-        f"Genotype counts for variant '{variant}'\n",
-        np.unique(genotypes, return_counts=True),
-    )
+    # print(
+    #     f"Genotype counts for variant '{variant}'\n",
+    #     np.unique(genotypes, return_counts=True),
+    # )
 
     all_phecodes = get_all_phecodes()
     phenotype_data = PhenotypesHDF5()
@@ -92,11 +92,6 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
     # Find genotypes for all eids once, outside the loop
     genotype_eids = nomaly_genotype.individual.astype(int)
     genotypes = nomaly_genotype.query_variants(variant)[0]
-
-    print(
-        f"Genotype counts for variant '{variant}'\n",
-        np.unique(genotypes, return_counts=True),
-    )
 
     # Create a mapping from genotype_eids to their indices for faster lookups
     eid_to_idx = {eid: idx for idx, eid in enumerate(genotype_eids)}
@@ -111,10 +106,10 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
             print(f"Phecode {phecode} not found in the data matrix")
             continue
 
-        print(
-            f"Phenotype counts for phecode '{phecode}'\n",
-            np.unique(cases, return_counts=True),
-        )
+        # print(
+        #     f"Phenotype counts for phecode '{phecode}'\n",
+        #     np.unique(cases, return_counts=True),
+        # )
 
         # Create boolean mask for valid eids (those present in genotype data)
         valid_mask = np.array([eid in eid_to_idx for eid in eids])
@@ -128,10 +123,10 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
         matched_genotypes = genotypes[indices]
         matched_cases = valid_cases
 
-        print(
-            f"Genotype counts for variant '{variant}'\n",
-            np.unique(matched_genotypes, return_counts=True),
-        )
+        # print(
+        #     f"Genotype counts for variant '{variant}'\n",
+        #     np.unique(matched_genotypes, return_counts=True),
+        # )
 
         phecode_counts = PhecodeCounts()
 
