@@ -46,15 +46,19 @@
         </div>
 
         <!-- Nomaly result display -->
-        <h3> Prioritised terms </h3>
+        <!-- <h3> Prioritised terms </h3> -->
 
-        <!-- <button id="nomalyButton" class="btn btn-success mb-3">Load Nomaly</button> -->
+        <button id="nomalyButton" class="btn btn-success mb-3"> Nomaly Prioritised Terms </button>
 
         <div id="NomalyResultContainer" style="display: none;">
             <div id="nomalyResult" class="mt-3"></div>
 
             <!-- Div for QQplot -->
             <iframe id="plotIframe" style="width: 80%; height: 450px; border: none;"></iframe>
+
+            <div id="testnumbers">
+                <!-- Test numbers will be populated here -->
+            </div>
 
             <!-- Div for DataTable -->
             <style>
@@ -105,6 +109,12 @@
             iframe.srcdoc = graphHtml;
         }
 
+        // Function to populate the test numbers
+        function populateTestNumbers(testnumbers) {
+            const testnumbersDiv = document.getElementById('testnumbers');
+            testnumbersDiv.innerHTML = testnumbers;
+        }
+
         // Function to initialize the DataTable
         function renderDataTable(data, columns, defaultColumns, numColumns) {
             // Destroy existing table if it exists
@@ -142,8 +152,9 @@
                 ]
             });
         }
+
         // Event listener for the button click Nomaly detail Uncomment below to use the button
-        // document.getElementById('nomalyButton').addEventListener('click', function() {
+        document.getElementById('nomalyButton').addEventListener('click', function() {
             const phecode = "{{ data.phecode }}";
             const runbatch = "{{ data.runbatch }}";
             
@@ -161,6 +172,7 @@
                     // Render Plotly graph
                     renderPlot(resultData.qqplot);
                     // resultDiv.innerHTML = `${resultData.statstype}`;
+                    populateTestNumbers("Tested affected: " + resultData.affected + " Tested control: " + resultData.control);
                     // Render DataTable
                     renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
                 }).catch(error => {
@@ -184,7 +196,7 @@
                     resultDiv.innerHTML = `Error: ${error.message}`;
                 });
             }
-        // });
+        });
 
         // Event listener for the button click GWAS task
         document.getElementById('runTaskButton').addEventListener('click', function() {

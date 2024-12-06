@@ -98,7 +98,7 @@ def show_phecode_term_tableVar(phecode, term):
 
     nomalyResults = {
         'data': term_df.to_dict(orient='records'),
-        'columns': ['variant_id', 'gene', 'tdl', 'tbio','classification', 'pubmed_scores', 'generifs', 'antibodies', 'go_terms', 'tchem', 'tclin', 'drug_list', 'tdark', 'drug_program_indication', 'gwas', 'gwas_hits', 'disease_associations1', 'disease_associations2', 'notes'],
+        'columns': ['variant_id', 'gene', 'tdl', 'tbio','classification', 'drug_list', 'drug_program_indication', 'disease_associations1', 'disease_associations2', 'notes'],
         'defaultColumns': ['variant_id', 'gene', 'tdl', 'tbio','classification','gwas_hits', 'disease_associations1', 'drug_program_indication'],
         'numColumns': [],
     }
