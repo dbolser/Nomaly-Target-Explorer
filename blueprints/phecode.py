@@ -61,7 +61,8 @@ def read_disease_stats_from_nomaly_statsHDF5(nomaly_stats, phecode):
 
     try:
         diseasestats = nomaly_stats.get_stats_by_disease(phecode)
-    except:
+    except Exception as e:
+        print(f"Failed to get Nomaly stats for Phecode {phecode}, exception was {e}", flush=True)
         return jsonify({"error": f"Failed to get Nomaly stats for Phecode {phecode}, ask admin to check logs."})
     # rename colums
     for col in diseasestats.columns:
@@ -219,13 +220,16 @@ def get_nomaly_stats(phecode):
     pval_neg = ['lrn_protective_pvalue']
     columns_pval = pval_nondirect + pval_pos + pval_neg
 
+    # print(diseasestats['num_rp'].values[0], diseasestats['num_rn'].values[0], flush=True)
 
     # if adding gene: add 'gene', 'sig gene',
     nomalyResults = {
         'qqplot': graph_html,
+        'affected': diseasestats['num_rp'].values[0],
+        'control': diseasestats['num_rn'].values[0],
         'data': plot_df.to_dict(orient='records'),
         'columns': ['minrank', 'term', 'name', 'domain'] + columns_pval,
-        'defaultColumns': ['minrank','term','name', 'domain'],
+        'defaultColumns': ['minrank','term','name', 'domain', 'mwu_pvalue', 'metric1_pvalue', 'mcc_pvalue'],
         'numColumns': columns_pval,
     }
     return nomalyResults
