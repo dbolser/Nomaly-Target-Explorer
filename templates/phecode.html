@@ -73,6 +73,10 @@
 {% block extra_js %}
 {{ super() }} {# Include parent block's JS #}
 <script>
+        // Add this line to define phecode from the template data
+        const phecode = "{{ data.phecode }}";
+        const runbatch = "{{ data.runbatch }}";
+
     // Function to render the Plotly graph
     function renderPlot(graphHtml) {
         $('#NomalyResultContainer').show();
