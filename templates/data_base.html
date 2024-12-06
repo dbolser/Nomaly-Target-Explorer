@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css">
+    <style>
+        .datatable-container table {
+            width: 100% !important;
+            font-size: 0.85rem;
+        }
+    </style>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
+
+    <script>
+        // Helper function to create table structure
+        function createTableStructure(tableId, data) {
+            const container = document.getElementById(tableId + 'Container');
+            if (!container) {
+                console.error('Table container not found');
+                return false;
+            }
+
+            // Clear existing table
+            container.innerHTML = '';
+
+            // Create table element
+            const table = document.createElement('table');
+            table.id = tableId;
+            table.className = 'table table-striped table-bordered';
+
+            // Create thead
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            Object.keys(data[0]).forEach(key => {
+                const th = document.createElement('th');
+                th.textContent = key.replace(/_/g, ' ');
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            // Create tbody
+            const tbody = document.createElement('tbody');
+            table.appendChild(tbody);
+
+            // Add table to container
+            container.appendChild(table);
+            container.style.display = 'block';
+            
+            return true;
+        }
+
+        function initializeDataTable(tableId, data, columns, options = {}) {
+            if (!data || data.length === 0) {
+                console.error('No data available to populate the table.');
+                return null;
+            }
+
+            // Create table structure first
+            if (!createTableStructure(tableId, data)) {
+                return null;
+            }
+
+            // Destroy existing DataTable if it exists
+            if ($.fn.DataTable.isDataTable(`#${tableId}`)) {
+                $(`#${tableId}`).DataTable().destroy();
+            }
+
+            // Default options
+            const defaultOptions = {
+                data: data,
+                columns: columns,
+                order: [[0, 'asc']],
+                responsive: true,
+                autoWidth: true,
+                dom: 'Bfrtip',
+                buttons: [
+                    {
+                        extend: 'colvis',
+                        text: 'Select Columns',
+                        columns: ':not(:first-child)'
+                    }
+                ]
+            };
+
+            // Merge default options with provided options
+            const tableOptions = { ...defaultOptions, ...options };
+
+            // Initialize DataTable
+            return $(`#${tableId}`).DataTable(tableOptions);
+        }
+    </script>
+{% endblock %} 

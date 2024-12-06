@@ -10,6 +10,8 @@ from blueprints.phecode import phecode_bp
 from blueprints.phecode_term import phecode_term_bp
 # from blueprints.page1 import page1_bp
 
+from blueprints.variant import variant_bp
+
 app = Flask(__name__)
 
 # Secret key for session management
@@ -72,6 +74,9 @@ app.register_blueprint(phecode_bp)
 # register phecode_term_bp blueprint: /phecode/<string:phecode>/term/<string:term>  
 app.register_blueprint(phecode_term_bp)
 
+
+
+
 # app.register_blueprint(page1_bp)
 @app.route('/page1')
 def page1():
@@ -92,6 +97,10 @@ def search1():
         # Process search query here
         return f"Search results for Section 1: {request.args.get('query1')}"
     return redirect(url_for('login'))
+
+# register variant blueprint: /variant/<string:variant>
+app.register_blueprint(variant_bp)
+
 
 # Run app
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 import mysql.connector
 from mysql.connector import Error
-
+import pandas as pd
 
 # Connect to the database
 def get_db_connection():
@@ -20,7 +20,40 @@ def get_db_connection():
         return None
 
 
-import pandas as pd
+def get_all_phecodes() -> pd.DataFrame:
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # filter the phecodes and the ICD10 table based on the query
+    cur.execute(
+        f"""
+        SELECT 
+          phecode, description, sex, phecode_group #, 
+          #GROUP_CONCAT(icd10 ORDER BY icd10_count DESC),
+          #GROUP_CONCAT(meaning ORDER BY icd10_count DESC), 
+          #GROUP_CONCAT(icd10_count ORDER BY icd10_count DESC), 
+          #SUM(icd10_count)
+        FROM phecode_definition
+        #INNER JOIN icd10_phecode USING(phecode)
+        #INNER JOIN icd10_coding USING(icd10)
+        #GROUP BY phecode
+        ;
+        """
+    )
+    results = cur.fetchall()
+
+    # cur.close()
+    # conn.close()
+
+    # 4. Get the column names
+    columns = [desc[0] for desc in cur.description]
+
+    # 7. Convert the rows and columns into a Pandas DataFrame
+    filtered_df = pd.DataFrame(results, columns=columns)
+
+    return filtered_df
+
 
 def get_phecode_info(phecode):
 

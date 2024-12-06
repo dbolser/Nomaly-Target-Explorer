@@ -3,10 +3,13 @@ import h5py
 import numpy as np
 import pandas as pd
 
+from functools import cached_property
+
 import plotly.express as px
 
 UKBB_PHENO_DIR = '/data/general/UKBB/Phenotypes/'
 icd10_cases_h5 = UKBB_PHENO_DIR + 'ukbbrun_icd10_2024-09-07_any.h5'
+phenotypes_h5 = UKBB_PHENO_DIR + 'phecode_cases_excludes.h5'
 
 RESOURCE_DATA_DIR = '/data/general/Data/'
 pharos_path = RESOURCE_DATA_DIR + 'pharos_api_query.out'
@@ -21,45 +24,55 @@ pp['gene'] = pp.index
 
 class StatsHDF5:
     def __init__(self, hdf5_file):
-        self.hdf5_file = hdf5_file
-        self.f = h5py.File(hdf5_file, 'r')
+        try:
+            self.hdf5_file = hdf5_file
+            if not os.path.exists(hdf5_file):
+                raise FileNotFoundError(f"HDF5 file not found: {hdf5_file}")
+            self.f = h5py.File(hdf5_file, 'r')
 
-        # Load the data matrix and index information
-        self.data_matrix = self.f['data']
-        self.rows = self.f['rows_term'][...].astype(str)  # Load term data
-        self.columns = self.f['columns_phecode'][...].astype(str)  # Load phecode data
-        self.third_dim = self.f['3rddim_statstype'][...].astype(str)  # Load statstype data
+            # Load the data matrix and index information
+            self.data_matrix = self.f['data']
+            self.rows = self.f['rows_term'][...].astype(str)  # Load term data
+            self.columns = self.f['columns_phecode'][...].astype(str)  # Load phecode data
+            self.third_dim = self.f['3rddim_statstype'][...].astype(str)  # Load statstype data
 
-        # rename third_dim that ends with _p_value to _pvalue
-        self.third_dim = np.array([x.replace('_p_value', '_pvalue') for x in self.third_dim])
+            # rename third_dim that ends with _p_value to _pvalue
+            self.third_dim = np.array([x.replace('_p_value', '_pvalue') for x in self.third_dim])
+        except Exception as e:
+            current_app.logger.error(f'StatsHDF5 initialization error: {e}\n{traceback.format_exc()}')
+            raise
 
     def get_stats_by_disease(self, disease, statstype=None):
-        if disease not in self.columns:
-            disease = disease + '.0'
+        try:
             if disease not in self.columns:
-                raise ValueError(f"{disease} not found in the columns of the data matrix.")
+                disease = disease + '.0'
+                if disease not in self.columns:
+                    raise ValueError(f"Disease {disease} not found in dataset")
 
-        mask_column = self.columns == disease
-        mask_column_indices = np.where(mask_column)[0][0]
-        if statstype is None:
-            # if statstype is not specified, return all statstypes for the disease
-            disease_data = self.data_matrix[:, mask_column_indices, :]
-            disease_DF = pd.DataFrame(
-                disease_data, index=self.rows.astype(str), columns=self.third_dim
-            )
-            return disease_DF
-        elif isinstance(statstype, str) and statstype in self.third_dim:
-            # if statstype is specified, return the data for the statstype
-            mask_3rd_dim = self.third_dim == statstype
-            mask_3rd_dim_indices = np.where(mask_3rd_dim)[0][0]
-            return self.data_matrix[:,mask_column_indices, mask_3rd_dim_indices]
-        elif isinstance(statstype, list):
-            # if statstype is a list of strings, return the data for the statstypes
-            mask_3rd_dim = np.isin(self.third_dim, statstype)
-            mask_3rd_dim_indices = np.where(mask_3rd_dim)[0]
-            return self.data_matrix[:,mask_column_indices, mask_3rd_dim_indices]
-        else:
-            raise ValueError(f"statstype must be a string or a list of strings. statstype: {statstype}")
+            mask_column = self.columns == disease
+            mask_column_indices = np.where(mask_column)[0][0]
+            if statstype is None:
+                # if statstype is not specified, return all statstypes for the disease
+                disease_data = self.data_matrix[:, mask_column_indices, :]
+                disease_DF = pd.DataFrame(
+                    disease_data, index=self.rows.astype(str), columns=self.third_dim
+                )
+                return disease_DF
+            elif isinstance(statstype, str) and statstype in self.third_dim:
+                # if statstype is specified, return the data for the statstype
+                mask_3rd_dim = self.third_dim == statstype
+                mask_3rd_dim_indices = np.where(mask_3rd_dim)[0][0]
+                return self.data_matrix[:,mask_column_indices, mask_3rd_dim_indices]
+            elif isinstance(statstype, list):
+                # if statstype is a list of strings, return the data for the statstypes
+                mask_3rd_dim = np.isin(self.third_dim, statstype)
+                mask_3rd_dim_indices = np.where(mask_3rd_dim)[0]
+                return self.data_matrix[:,mask_column_indices, mask_3rd_dim_indices]
+            else:
+                raise ValueError(f"statstype must be a string or a list of strings. statstype: {statstype}")
+        except Exception as e:
+            current_app.logger.error(f'Error getting stats for disease {disease}: {e}')
+            raise
     
     def get_stats_by_term_disease(self, term, disease):
         if disease not in self.columns:
@@ -105,10 +118,10 @@ class GenotypeHDF5:
         self.variants = self.f['bim'][...]  # Load BIM data (variant information)
 
         # 6:42963149:A:C 0 is AA, 1 is AC, 2 is CC, -1 is missing
-    
+
     def get_genotype(self, i, j):
         return self.genotype_matrix[i, j]
-    
+
     def query_variants(self, variantsel) -> np.ndarray:
         if isinstance(variantsel, str):
             variant_mask = self._single_variant_mask(variantsel)
@@ -127,13 +140,13 @@ class GenotypeHDF5:
         submatrix = self.genotype_matrix[selected_variant_indices, :]
 
         return submatrix
-        
+
     def _single_variant_mask(self, varsel = '6:42963149:A:C'):
         return self.variants.astype(str) == varsel
 
     def _multiple_variant_mask(self, varsel = ['6:42963149:A:C', '1:930245:A:G']):
         return np.isin(self.variants.astype(str), varsel)
-    
+
 # ------------------------------------------------------------------------------#
 # icd10 = 'E831'
 # ------------------------------------------------------------------------------#
@@ -186,6 +199,64 @@ class ScoreHDF5:
         mask_column_indices = np.where(mask_column)[0][0]
         return self.data_matrix[:, mask_column_indices]
 
+
+class PhenotypesHDF5:
+    def __init__(self, hdf5_file = phenotypes_h5):
+        self.hdf5_file = hdf5_file
+        self.f = h5py.File(hdf5_file, 'r')
+        self._population_mask_cache = {}  # Add cache dictionary
+        self._population_eids_cache = {}  # Cache for filtered eids
+
+        # Load the data matrix and index information as numpy arrays
+        self.data_matrix = self.f["phenotype_data"][...][...]
+        self.eids = self.f['eids'][...]  # Load row data
+        self.phecodes = self.f['phecodes'][...]  # Load column data
+        self.populations = self.f['populations'][...]  # Load population data
+
+        # Convert to strings
+        self.phecodes = self.phecodes.astype(str)
+        self.populations = self.populations.astype(str)
+
+    def __str__(self):
+        return f"PhenotypesHDF5: {self.hdf5_file}"
+
+    @cached_property
+    def phecode_to_index(self):
+        phecodes = self.phecodes.astype(str)
+        return {phecode: index for index, phecode in enumerate(phecodes)}
+
+    def get_population_mask(self, population):
+        if population not in self._population_mask_cache:
+            self._population_mask_cache[population] = np.char.equal(
+                self.populations, population
+            )
+        return self._population_mask_cache[population]
+
+    def get_population_eids(self, population):
+        if population not in self._population_eids_cache:
+            population_mask = self.get_population_mask(population)
+            self._population_eids_cache[population] = self.eids[population_mask]
+        return self._population_eids_cache[population]
+
+    def get_cases_for_phecode(self, phecode, population=None):
+        try:
+            phecode_index = self.phecode_to_index[phecode]
+        except KeyError:
+            raise ValueError(f"Phecode '{phecode}' not found in the data matrix!")
+
+        if population is None:
+            return self.eids, self.data_matrix[:, phecode_index]
+        else:
+            population_mask = self.get_population_mask(population)
+            if population_mask.sum() == 0:
+                raise ValueError(
+                    f"Population '{population}' not found in the data matrix!"
+                )
+            eids = self.get_population_eids(population)
+            cases_data = self.data_matrix[:, phecode_index][population_mask]
+            return eids, cases_data
+
+
 # ------------------------------------------------------------------------------#
 # Initiate classes
 # ------------------------------------------------------------------------------#
@@ -206,6 +277,9 @@ nomaly_scores_h5_v2 = NOMALY_RESULTS_DIR_V2 + 'float16_scores.h5'
 nomaly_stats_v2 = StatsHDF5(nomaly_stats_h5_v2)
 nomaly_genotype_v2 = GenotypeHDF5(nomaly_genotype_h5_v2)
 nomaly_scores_v2 = ScoreHDF5(nomaly_scores_h5_v2)
+
+# Don't think we need this?
+# nomaly_phenotypes = PhenotypesHDF5(phenotypes_h5)
 
 icd10_cases = ICD10HDF5(icd10_cases_h5)
 # ------------------------------------------------------------------------------#
