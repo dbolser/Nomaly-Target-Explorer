@@ -5,7 +5,7 @@ import os
 import traceback
 
 from blueprints.phewas import phecode_level_assoc, PHEWAS_PHENO_DIR
-from db import get_term_genes, get_phecode_info
+from db import get_term_genes
 
 import re
 
@@ -73,7 +73,7 @@ def show_variant(variant):
     # GenotypeHDF5, ICD10HDF5 and phecodeHDF5 are needed
 
 
-# def add_gene_info_to_DataTable(plot_df, variant):
+# def add_gene_info_to_DataTable(plot_df, variant, phecode):
 #     # get term to gene mapping
 #     print("getting term to gene mapping", flush=True)
 #     term_gene_df = get_term_genes(plot_df["term"].tolist())
@@ -86,7 +86,20 @@ def show_variant(variant):
 #         columns={"gene": "sig gene"}
 #     )
 #     # term_gene_df_other = term_gene_df[~term_gene_df['gene'].isin(genefilter)]
+#     # filter gene by assoc var
+#     var_assoc_sig = read_gwas(phecode)
+#     genefilter = set([x["Gene"] for x in var_assoc_sig])
+#     term_gene_df_sig = term_gene_df[term_gene_df["gene"].isin(genefilter)].rename(
+#         columns={"gene": "sig gene"}
+#     )
+#     # term_gene_df_other = term_gene_df[~term_gene_df['gene'].isin(genefilter)]
 
+#     # group by term, no significance filter (to
+#     term_gene_df = (
+#         term_gene_df.groupby("term")["gene"]
+#         .apply(lambda x: ", ".join(x) if len(x) < 5 else f"{len(x)} genes")
+#         .reset_index()
+#     )
 #     # group by term, no significance filter (to
 #     term_gene_df = (
 #         term_gene_df.groupby("term")["gene"]

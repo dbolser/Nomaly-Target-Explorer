@@ -27,7 +27,7 @@ def get_all_phecodes() -> pd.DataFrame:
 
     # filter the phecodes and the ICD10 table based on the query
     cur.execute(
-        f"""
+        """
         SELECT 
           phecode, description, sex, phecode_group #, 
           #GROUP_CONCAT(icd10 ORDER BY icd10_count DESC),
