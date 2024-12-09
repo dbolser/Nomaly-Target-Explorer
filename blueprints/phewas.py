@@ -145,7 +145,6 @@ class PhecodeCounts:
         return string
 
 
-@profile
 def get_genotype_data(variant: str):
     genotype_eids = nomaly_genotype.individual.astype(int)
     genotypes = nomaly_genotype.query_variants(variant)[0]
@@ -154,7 +153,6 @@ def get_genotype_data(variant: str):
     sorted_genotypes = genotypes[sorted_indices]
 
 
-@profile
 def process_phecode(
     phecode, sorted_genotype_eids, sorted_genotypes, phenotype_data, all_phecodes
 ):
@@ -210,7 +208,6 @@ def process_phecode(
     }
 
 
-@profile
 def phecode_level_assoc(variant: str) -> pd.DataFrame:
     sorted_genotype_eids, sorted_genotypes = get_genotype_data(variant)
     all_phecodes = get_all_phecodes()
