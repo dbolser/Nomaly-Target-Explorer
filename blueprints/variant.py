@@ -44,7 +44,7 @@ def show_variant(variant):
         normalized_variant = f"{chrom}_{pos}_{alleles}"
 
         # Validate the normalized format
-        format_str = r"(chr)?\d+_\d+_[ACGT]+_[ACGT]+"
+        format_str = r"(chr)?[\d+XY]_\d+_[ACGT]+_[ACGT]+"
         if not re.match(format_str, normalized_variant):
             return render_template(
                 "error.html", error="Invalid variant ID format: " + variant
