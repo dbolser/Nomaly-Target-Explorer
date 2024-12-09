@@ -11,8 +11,9 @@ import numpy as np
 
 from scipy.stats import fisher_exact
 
-PHEWAS_PHENO_DIR = '/data/clu/ukbb/by_variant/'
-UKBB_PHENO_DIR = '/data/general/UKBB/Phenotypes/'
+
+PHEWAS_PHENO_DIR = "/data/clu/ukbb/by_variant/"
+UKBB_PHENO_DIR = "/data/general/UKBB/Phenotypes/"
 
 
 # New style of declaring a named tuple
@@ -152,6 +153,7 @@ def get_genotype_data(variant: str):
     sorted_genotype_eids = genotype_eids[sorted_indices]
     sorted_genotypes = genotypes[sorted_indices]
     return sorted_genotype_eids, sorted_genotypes
+
 
 def process_phecode(
     phecode, sorted_genotype_eids, sorted_genotypes, phenotype_data, all_phecodes
