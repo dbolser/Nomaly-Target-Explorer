@@ -72,49 +72,49 @@ def show_variant(variant):
     # GenotypeHDF5, ICD10HDF5 and phecodeHDF5 are needed
 
 
-def add_gene_info_to_DataTable(plot_df, variant):
-    # get term to gene mapping
-    print("getting term to gene mapping", flush=True)
-    term_gene_df = get_term_genes(plot_df["term"].tolist())
-    print("got term to gene mapping", flush=True)
+# def add_gene_info_to_DataTable(plot_df, variant):
+#     # get term to gene mapping
+#     print("getting term to gene mapping", flush=True)
+#     term_gene_df = get_term_genes(plot_df["term"].tolist())
+#     print("got term to gene mapping", flush=True)
 
-    # filter gene by assoc var
-    var_assoc_sig = read_gwas(phecode)
-    genefilter = set([x["Gene"] for x in var_assoc_sig])
-    term_gene_df_sig = term_gene_df[term_gene_df["gene"].isin(genefilter)].rename(
-        columns={"gene": "sig gene"}
-    )
-    # term_gene_df_other = term_gene_df[~term_gene_df['gene'].isin(genefilter)]
+#     # filter gene by assoc var
+#     var_assoc_sig = read_gwas(phecode)
+#     genefilter = set([x["Gene"] for x in var_assoc_sig])
+#     term_gene_df_sig = term_gene_df[term_gene_df["gene"].isin(genefilter)].rename(
+#         columns={"gene": "sig gene"}
+#     )
+#     # term_gene_df_other = term_gene_df[~term_gene_df['gene'].isin(genefilter)]
 
-    # group by term, no significance filter (to
-    term_gene_df = (
-        term_gene_df.groupby("term")["gene"]
-        .apply(lambda x: ", ".join(x) if len(x) < 5 else f"{len(x)} genes")
-        .reset_index()
-    )
+#     # group by term, no significance filter (to
+#     term_gene_df = (
+#         term_gene_df.groupby("term")["gene"]
+#         .apply(lambda x: ", ".join(x) if len(x) < 5 else f"{len(x)} genes")
+#         .reset_index()
+#     )
 
-    # group by term, use sig filter, uncomment above)
-    term_gene_df_sig = (
-        term_gene_df_sig.groupby("term")["sig gene"]
-        .apply(lambda x: ", ".join(x) if len(x) < 50 else f"{len(x)} genes")
-        .reset_index()
-    )
+#     # group by term, use sig filter, uncomment above)
+#     term_gene_df_sig = (
+#         term_gene_df_sig.groupby("term")["sig gene"]
+#         .apply(lambda x: ", ".join(x) if len(x) < 50 else f"{len(x)} genes")
+#         .reset_index()
+#     )
 
-    # # fill term_gene_df_sig NA with term_gene_df_other
-    # term_gene_df_other = term_gene_df.groupby('term')['gene'].apply(
-    #     lambda x: ', '.join(x)
-    #     ).reset_index().set_index('term')
+#     # # fill term_gene_df_sig NA with term_gene_df_other
+#     # term_gene_df_other = term_gene_df.groupby('term')['gene'].apply(
+#     #     lambda x: ', '.join(x)
+#     #     ).reset_index().set_index('term')
 
-    # term_gene_df_sig['gene'] = term_gene_df_sig['gene'].fillna(
-    #     term_gene_df_sig['term'].map(lambda x: f"None ({term_gene_df_other.loc[x, 'gene']})")
-    # )
+#     # term_gene_df_sig['gene'] = term_gene_df_sig['gene'].fillna(
+#     #     term_gene_df_sig['term'].map(lambda x: f"None ({term_gene_df_other.loc[x, 'gene']})")
+#     # )
 
-    plot_df = plot_df.merge(term_gene_df, on="term", how="left")
-    plot_df = plot_df.merge(term_gene_df_sig, on="term", how="left")
+#     plot_df = plot_df.merge(term_gene_df, on="term", how="left")
+#     plot_df = plot_df.merge(term_gene_df_sig, on="term", how="left")
 
-    # print(plot_df, flush=True)
+#     # print(plot_df, flush=True)
 
-    return plot_df
+#     return plot_df
 
 
 # ----------------------------------------------------- #
@@ -185,12 +185,29 @@ def run_phewas_if_not_done(variant, flush=False):
                     "Sex": row.get("sex", "TBD"),
                     "Description": row.get("description", "TBD"),
                     "Group": row.get("phecode_group", "TBD"),
-                    "Cases": row.get("n_cases", "TBD"),
-                    "Controls": row.get("n_controls", "TBD"),
-                    "CasesRefAlt": f"Case Alt {row['n_cases_alt']}<br/>Case Ref {row['n_cases_ref']}",
-                    "ControlsRefAlt": f"Control Alt {row['n_controls_alt']}<br/>Control Ref {row['n_controls_ref']}",
-                    "OR": f"{row['odds_ratio']:.3f}",
-                    "P": f"{row['p_value']:.5f}",
+                    "Counts": f"{row['n_cases']}<br/>{row['n_controls']}",
+                    "RefAF": (
+                        f"{row['ref_allele_freq_cases']:.5f}<br/>"
+                        f"{row['ref_allele_freq_controls']:.5f}"
+                    ),
+                    "AltAF": (
+                        f"{row['alt_allele_freq_cases']:.5f}<br/>"
+                        f"{row['alt_allele_freq_controls']:.5f}"
+                    ),
+                    "Ref_HMOZ": (
+                        f"{row.get('homozygous_ref_cases', 0)}<br/>"
+                        f"{row.get('homozygous_ref_controls', 0)}"
+                    ),
+                    "Alt_HMOZ": (
+                        f"{row.get('homozygous_alt_cases', 0)}<br/>"
+                        f"{row.get('homozygous_alt_controls', 0)}"
+                    ),
+                    "HTRZ": (
+                        f"{row.get('heterozygous_cases', 0)}<br/>"
+                        f"{row.get('heterozygous_controls', 0)}"
+                    ),
+                    "P": f"{row['p_value']:.2e}",
+                    "OR": f"{row['odds_ratio']:.2f}",
                 }
             )
 

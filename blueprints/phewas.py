@@ -20,6 +20,7 @@ class PheWASItem(NamedTuple):
     case: int
     genotype: int
 
+
 class PhecodeCounts:
     def __init__(self, variant: str = "AB") -> None:
         self.counts = Counter()
@@ -41,29 +42,101 @@ class PhecodeCounts:
         if genotype > 2:
             print(f"Warning: genotype {genotype} is greater than 2")
             return
-        if genotype >= 0: # Ignore -1 (missing)
+        if genotype >= 0:  # Ignore -1 (missing)
             self.counts[PheWASItem(case, genotype)] += count
 
     def get_stats(self) -> float:
         """Calculate the odds ratio and p-value for the PheWAS results
 
-            The code is a bit hairy, but:
+        The code is a bit hairy, but:
 
-                Counts
-                 | alt | ref |
-            Ctrl |   a |   b |
-            Case |   c |   d |
+             | Counts    |
+             | alt | ref |
+        Ctrl |   a |   b |
+        Case |   c |   d |
 
-            Odds ratio = (a/b) / (c/d)
-            p-value = fisher_exact(table)
+        Odds ratio = (a/b) / (c/d)
+        p-value = fisher_exact(table)
+
+        and additional statistics for allele frequencies and genotype counts.
+
         """
         table = np.zeros((2, 2)).astype(int)
+        ref_allele_count_cases = 0
+        alt_allele_count_cases = 0
+        ref_allele_count_controls = 0
+        alt_allele_count_controls = 0
+        homozygous_ref_cases = 0
+        homozygous_alt_cases = 0
+        heterozygous_cases = 0
+        homozygous_ref_controls = 0
+        homozygous_alt_controls = 0
+        heterozygous_controls = 0
+
         for item, count in self.counts.items():
             ref_alleles = item.genotype
             alt_alleles = 2 - item.genotype
             table[item.case, 0] += count * alt_alleles
             table[item.case, 1] += count * ref_alleles
-        return table, fisher_exact(table)
+
+            if item.case == 1:  # Case
+                ref_allele_count_cases += count * ref_alleles
+                alt_allele_count_cases += count * alt_alleles
+                if item.genotype == 2:
+                    homozygous_ref_cases += count
+                elif item.genotype == 0:
+                    homozygous_alt_cases += count
+                elif item.genotype == 1:
+                    heterozygous_cases += count
+            else:  # Control
+                ref_allele_count_controls += count * ref_alleles
+                alt_allele_count_controls += count * alt_alleles
+                if item.genotype == 2:
+                    homozygous_ref_controls += count
+                elif item.genotype == 0:
+                    homozygous_alt_controls += count
+                elif item.genotype == 1:
+                    heterozygous_controls += count
+
+        # Calculate allele frequencies
+        total_alleles_cases = ref_allele_count_cases + alt_allele_count_cases
+        total_alleles_controls = ref_allele_count_controls + alt_allele_count_controls
+        ref_allele_freq_cases = (
+            ref_allele_count_cases / total_alleles_cases
+            if total_alleles_cases > 0
+            else 0
+        )
+        alt_allele_freq_cases = (
+            alt_allele_count_cases / total_alleles_cases
+            if total_alleles_cases > 0
+            else 0
+        )
+        ref_allele_freq_controls = (
+            ref_allele_count_controls / total_alleles_controls
+            if total_alleles_controls > 0
+            else 0
+        )
+        alt_allele_freq_controls = (
+            alt_allele_count_controls / total_alleles_controls
+            if total_alleles_controls > 0
+            else 0
+        )
+
+        # Return the table and additional statistics
+        return {
+            "table": table,
+            "fisher_stats": fisher_exact(table),
+            "ref_allele_freq_cases": ref_allele_freq_cases,
+            "alt_allele_freq_cases": alt_allele_freq_cases,
+            "ref_allele_freq_controls": ref_allele_freq_controls,
+            "alt_allele_freq_controls": alt_allele_freq_controls,
+            "homozygous_ref_cases": homozygous_ref_cases,
+            "homozygous_alt_cases": homozygous_alt_cases,
+            "heterozygous_cases": heterozygous_cases,
+            "homozygous_ref_controls": homozygous_ref_controls,
+            "homozygous_alt_controls": homozygous_alt_controls,
+            "heterozygous_controls": heterozygous_controls,
+        }
 
     def __str__(self):
         string = ""
@@ -72,89 +145,90 @@ class PhecodeCounts:
         return string
 
 
-def phecode_level_assoc(variant: str) -> pd.DataFrame:
-    output_prefix = f'phecode_{variant}'
-
-    output_path = f'{PHEWAS_PHENO_DIR}{output_prefix}'
-
-    # Get genotype data
+@profile
+def get_genotype_data(variant: str):
     genotype_eids = nomaly_genotype.individual.astype(int)
     genotypes = nomaly_genotype.query_variants(variant)[0]
-
-    # print(
-    #     f"Genotype counts for variant '{variant}'\n",
-    #     np.unique(genotypes, return_counts=True),
-    # )
-
-    all_phecodes = get_all_phecodes()
-    phenotype_data = PhenotypesHDF5()
-
-    # Sort genotype data by eid
-    genotype_eids = nomaly_genotype.individual.astype(int)
     sorted_indices = np.argsort(genotype_eids)
     sorted_genotype_eids = genotype_eids[sorted_indices]
     sorted_genotypes = genotypes[sorted_indices]
 
+
+@profile
+def process_phecode(
+    phecode, sorted_genotype_eids, sorted_genotypes, phenotype_data, all_phecodes
+):
+    try:
+        eids, cases = phenotype_data.get_cases_for_phecode(phecode)
+    except ValueError:
+        print(f"Phecode {phecode} not found in the data matrix")
+        return None
+
+    indices = np.searchsorted(sorted_genotype_eids, eids)
+    valid_indices = indices[indices < len(sorted_genotype_eids)]
+    matched_genotypes = sorted_genotypes[valid_indices]
+    matched_cases = cases
+
+    phecode_counts = PhecodeCounts()
+
+    for genotype in [0, 1, 2]:
+        for case in [0, 1]:
+            count = np.sum((matched_genotypes == genotype) & (matched_cases == case))
+            if count > 0:
+                phecode_counts.add(case, int(genotype), count)
+
+    stats = phecode_counts.get_stats()
+    odds_ratio, p_value = stats["fisher_stats"]
+
+    return {
+        "phecode": phecode,
+        "description": all_phecodes[all_phecodes.phecode == phecode].description.values[
+            0
+        ],
+        "phecode_group": all_phecodes[
+            all_phecodes.phecode == phecode
+        ].phecode_group.values[0],
+        "sex": all_phecodes[all_phecodes.phecode == phecode].sex.values[0],
+        "n_cases": phecode_counts.case_total,
+        "n_controls": phecode_counts.control_total,
+        "n_cases_alt": stats["table"][1, 0],
+        "n_cases_ref": stats["table"][1, 1],
+        "n_controls_alt": stats["table"][0, 0],
+        "n_controls_ref": stats["table"][0, 1],
+        "odds_ratio": odds_ratio,
+        "p_value": p_value,
+        "ref_allele_freq_cases": stats["ref_allele_freq_cases"],
+        "alt_allele_freq_cases": stats["alt_allele_freq_cases"],
+        "ref_allele_freq_controls": stats["ref_allele_freq_controls"],
+        "alt_allele_freq_controls": stats["alt_allele_freq_controls"],
+        "homozygous_ref_cases": stats["homozygous_ref_cases"],
+        "homozygous_alt_cases": stats["homozygous_alt_cases"],
+        "heterozygous_cases": stats["heterozygous_cases"],
+        "homozygous_ref_controls": stats["homozygous_ref_controls"],
+        "homozygous_alt_controls": stats["homozygous_alt_controls"],
+        "heterozygous_controls": stats["heterozygous_controls"],
+    }
+
+
+@profile
+def phecode_level_assoc(variant: str) -> pd.DataFrame:
+    sorted_genotype_eids, sorted_genotypes = get_genotype_data(variant)
+    all_phecodes = get_all_phecodes()
+    phenotype_data = PhenotypesHDF5()
     data_to_return = []
 
-    for phecode in tqdm(all_phecodes.phecode, desc=f"Counting cases for each PheCode for {variant}"):
-        try:    
-            eids, cases = phenotype_data.get_cases_for_phecode(phecode)
-        except ValueError:
-            print(f"Phecode {phecode} not found in the data matrix")
-            continue
-
-        # Use np.searchsorted to find indices of phenotype eids in sorted genotype eids
-        indices = np.searchsorted(sorted_genotype_eids, eids)
-        valid_indices = indices[indices < len(sorted_genotype_eids)]  # Ensure indices are within bounds
-
-        matched_genotypes = sorted_genotypes[valid_indices]
-        matched_cases = cases
-
-        phecode_counts = PhecodeCounts()
-
-        # Count combinations using numpy
-
-        # 0 = Homozygous ALT, 1 = Heterozygous, 2 = Homozygous REF
-        for genotype in [0, 1, 2]:
-            for case in [0, 1]:  # Using binary case/control
-
-                count = np.sum(
-                    (matched_genotypes == genotype) & (matched_cases == case)
-                )
-                if count > 0:
-                    phecode_counts.add(case, int(genotype), count)
-        two_table, stats = phecode_counts.get_stats()
-        odds_ratio, p_value = stats
-
-        data_to_return.append(
-            {
-                "phecode": phecode,
-                "description": all_phecodes[
-                    all_phecodes.phecode == phecode
-                ].description.values[0],
-                "phecode_group": all_phecodes[
-                    all_phecodes.phecode == phecode
-                ].phecode_group.values[0],
-                "sex": all_phecodes[all_phecodes.phecode == phecode].sex.values[0],
-                "n_cases": phecode_counts.case_total,
-                "n_controls": phecode_counts.control_total,
-                "n_cases_alt": two_table[1, 0],
-                "n_cases_ref": two_table[1, 1],
-                "n_controls_alt": two_table[0, 0],
-                "n_controls_ref": two_table[0, 1],
-                # "n_cases_ref": phecode_counts.case_ref_total,
-                # "n_cases_alt": phecode_counts.case_alt_total,
-                # "n_controls_ref": phecode_counts.control_ref_total,
-                # "n_controls_alt": phecode_counts.control_alt_total,
-                # "cases_alt_frequency": phecode_counts.case_alt_total
-                # / phecode_counts.case_total,
-                # "controls_alt_frequency": phecode_counts.control_alt_total
-                # / phecode_counts.control_total,
-                "odds_ratio": odds_ratio,
-                "p_value": p_value,
-            }
+    for phecode in tqdm(
+        all_phecodes.phecode, desc=f"Counting cases for each PheCode for {variant}"
+    ):
+        result = process_phecode(
+            phecode,
+            sorted_genotype_eids,
+            sorted_genotypes,
+            phenotype_data,
+            all_phecodes,
         )
+        if result:
+            data_to_return.append(result)
 
     return pd.DataFrame(data_to_return)
 
@@ -166,6 +240,7 @@ def main():
 
     phecode_level_assoc(test_variant)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
     print("Done!")
