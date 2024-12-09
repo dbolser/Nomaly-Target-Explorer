@@ -5,7 +5,6 @@ import os
 import traceback
 
 from blueprints.phewas import phecode_level_assoc, PHEWAS_PHENO_DIR
-from db import get_term_genes
 
 import re
 
@@ -220,8 +219,8 @@ def run_phewas_if_not_done(variant, flush=False):
                         f"{row.get('heterozygous_cases', 0)}<br/>"
                         f"{row.get('heterozygous_controls', 0)}"
                     ),
-                    "P": f"{row['p_value']:.2e}",
-                    "OR": f"{row['odds_ratio']:.2f}",
+                    "P": f"{row['p_value']:.2e}<br/>",
+                    "OR": f"{row['odds_ratio']:.2f}<br/>",
                 }
             )
 
