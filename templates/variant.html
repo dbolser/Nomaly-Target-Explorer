@@ -138,12 +138,14 @@
                 { data: "Sex", title: "Sex" },
                 { data: "Description", title: "Description" },
                 { data: "Group", title: "Group" },
-                { data: "Cases", title: "Cases" },
-                { data: "Controls", title: "Controls" },
-                { data: "CasesRefAlt", title: "Cases (Alt/Ref)" },
-                { data: "ControlsRefAlt", title: "Controls (Alt/Ref)" },
+                { data: "Counts", title: "Cases<br/>Controls" },
+                { data: "P", title: "Significance" },
                 { data: "OR", title: "OR" },
-                { data: "P", title: "P" }
+                { data: "RefAF", title: "Ref AF" },
+                { data: "AltAF", title: "Alt AF" },
+                { data: "Ref_HMOZ", title: "Ref HMOZ" },
+                { data: "Alt_HMOZ", title: "Alt HMOZ" },
+                { data: "HTRZ", title: "HTRZ" }
             ];
 
             // Create columns with custom rendering
@@ -160,7 +162,7 @@
 
             // Initialize the DataTable using the common function
             initializeDataTable('phewasTable', data, columns, {
-                order: [[columns.length - 1, 'asc']] // Default ordering by the last column (P-value)
+                order: [[5, 'asc']] // Default ordering by the last column (P-value)
             });
         }
     });
