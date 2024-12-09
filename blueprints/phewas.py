@@ -151,7 +151,7 @@ def get_genotype_data(variant: str):
     sorted_indices = np.argsort(genotype_eids)
     sorted_genotype_eids = genotype_eids[sorted_indices]
     sorted_genotypes = genotypes[sorted_indices]
-
+    return sorted_genotype_eids, sorted_genotypes
 
 def process_phecode(
     phecode, sorted_genotype_eids, sorted_genotypes, phenotype_data, all_phecodes
