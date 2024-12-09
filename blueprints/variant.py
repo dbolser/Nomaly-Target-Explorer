@@ -55,7 +55,8 @@ def show_variant(variant):
             "variant_id": f"{chrom}:{pos}_{alleles.replace('_', '/')}",  # Display format
             "chromosome": chrom,
             "position": pos,
-            "alleles": alleles.replace("_", "/"),  # Convert back to C/G for display
+            "allele1": alleles.split("_")[0],
+            "allele2": alleles.split("_")[1],
         }
 
         return render_template("variant.html", data=variant_data)
