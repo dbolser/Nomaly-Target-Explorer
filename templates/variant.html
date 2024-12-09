@@ -69,6 +69,12 @@
 
 {% block extra_js %}
 {{ super() }}
+<style>
+    /* Right-align all columns that have counts or frequencies (contain <br/>) */
+    #phewasTable td:has(br) {
+        text-align: right !important;
+    }
+</style>
 <script>
     $(document).ready(function() {
         // Event listener for the PheWAS button
@@ -139,7 +145,7 @@
                 { data: "Sex", title: "Sex" },
                 { data: "Description", title: "Description" },
                 { data: "Group", title: "Group" },
-                { data: "Counts", title: "Cases<br/>Controls" },
+                { data: "Counts", title: "Cases<br/>Controls", className: "text-end" },
                 { data: "P", title: "Significance" },
                 { data: "OR", title: "OR" },
                 { data: "RefAF", title: "Ref AF" },
