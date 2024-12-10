@@ -91,7 +91,7 @@
     }
 
     // Function to initialize the DataTable
-    function renderDataTable(data, columns, defaultColumns, numColumns) {
+        function renderDataTable(resultData, columns, defaultColumns, numColumns) {
         // Destroy existing table if it exists
         if ($.fn.DataTable.isDataTable('#resultsTable')) {
             $('#resultsTable').DataTable().destroy();
@@ -99,26 +99,18 @@
 
         // Initialize DataTable with dynamic columns
         $('#resultsTable').DataTable({
-            data: data,
-            columns: columns.map(col => ({
-                title: col,
+            data: resultData.data,
+            columns: columns.map((col, index) => ({
+                title: `<span title="${resultData.columnTooltips[index]}">${resultData.columnNames[index]}</span>`,
                 data: col,
-                visible: defaultColumns.includes(col),  // Show default columns initially
-                render: function (data, type, row) {
-                    // Client-side formatting for specific columns
-                    if (numColumns.includes(col) && type === 'display') {
-                        // Check if the value is a number before formatting
-                        if (!isNaN(parseFloat(data))) {
-                            return parseFloat(data).toExponential(2); // Format as scientific notation with 2 decimal places
-                        }
-                    }
-                    return data;
-                }
+                visible: defaultColumns.includes(col),
+                className: col.includes('pvalue') ? 'dt-right' : '',
             })),
             order: [[0, 'asc']],
             responsive: true,
             autoWidth: true,
-            dom: 'Bfrtip',  // Include buttons for column visibility
+            pageLength: 50,
+            dom: 'Bfrtip',
             buttons: [
                 {
                     extend: 'colvis',
@@ -150,7 +142,7 @@
                     // resultDiv.innerHTML = `${resultData.statstype}`;
                     populateTestNumbers("Tested affected: " + resultData.affected + " Tested control: " + resultData.control);
                     // Render DataTable
-                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+                    renderDataTable(resultData, resultData.columns, resultData.defaultColumns, resultData.numColumns);
                 }).catch(error => {
                     resultDiv.innerHTML = `Error: ${error.message}`;
                 });
@@ -163,7 +155,7 @@
             }).then(response => response.json())
                 .then(resultData => {
                     renderPlot(resultData.qqplot);
-                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+                    renderDataTable(resultData, resultData.columns, resultData.defaultColumns, resultData.numColumns);
                 }).catch(error => {
                     resultDiv.innerHTML = `Error: ${error.message}`;
                 });

@@ -148,6 +148,13 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
     if addgene:
         plot_df = add_gene_info_to_DataTable(plot_df, phecode)
 
+    # Round all P-values to scientific notation with 2 decimal places
+    pval_columns = pval_nondirect + pval_pos + pval_neg
+    for col in pval_columns:
+        plot_df[col] = plot_df[col].apply(
+            lambda x: f"{float(x):0.2e}" if x != "None" else x
+        )
+
     # Replace NaN values with None (valid JSON format)
     plot_df = plot_df.fillna('None')
 
@@ -221,6 +228,20 @@ def get_nomaly_stats(phecode):
 
     # print(diseasestats['num_rp'].values[0], diseasestats['num_rn'].values[0], flush=True)
 
+    # Update column names mapping to include tooltips
+    column_display_names = {
+        'minrank': {'display': 'Min Rank', 'tooltip': 'Minimum rank across all statistical tests'},
+        'term': {'display': 'Term', 'tooltip': 'Term identifier'},
+        'name': {'display': 'Name', 'tooltip': 'Term description'},
+        'domain': {'display': 'Domain', 'tooltip': 'Domain categories'},
+        'mwu_pvalue': {'display': 'MWU P-value', 'tooltip': 'P-value for the Mann-Whitney U test'},
+        'mcc_pvalue': {'display': 'MCC P-value', 'tooltip': 'P-value for Matthews Correlation Coefficient'},
+        'yjs_pvalue': {'display': 'YJS P-value', 'tooltip': 'P-value for Youden J Statistic'},
+        'lrp_pvalue': {'display': 'LRP P-value', 'tooltip': 'P-value for Likelihood Ratio Positive'},
+        'metric1_pvalue': {'display': 'Metric1 P-value', 'tooltip': 'P-value for Metric 1'},
+        'lrn_protective_pvalue': {'display': 'LRN Protective P-value', 'tooltip': 'P-value for Likelihood Ratio Negative (Protective)'}
+    }
+
     # if adding gene: add 'gene', 'sig gene',
     nomalyResults = {
         'qqplot': graph_html,
@@ -228,7 +249,9 @@ def get_nomaly_stats(phecode):
         'control': diseasestats['num_rn'].values[0],
         'data': plot_df.to_dict(orient='records'),
         'columns': ['minrank', 'term', 'name', 'domain'] + columns_pval,
-        'defaultColumns': ['minrank','term','name', 'domain', 'mwu_pvalue', 'metric1_pvalue', 'mcc_pvalue'],
+        'columnNames': [column_display_names[col]['display'] for col in ['minrank', 'term', 'name', 'domain'] + columns_pval],
+        'columnTooltips': [column_display_names[col]['tooltip'] for col in ['minrank', 'term', 'name', 'domain'] + columns_pval],
+        'defaultColumns': ['minrank', 'term', 'name', 'domain', 'mwu_pvalue', 'metric1_pvalue', 'mcc_pvalue'],
         'numColumns': columns_pval,
     }
     return nomalyResults
@@ -253,13 +276,30 @@ def get_nomaly_stats2(phecode):
     pval_neg = ['lrn_protective_pvalue']
     columns_pval = pval_nondirect + pval_pos + pval_neg
 
+    # Use same column names mapping
+    column_display_names = {
+        "minrank": "Rank",
+        "term": "Term",
+        "name": "Name",
+        "domain": "Domain",
+        "mwu_pvalue": "MWU Pvalue",
+        "mcc_pvalue": "MCC Pvalue",
+        "yjs_pvalue": "YJS Pvalue",
+        "lrp_pvalue": "LRP Pvalue",
+        "metric1_pvalue": "Metric1 Pvalue",
+        "lrn_protective_pvalue": "LRN Protective Pvalue",
+    }
+
     nomalyResults = {
-        'qqplot': graph_html,
-        'data': plot_df.to_dict(orient='records'),
-        'columns': ['minrank', 'term', 'name', 'domain'] + columns_pval,
-        'defaultColumns': ['minrank','term','name', 'domain'],
-        #   + ['mwu_pvalue', 'metric1_pvalue', 'yjs_pvalue','mcc_pvalue'],
-        'numColumns': columns_pval,
+        "qqplot": graph_html,
+        "data": plot_df.to_dict(orient="records"),
+        "columns": ["minrank", "term", "name", "domain"] + columns_pval,
+        "columnNames": [
+            column_display_names[col]
+            for col in ["minrank", "term", "name", "domain"] + columns_pval
+        ],
+        "defaultColumns": ["minrank", "term", "name", "domain"],
+        "numColumns": columns_pval,
     }
     return nomalyResults
 
