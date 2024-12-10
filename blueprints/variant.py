@@ -5,7 +5,6 @@ import os
 import traceback
 
 from blueprints.phewas import phecode_level_assoc, PHEWAS_PHENO_DIR
-from db import get_term_genes, get_phecode_info
 
 import re
 
@@ -44,7 +43,7 @@ def show_variant(variant):
         normalized_variant = f"{chrom}_{pos}_{alleles}"
 
         # Validate the normalized format
-        format_str = r"(chr)?\d+_\d+_[ACGT]+_[ACGT]+"
+        format_str = r"(chr)?(\d+|MT|[XY])_\d+_[ACGT]+_[ACGT]+"
         if not re.match(format_str, normalized_variant):
             return render_template(
                 "error.html", error="Invalid variant ID format: " + variant
@@ -73,7 +72,7 @@ def show_variant(variant):
     # GenotypeHDF5, ICD10HDF5 and phecodeHDF5 are needed
 
 
-# def add_gene_info_to_DataTable(plot_df, variant):
+# def add_gene_info_to_DataTable(plot_df, variant, phecode):
 #     # get term to gene mapping
 #     print("getting term to gene mapping", flush=True)
 #     term_gene_df = get_term_genes(plot_df["term"].tolist())
@@ -86,7 +85,20 @@ def show_variant(variant):
 #         columns={"gene": "sig gene"}
 #     )
 #     # term_gene_df_other = term_gene_df[~term_gene_df['gene'].isin(genefilter)]
+#     # filter gene by assoc var
+#     var_assoc_sig = read_gwas(phecode)
+#     genefilter = set([x["Gene"] for x in var_assoc_sig])
+#     term_gene_df_sig = term_gene_df[term_gene_df["gene"].isin(genefilter)].rename(
+#         columns={"gene": "sig gene"}
+#     )
+#     # term_gene_df_other = term_gene_df[~term_gene_df['gene'].isin(genefilter)]
 
+#     # group by term, no significance filter (to
+#     term_gene_df = (
+#         term_gene_df.groupby("term")["gene"]
+#         .apply(lambda x: ", ".join(x) if len(x) < 5 else f"{len(x)} genes")
+#         .reset_index()
+#     )
 #     # group by term, no significance filter (to
 #     term_gene_df = (
 #         term_gene_df.groupby("term")["gene"]
@@ -207,8 +219,8 @@ def run_phewas_if_not_done(variant, flush=False):
                         f"{row.get('heterozygous_cases', 0)}<br/>"
                         f"{row.get('heterozygous_controls', 0)}"
                     ),
-                    "P": f"{row['p_value']:.2e}",
-                    "OR": f"{row['odds_ratio']:.2f}",
+                    "P": f"{row['p_value']:.2e}<br/>",
+                    "OR": f"{row['odds_ratio']:.2f}<br/>",
                 }
             )
 
