@@ -145,9 +145,9 @@
                 { data: "Sex", title: "Sex" },
                 { data: "Description", title: "Description" },
                 { data: "Group", title: "Group" },
-                { data: "Counts", title: "Cases<br/>Controls" },
                 { data: "P", title: "Significance" },
                 { data: "OR", title: "OR" },
+                { data: "Counts", title: "Cases<br/>Controls" },
                 { data: "RefAF", title: "Ref AF" },
                 { data: "AltAF", title: "Alt AF" },
                 { data: "Ref_HMOZ", title: "Ref HMOZ" },
@@ -169,7 +169,7 @@
 
             // Initialize the DataTable using the common function
             initializeDataTable('phewasTable', data, columns, {
-                order: [[5, 'asc']] // Default ordering by the last column (P-value)
+                order: [[4, 'asc']]  // Order by P (Significance) column
             });
         }
     });
