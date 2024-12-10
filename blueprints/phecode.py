@@ -411,7 +411,9 @@ def read_gwas(phecode):
     assoc_sig = assoc[assoc['P']<0.05]
 
     # change RSID to link
-    assoc_sig['RSID'] = assoc_sig['RSID'].map(lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/{x}">{x}</a>')
+    assoc_sig.loc[:, "RSID"] = assoc_sig["RSID"].map(
+        lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/{x}">{x}</a>'
+    )
     # assoc_sig['Variant'] = assoc_sig['Variant'].map(lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/?term={x.split('_')[0]}">{x}</a>')
     # assoc_sig['Variant'] = assoc_sig['Variant'] + assoc_sig['RSID']
 

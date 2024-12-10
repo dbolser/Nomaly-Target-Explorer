@@ -232,6 +232,7 @@ class GenotypeHDF5:
         try:
             std_variant = self._standardize_variant_format(variant)
             if std_variant is None:
+                print(f"Variant {variant} could not be standardized!")
                 return None
 
             # Try original variant
@@ -285,27 +286,11 @@ class GenotypeHDF5:
         try:
             mask = self.variants == varsel
             if mask.sum() == 0:
-                print(f"Variant {varsel} not found in genotype matrix")
                 return None
             return mask
         except Exception as e:
             print(f"Error in _single_variant_mask: {str(e)}")
             raise
-
-    def _multiple_variant_mask(self, varsel: list) -> np.ndarray:
-        """Create mask for multiple variants."""
-        try:
-            # Validate all variants
-            for var in varsel:
-                parts = var.split(":")
-                if len(parts) != 4:
-                    raise ValueError(f"Invalid variant format: {var}")
-
-            return np.isin(self.variants.astype(str), varsel)
-        except Exception as e:
-            print(f"Error in _multiple_variant_mask: {str(e)}")
-            raise
-
 
 # ------------------------------------------------------------------------------#
 # icd10 = 'E831'

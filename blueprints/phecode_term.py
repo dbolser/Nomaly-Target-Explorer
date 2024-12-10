@@ -76,15 +76,24 @@ def show_phecode_term_tableVar(phecode, term):
 
     # get term variants and other info including gene, domain
     term_df = get_term_domain_genes_variant(term)
-    print(term_df.shape)
+    print(f"Initial data shape: {term_df.shape}")
+    print(f"Initial genes: {term_df['gene'].nunique()}")
 
-    # add pharos 
+    # add pharos
+    print(f"Pharos genes: {len(pharos['gene'].unique())}")
     term_df = term_df.merge(pharos, on='gene', how='left')
-    print(term_df.shape)
+    print(f"After pharos merge shape: {term_df.shape}")
+    print(f"Genes after pharos merge: {term_df['gene'].nunique()}")
 
     # add pp
+    print(f"PP genes: {len(pp['gene'].unique())}")
     term_df = term_df.merge(pp, on='gene', how='left')
-    print(term_df.shape)
+    print(f"Final shape: {term_df.shape}")
+    print(f"Final genes: {term_df['gene'].nunique()}")
+
+    # Sample some data
+    print("\nSample of final data:")
+    print(term_df.head())
 
     # ['variant_id', 'gene', 'aa', 'hmm', 'hmm_pos', 'sf', 'fa', 'tdl', 'tbio', 'pubmed_scores', 'generifs', 'antibodies', 'go_terms', 'tchem', 'tclin', 'drug_list', 'tdark', 'gwas', 'gwas_hits', 'disease_associations1', 'disease_associations2', 'classification', 'notes', 'indication_mesh_term', 'catall', 'succ_1_2', 'succ_2_3', 'succ_3_a', 'year_launch']
 
@@ -160,18 +169,16 @@ def ensure_phewas(variant_id):
     output_prefix = f"variant_{variant_id}"
     phewas_path = f"{PHEWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv"
 
-    if not os.path.exists(phewas_path):
-        # Run PheWAS
-        # Convert variant_id to colon format for pheWAS
-        variant_colon = variant_id.replace("_", ":").replace("/", ":")
-        print(variant_colon)
-        try:
-            # Attempt to run PheWAS
-            assoc = phecode_level_assoc(variant_colon)
-            if assoc is None or assoc.empty:
-                print(f"PheWAS returned no results for variant {variant_id}")
-        except Exception as e:
-            print(f"Error running PheWAS for variant {variant_id}: {e}")
+    if os.path.exists(phewas_path):
+        # If file exists, just return
+        return
+
+    try:
+        assoc = phecode_level_assoc(variant_id)
+        if assoc is None or assoc.empty:
+            print(f"PheWAS returned no results for variant {variant_id}")
+    except Exception as e:
+        print(f"Error running PheWAS for variant {variant_id}: {e}")
 
 
 def load_gwas_data(phecode, variant_id):
@@ -194,13 +201,16 @@ def load_gwas_data(phecode, variant_id):
     # Convert variant_id to GWAS format
     # variant_id split: chrom_pos_ref/alt (already given)
     # Just replace first underscore with colon to get CHR:POS_REF/ALT
-    variant_gwas_format = variant_id.replace("_", ":", 1)
+    # variant_gwas_format = variant_id.replace("_", ":", 1)
 
     variant_col = "nomaly_variant"
 
-    row = gwas_df[gwas_df[variant_col] == variant_gwas_format]
+    print(variant_id)
+    print(gwas_df[variant_col])
+
+    row = gwas_df[gwas_df[variant_col] == variant_id]
     if row.empty:
-        print(f"Variant {variant_gwas_format} not found in GWAS file")
+        print(f"Variant {variant_id} not found in GWAS file")
         return None
 
     r = row.iloc[0]
@@ -236,10 +246,10 @@ def load_phewas_data(variant_id, phecode):
     phewas_df = pd.read_csv(phewas_file, sep="\t")
     phewas_df["phecode"] = phewas_df["phecode"].astype(str)
     phecode = str(phecode)
-    row = phewas_df[phewas_df["phecode"] == phecode]
-    if row.empty:
+    phewas_row = phewas_df[phewas_df["phecode"] == phecode]
+    if phewas_row.empty:
         return None
-    r = row.iloc[0]
+    r = phewas_row.iloc[0]
     return {
         "PheWAS_P": r["p_value"],
         "PheWAS_OR": r["odds_ratio"],
@@ -265,13 +275,27 @@ def get_term_variants(term: str) -> pd.DataFrame:
     INNER JOIN terms2snps USING (variant_id)
     WHERE term = %s
     """
+    print(f"\nExecuting query for term: {term}")
+    print(f"Query: {query}")
+
     cur.execute(query, (term,))
     results = cur.fetchall()
+    print(f"Number of results from DB: {len(results)}")
+
     columns = [desc[0] for desc in cur.description]
     cur.close()
     conn.close()
 
-    return pd.DataFrame(results, columns=columns) if results else pd.DataFrame()
+    df = pd.DataFrame(results, columns=columns) if results else pd.DataFrame()
+    print(f"Created DataFrame with shape: {df.shape}")
+
+    # Convert numpy types to Python native types
+    if not df.empty:
+        df["hmm_score"] = df["hmm_score"].astype(float)
+        print("Sample of data:")
+        print(df.head())
+
+    return df
 
 
 @phecode_term_bp.route(
@@ -279,163 +303,63 @@ def get_term_variants(term: str) -> pd.DataFrame:
     methods=["GET", "POST"],
 )
 def show_phecode_term_variant_detail(phecode, term):
-    """
-    Create a detailed view showing variants associated with the term,
-    including allele frequencies, counts from PheWAS, PheWAS p-values, GWAS p-values, etc.
-    """
     try:
         # Get variants from DB
+        print(f"\nFetching variants for term: {term}")
         term_df = get_term_variants(term)
+        print(f"Initial term_df shape: {term_df.shape}")
+
         if term_df.empty:
+            print("No variants found for this term!")
             return jsonify(
                 {"data": [], "columns": [], "defaultColumns": [], "numColumns": []}
             )
 
-        # For each variant, get PheWAS and GWAS results
         data_records = []
-        for _, row in term_df.iterrows():
+        for idx, row in term_df.iterrows():
             variant_id = row["variant_id"]
-            gene = row["gene"]
-            aa = row["aa"]
-            hmm_score = row["hmm_score"]
+            print(f"\nProcessing variant {idx+1}/{len(term_df)}: {variant_id}")
+            standard_variant_id = variant_id.replace("/", "_")
 
-            # Extract alleles from variant_id. Format: CHR_POS_REF/ALT
-            # Example: "8_6870776_C/T"
-            # alleles: REF = C, ALT = T
-            parts = variant_id.split("_")  # [CHR, POS, REF/ALT]
-            if len(parts) != 3:
-                print(f"Unexpected variant_id format: {variant_id}")
-                continue
-            chrom = parts[0]
-            pos = parts[1]
-            refalt = parts[2]
-            if "/" in refalt:
-                ref, alt = refalt.split("/")
-            else:
-                print(f"Unexpected ref/alt format in variant_id: {variant_id}")
-                continue
+            # Load PheWAS data
+            phewas_data = load_phewas_data(standard_variant_id, phecode)
+            print(f"PheWAS data found: {phewas_data is not None}")
 
-            # Load PheWAS data for this variant and phecode
-            phewas_data = load_phewas_data(variant_id, phecode)
-            if phewas_data is None:
-                # no data found from PheWAS
-                phewas_data = {
-                    "PheWAS_P": None,
-                    "PheWAS_OR": None,
-                    "Ref_AF_Cases": None,
-                    "Alt_AF_Cases": None,
-                    "Ref_AF_Controls": None,
-                    "Alt_AF_Controls": None,
-                    "Cases_Count": None,
-                    "Controls_Count": None,
-                }
-
-            # Load GWAS data for this phecode and variant
+            # Load GWAS data
             gwas_data = load_gwas_data(phecode, variant_id)
-            if gwas_data is None:
-                gwas_data = {
-                    "GWAS_P": None,
-                    "GWAS_OR": None,
-                    "GWAS_F_A": None,
-                    "GWAS_F_U": None,
-                    "GWAS_RSID": None,
-                }
+            print(f"GWAS data found: {gwas_data is not None}")
 
+            # Construct record
             record = {
-                "variant_id": variant_id,
-                "gene": gene,
-                "aa": aa,
-                "hmm_score": f"{hmm_score:.4f}" if hmm_score is not None else None,
-                "chrom": chrom,
-                "pos": pos,
-                "ref": ref,
-                "alt": alt,
-                "phewas_p": f"{phewas_data['PheWAS_P']:.2e}"
-                if phewas_data["PheWAS_P"]
-                else None,
-                "phewas_or": f"{phewas_data['PheWAS_OR']:.2f}"
-                if phewas_data["PheWAS_OR"]
-                else None,
-                "cases_count": phewas_data["Cases_Count"],
-                "controls_count": phewas_data["Controls_Count"],
-                "ref_af_cases": f"{phewas_data['Ref_AF_Cases']:.4f}"
-                if phewas_data["Ref_AF_Cases"]
-                else None,
-                "alt_af_cases": f"{phewas_data['Alt_AF_Cases']:.4f}"
-                if phewas_data["Alt_AF_Cases"]
-                else None,
-                "ref_af_controls": f"{phewas_data['Ref_AF_Controls']:.4f}"
-                if phewas_data["Ref_AF_Controls"]
-                else None,
-                "alt_af_controls": f"{phewas_data['Alt_AF_Controls']:.4f}"
-                if phewas_data["Alt_AF_Controls"]
-                else None,
-                "gwas_p": f"{gwas_data['GWAS_P']:.2e}" if gwas_data["GWAS_P"] else None,
-                "gwas_or": f"{gwas_data['GWAS_OR']:.2f}"
-                if gwas_data["GWAS_OR"]
-                else None,
-                "gwas_f_a": f"{gwas_data['GWAS_F_A']:.4f}"
-                if gwas_data["GWAS_F_A"]
-                else None,
-                "gwas_f_u": f"{gwas_data['GWAS_F_U']:.4f}"
-                if gwas_data["GWAS_F_U"]
-                else None,
-                "gwas_rsid": gwas_data["GWAS_RSID"],
+                "Variant": variant_id,
+                "Gene": row["gene"],
+                "AA_Change": row["aa"],
+                "HMM_Score": row["hmm_score"],
             }
+
+            # Add PheWAS data if available
+            if phewas_data:
+                record.update(phewas_data)
+
+            # Add GWAS data if available
+            if gwas_data:
+                record.update(gwas_data)
 
             data_records.append(record)
 
-        # Define columns and defaults
-        columns = [
-            "variant_id",
-            "chrom",
-            "pos",
-            "ref",
-            "alt",
-            "gene",
-            "aa",
-            "hmm_score",
-            "cases_count",
-            "controls_count",
-            "ref_af_cases",
-            "alt_af_cases",
-            "ref_af_controls",
-            "alt_af_controls",
-            "phewas_p",
-            "phewas_or",
-            "gwas_p",
-            "gwas_or",
-            "gwas_f_a",
-            "gwas_f_u",
-            "gwas_rsid",
-        ]
-        default_columns = [
-            "variant_id",
-            "gene",
-            "aa",
-            "hmm_score",
-            "cases_count",
-            "controls_count",
-            "alt_af_cases",
-            "alt_af_controls",
-            "phewas_p",
-            "phewas_or",
-            "gwas_p",
-            "gwas_or",
-        ]
-        num_columns = [
-            "hmm_score",
-            "alt_af_cases",
-            "alt_af_controls",
-            "ref_af_cases",
-            "ref_af_controls",
-            "phewas_p",
-            "phewas_or",
-            "gwas_p",
-            "gwas_or",
-            "gwas_f_a",
-            "gwas_f_u",
-        ]
+        print(f"\nFinal number of records: {len(data_records)}")
+        if len(data_records) > 0:
+            print("Sample record:", data_records[0])
+
+        # Define columns based on the data
+        columns = ["Variant", "Gene", "AA_Change", "HMM_Score"]
+        if any(phewas_data for r in data_records):
+            columns.extend(["PheWAS_P", "PheWAS_OR", "Cases_Count", "Controls_Count"])
+        if any(gwas_data for r in data_records):
+            columns.extend(["GWAS_P", "GWAS_OR"])
+
+        default_columns = ["Variant", "Gene", "AA_Change", "PheWAS_P", "GWAS_P"]
+        num_columns = ["HMM_Score", "PheWAS_P", "PheWAS_OR", "GWAS_P", "GWAS_OR"]
 
         return jsonify(
             {
@@ -449,3 +373,19 @@ def show_phecode_term_variant_detail(phecode, term):
     except Exception as e:
         print("Error in tableVariantDetail:", traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
+
+def get_term_domain_genes_variant(term):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Print the query and term value
+    query = """YOUR QUERY HERE"""
+    print(f"Executing query with term: {term}")
+    print(f"Query: {query}")
+
+    cur.execute(query, (term,))
+    results = cur.fetchall()
+    print(f"Raw results count: {len(results)}")
+
+    # Rest of the function...

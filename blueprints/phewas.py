@@ -157,11 +157,6 @@ def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
         tuple: (sorted_eids, sorted_genotypes) or None if error
     """
     try:
-        parts = variant.split(":")
-        if len(parts) != 4:
-            print(f"Invalid variant format (expected CHR:POS:REF:ALT): {variant}")
-            return None
-
         # Get genotype data
         genotype_eids = nomaly_genotype.individual
         genotypes = nomaly_genotype.query_variants(variant)
@@ -245,7 +240,18 @@ def process_phecode(
 
 
 def phecode_level_assoc(variant: str) -> pd.DataFrame:
-    sorted_genotype_eids, sorted_genotypes = get_genotype_data(variant)
+    """
+    Run PheWAS analysis for a variant and save results to file.
+    Returns the DataFrame of results.
+    """
+    # Get genotype data and handle failure case
+    genotype_result = get_genotype_data(variant)
+    if genotype_result is None:
+        print(f"No genotype data found for variant {variant}")
+        return None
+
+    sorted_genotype_eids, sorted_genotypes = genotype_result
+
     all_phecodes = get_all_phecodes()
     phenotype_data = PhenotypesHDF5()
     data_to_return = []
@@ -263,7 +269,21 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
         if result:
             data_to_return.append(result)
 
-    return pd.DataFrame(data_to_return)
+    # Create DataFrame
+    results_df = pd.DataFrame(data_to_return)
+
+    # Save results to file if we have data
+    if not results_df.empty:
+        # Convert variant format from CHR:POS:REF:ALT to CHR_POS_REF_ALT
+        variant_underscore = variant.replace(":", "_")
+        output_prefix = f"variant_{variant_underscore}"
+        output_path = f"{PHEWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv"
+
+        # Save to file
+        results_df.to_csv(output_path, sep="\t", index=False)
+        print(f"Saved PheWAS results to {output_path}")
+
+    return results_df
 
 
 def main():
