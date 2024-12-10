@@ -230,16 +230,37 @@ def get_nomaly_stats(phecode):
 
     # Update column names mapping to include tooltips
     column_display_names = {
-        'minrank': {'display': 'Min Rank', 'tooltip': 'Minimum rank across all statistical tests'},
-        'term': {'display': 'Term', 'tooltip': 'Term identifier'},
-        'name': {'display': 'Name', 'tooltip': 'Term description'},
-        'domain': {'display': 'Domain', 'tooltip': 'Domain categories'},
-        'mwu_pvalue': {'display': 'MWU P-value', 'tooltip': 'P-value for the Mann-Whitney U test'},
-        'mcc_pvalue': {'display': 'MCC P-value', 'tooltip': 'P-value for Matthews Correlation Coefficient'},
-        'yjs_pvalue': {'display': 'YJS P-value', 'tooltip': 'P-value for Youden J Statistic'},
-        'lrp_pvalue': {'display': 'LRP P-value', 'tooltip': 'P-value for Likelihood Ratio Positive'},
-        'metric1_pvalue': {'display': 'Metric1 P-value', 'tooltip': 'P-value for Metric 1'},
-        'lrn_protective_pvalue': {'display': 'LRN Protective P-value', 'tooltip': 'P-value for Likelihood Ratio Negative (Protective)'}
+        "minrank": {
+            "display": "Min Rank",
+            "tooltip": "Minimum rank across all statistical tests",
+        },
+        "term": {"display": "Term", "tooltip": "Term identifier"},
+        "name": {"display": "Description", "tooltip": "Term description"},
+        "domain": {"display": "Domain", "tooltip": "Domain categories"},
+        "mwu_pvalue": {
+            "display": "MWU P-value",
+            "tooltip": "P-value for the Mann-Whitney U test",
+        },
+        "mcc_pvalue": {
+            "display": "MCC P-value",
+            "tooltip": "P-value for Matthews Correlation Coefficient",
+        },
+        "yjs_pvalue": {
+            "display": "YJS P-value",
+            "tooltip": "P-value for Youden J Statistic",
+        },
+        "lrp_pvalue": {
+            "display": "LRP P-value",
+            "tooltip": "P-value for Likelihood Ratio Positive",
+        },
+        "metric1_pvalue": {
+            "display": "Metric1 P-value",
+            "tooltip": "P-value for Metric 1",
+        },
+        "lrn_protective_pvalue": {
+            "display": "LRN Protective P-value",
+            "tooltip": "P-value for Likelihood Ratio Negative (Protective)",
+        },
     }
 
     # if adding gene: add 'gene', 'sig gene',
