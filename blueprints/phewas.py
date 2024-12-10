@@ -146,13 +146,47 @@ class PhecodeCounts:
         return string
 
 
-def get_genotype_data(variant: str):
-    genotype_eids = nomaly_genotype.individual.astype(int)
-    genotypes = nomaly_genotype.query_variants(variant)[0]
-    sorted_indices = np.argsort(genotype_eids)
-    sorted_genotype_eids = genotype_eids[sorted_indices]
-    sorted_genotypes = genotypes[sorted_indices]
-    return sorted_genotype_eids, sorted_genotypes
+def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
+    """
+    Get genotype data for a variant.
+
+    Args:
+        variant (str): Variant ID in format "CHR:POS:REF:ALT"
+
+    Returns:
+        tuple: (sorted_eids, sorted_genotypes) or None if error
+    """
+    try:
+        parts = variant.split(":")
+        if len(parts) != 4:
+            print(f"Invalid variant format (expected CHR:POS:REF:ALT): {variant}")
+            return None
+
+        # Get genotype data
+        genotype_eids = nomaly_genotype.individual
+        genotypes = nomaly_genotype.query_variants(variant)
+        if genotypes is None or len(genotypes) == 0:
+            print(f"No genotype data found for variant {variant}")
+            return None
+
+        # Get first row of genotypes (for single variant)
+        genotypes = genotypes[0]
+        if len(genotypes) != len(genotype_eids):
+            print(
+                f"Mismatch between genotypes ({len(genotypes)}) and IDs ({len(genotype_eids)})"
+            )
+            return None
+
+        # Sort the data
+        sorted_indices = np.argsort(genotype_eids)
+        sorted_genotype_eids = genotype_eids[sorted_indices]
+        sorted_genotypes = genotypes[sorted_indices]
+
+        return sorted_genotype_eids, sorted_genotypes
+
+    except Exception as e:
+        print(f"Error in get_genotype_data for variant {variant}: {str(e)}")
+        return None
 
 
 def process_phecode(
@@ -236,6 +270,8 @@ def main():
     test_variant = "11:69083946:T:C"
     test_variant = "9:35066710:A:G"
     test_variant = "19:44908684:C:T"
+    test_variant = "8:7055492:C:T"  # Just kill me
+    test_variant = "8:6870776:T:C"
 
     phecode_level_assoc(test_variant)
 

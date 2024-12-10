@@ -59,6 +59,8 @@
         <div class="btn-group mb-3">
             <button class="btn btn-primary" onclick="loadTable2()">Show by Gene</button>
             <button class="btn btn-secondary" onclick="loadTable1()">Show by Variant</button>
+            <button class="btn btn-info" onclick="loadVariantDetailTable()">Show Variant Detailed View</button>
+
         </div>
 
     </div>
@@ -175,6 +177,31 @@
             alert('Failed to load table data. Check console for details.');
         });
     }
+
+    function loadVariantDetailTable() {
+        const encodedTerm = encodeURIComponent("{{ term }}");
+        fetch(`/phecode/{{ phecode }}/term/${encodedTerm}/tableVariantDetail`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({}) 
+        })
+        .then(response => response.json().then(data => {
+            if (!response.ok) {
+                throw new Error(data.error || 'Error fetching data');
+            }
+            return data;
+        }))
+        .then(resultData => {
+            renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+        })
+        .catch(error => {
+            console.error('Error loading Variant Detail Table:', error);
+            alert('Failed to load table data: ' + error.message);
+        });
+    }
+
     </script>
 </body>
 </html>

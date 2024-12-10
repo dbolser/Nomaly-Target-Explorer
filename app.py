@@ -1,8 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_mysqldb import MySQL
 from flask_session import Session
 import MySQLdb.cursors
-import re
+from werkzeug.exceptions import HTTPException
+from logging_config import setup_logging
+from errors import *
+from config import config
+import os
 
 # Import blueprints after creating the app
 from blueprints.main import main_bp
@@ -14,19 +18,17 @@ from blueprints.variant import variant_bp
 
 app = Flask(__name__)
 
-# Secret key for session management
-app.secret_key = 'your_secret_key'
+# Load config based on environment
+env = os.getenv('FLASK_ENV', 'default')
+app.config.from_object(config[env])
+
+# Set up logging
+logger = setup_logging(app)
 
 # Configure MySQL
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'clu'
-app.config['MYSQL_PASSWORD'] = 'mysqlOutse3'
-app.config['MYSQL_DB'] = 'ukbb'
-
 mysql = MySQL(app)
 
 # Configure session for access control
-app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
 
 # Home route
@@ -101,6 +103,39 @@ def search1():
 # register variant blueprint: /variant/<string:variant>
 app.register_blueprint(variant_bp)
 
+# Error handlers
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Handle all unhandled exceptions"""
+    if isinstance(e, HTTPException):
+        response = {
+            "error": True,
+            "message": e.description,
+            "status_code": e.code
+        }
+        status_code = e.code
+    else:
+        app.logger.error(f"Unhandled exception: {str(e)}", exc_info=True)
+        response = {
+            "error": True,
+            "message": "An unexpected error occurred",
+            "status_code": 500
+        }
+        status_code = 500
+
+    if request.headers.get('Accept') == 'application/json':
+        return jsonify(response), status_code
+    return render_template('error.html', error=response["message"]), status_code
+
+@app.errorhandler(DataNotFoundError)
+def handle_not_found(e):
+    app.logger.warning(f"Data not found: {str(e)}")
+    return render_template('error.html', error=str(e)), 404
+
+@app.errorhandler(DatabaseConnectionError)
+def handle_db_error(e):
+    app.logger.error(f"Database error: {str(e)}")
+    return render_template('error.html', error="Database connection error"), 503
 
 # Run app
 if __name__ == '__main__':

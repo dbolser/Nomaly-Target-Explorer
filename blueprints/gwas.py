@@ -2,6 +2,8 @@ import os
 import pickle
 import subprocess
 import pandas as pd
+from errors import GWASError
+import logging
 
 # ----------------------------------------------------- #
 # GLOBAL VARIABLES
@@ -15,6 +17,8 @@ UKBB_PHENO_DIR = '/data/general/UKBB/Phenotypes/'
 # source_plink_genome = '/data/general/UKBB/Run-v1/DatabaseInputs/genotypes' # the original plink files
 source_plink_genome = '/data/clu/ukbb/genotypes_nomaly'
 plink_binary = '/data/clu/ukbb/plink' # PLINK v1.9.0-b.7.6 64-bit (13 Oct 2024)
+
+logger = logging.getLogger(__name__)
 
 def variant_level_assoc(pheno_type, code) -> pd.DataFrame:
 

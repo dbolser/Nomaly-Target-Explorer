@@ -1,27 +1,30 @@
 import mysql.connector
-from mysql.connector import Error
 import pandas as pd
+from errors import DatabaseConnectionError, DataNotFoundError
+import logging
+from flask import current_app
+from utils import app_context
+
+logger = logging.getLogger(__name__)
+
 
 # Connect to the database
 def get_db_connection():
-    # Database connection configuration
-    db_config = {
-        'host': 'localhost',
-        'database': 'ukbb',
-        'user': 'clu',
-        'password': 'mysqlOutse3',
-        'raise_on_warnings': False
-    }
-    try:
-        conn = mysql.connector.connect(**db_config)
-        return conn
-    except Exception as e:
-        print(f"Error connecting to database: {e}")
-        return None
+    with app_context():
+        try:
+            conn = mysql.connector.connect(
+                host=current_app.config['MYSQL_HOST'],
+                user=current_app.config['MYSQL_USER'],
+                password=current_app.config['MYSQL_PASSWORD'],
+                database=current_app.config['MYSQL_DB']
+            )
+            return conn
+        except Exception as e:
+            logger.error("Database connection failed", exc_info=True)
+            raise DatabaseConnectionError(f"Could not connect to database: {str(e)}")
 
 
 def get_all_phecodes() -> pd.DataFrame:
-
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -56,57 +59,28 @@ def get_all_phecodes() -> pd.DataFrame:
 
 
 def get_phecode_info(phecode):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(dictionary=True)
 
-    conn = get_db_connection()
-    cur = conn.cursor()
+        cur.execute("SELECT * FROM phecode_definition WHERE phecode = %s", (phecode,))
+        result = cur.fetchone()
 
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(
-        f"""
-        SELECT p.phecode, p.description, p.sex, p.phecode_group, p.phecode_exclude, p.affected, p.excluded, icd10.icd10, icd10.meaning, icd10.icd10_count
-        FROM phecode_definition p
-        JOIN icd10_phecode ip ON p.phecode = ip.phecode
-        JOIN icd10_coding icd10 ON ip.icd10 = icd10.icd10
-        WHERE p.phecode = '{phecode}';
-        """
-    )
-    results = cur.fetchall()
+        if not result:
+            raise DataNotFoundError(f"No data found for phecode: {phecode}")
 
-    cur.close()
-    conn.close()
+        return result
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching phecode info: {str(e)}", exc_info=True)
+        raise
+    finally:
+        if "cur" in locals():
+            cur.close()
+        if "conn" in locals():
+            conn.close()
 
-    # 4. Get the column names
-    columns = [desc[0] for desc in cur.description]
-
-    # 7. Convert the rows and columns into a Pandas DataFrame
-    filtered_df = pd.DataFrame(results, columns=columns)
-
-    # Add icd10_count to meaning
-    filtered_df['meaning'] = filtered_df['meaning'] + ' | ' + filtered_df['icd10_count'].astype(str)
-
-    # Group by 'description' and aggregate meanings into a list
-    grouped = filtered_df.groupby(['description', 'phecode', 'sex', 'affected', 'excluded', 'phecode_exclude', 'phecode_group'
-    ]).agg({
-        'meaning': lambda x: list(x)  # Group meanings into a list
-    }).reset_index()
-
-    # Convert results to a list of dictionaries
-    results = grouped.to_dict(orient='records')
-
-    # results only has one row
-    data = results[0]
-
-    # # Example data (replace with actual data retrieval logic)
-    # data = {
-    #     "phecode": phecode,
-    #     "sex": "Both",
-    #     "affected": 150,
-    #     "excluded": 10,
-    #     "phecode_exclude": "None",
-    #     "phecode_group": "Cardiovascular"
-    # }
-
-    return data
 
 def get_term_names(terms_list):
     conn = get_db_connection()

@@ -109,57 +109,218 @@ class StatsHDF5:
 
 class GenotypeHDF5:
     def __init__(self, hdf5_file):
-        self.hdf5_file = hdf5_file
-        self.f = h5py.File(hdf5_file, 'r')
+        try:
+            self.hdf5_file = hdf5_file
+            if not os.path.exists(hdf5_file):
+                raise FileNotFoundError(f"Genotype HDF5 file not found: {hdf5_file}")
 
-        # Load the genotype matrix and index information
-        self.genotype_matrix = self.f['genotype_matrix']
-        self.individual = self.f['fam'][...]  # Load FAM data (individual information)
-        self.variants = self.f['bim'][...]  # Load BIM data (variant information)
+            self.f = h5py.File(hdf5_file, "r")
 
-        # 6:42963149:A:C 0 is AA, 1 is AC, 2 is CC, -1 is missing
+            # Verify required datasets exist
+            required_datasets = ["genotype_matrix", "fam", "bim"]
+            for dataset in required_datasets:
+                if dataset not in self.f:
+                    raise KeyError(
+                        f"Required dataset '{dataset}' not found in genotype HDF5 file"
+                    )
 
-    def get_genotype(self, i, j):
-        return self.genotype_matrix[i, j]
+            # Load the genotype matrix and index information
+            self.genotype_matrix = self.f["genotype_matrix"]
+            self.individual: np.array = self.f["fam"][...].astype(int)
+            self.variants = self.f["bim"][...].astype(str)
 
-    def query_variants(self, variantsel) -> np.ndarray:
-        if isinstance(variantsel, str):
-            variant_mask = self._single_variant_mask(variantsel)
-        elif isinstance(variantsel, list):
-            variant_mask = self._multiple_variant_mask(variantsel)
-        else:
-            raise ValueError("variantsel must be a string or a list of strings.")
+        except Exception as e:
+            print(f"Error initializing GenotypeHDF5: {str(e)}")
+            raise
 
-        # Apply mask to Find indices of selected variants and individuals
-        selected_variant_indices = np.where(variant_mask)[0]
+    def __del__(self):
+        """Cleanup method to ensure file is closed."""
+        try:
+            if hasattr(self, "f"):
+                self.f.close()
+        except Exception as e:
+            print(f"Error closing genotype file: {str(e)}")
 
-        if len(selected_variant_indices) == 0:
+    def _flip_alleles(self, variant: str) -> str:
+        """
+        Flip the ref and alt alleles in a variant ID.
+
+        Args:
+            variant (str): Variant ID in format "CHR:POS:REF:ALT" or "CHR_POS_REF/ALT"
+
+        Returns:
+            str: Flipped variant ID in same format as input
+        """
+        try:
+            if "_" in variant:  # Format: CHR_POS_REF/ALT
+                chrom, pos, alleles = variant.split("_")
+                if "/" not in alleles:
+                    return None
+                ref, alt = alleles.split("/")
+                return f"{chrom}_{pos}_{alt}/{ref}"
+            else:  # Format: CHR:POS:REF:ALT
+                chrom, pos, ref, alt = variant.split(":")
+                return f"{chrom}:{pos}:{alt}:{ref}"
+        except Exception as e:
+            print(f"Error flipping alleles for variant {variant}: {str(e)}")
             return None
 
-        # Query the submatrix using selected indices
-        submatrix = self.genotype_matrix[selected_variant_indices, :]
+    def _standardize_variant_format(self, variant: str) -> str | None:
+        """
+        Convert any variant format to CHR:POS:REF:ALT format.
 
-        return submatrix
+        Handles formats:
+        - CHR_POS_REF/ALT (e.g., "8_6870776_C/T")
+        - CHR:POS:REF:ALT (e.g., "8:6870776:C:T")
+        - CHR-POS-REF-ALT (e.g., "8-6870776-C-T")
+        - CHR.POS.REF.ALT (e.g., "8.6870776.C.T")
 
-    def _single_variant_mask(self, varsel = '6:42963149:A:C'):
-        return self.variants.astype(str) == varsel
+        Args:
+            variant (str): Variant in any supported format
 
-    def _multiple_variant_mask(self, varsel = ['6:42963149:A:C', '1:930245:A:G']):
-        return np.isin(self.variants.astype(str), varsel)
+        Returns:
+            str|None: Standardized variant string or None if invalid format
+        """
+        try:
+            if not isinstance(variant, str):
+                print(f"Invalid variant type: {type(variant)}, expected string")
+                return None
+
+            # First, extract the components regardless of format
+            if "_" in variant and "/" in variant:  # CHR_POS_REF/ALT
+                chrom, pos, alleles = variant.split("_")
+                ref, alt = alleles.split("/")
+            elif ":" in variant:  # CHR:POS:REF:ALT
+                chrom, pos, ref, alt = variant.split(":")
+            elif "-" in variant:  # CHR-POS-REF-ALT
+                chrom, pos, ref, alt = variant.split("-")
+            elif "." in variant:  # CHR.POS.REF.ALT
+                chrom, pos, ref, alt = variant.split(".")
+            else:
+                print(f"Unrecognized variant format: {variant}")
+                return None
+
+            # Validate components
+            if not chrom or not pos or not ref or not alt:
+                print(f"Missing component in variant: {variant}")
+                return None
+
+            if not pos.isdigit():
+                print(f"Position must be numeric: {pos}")
+                return None
+
+            # Clean chromosome format (e.g., 'chr8' -> '8')
+            chrom = chrom.lower().replace("chr", "")
+
+            # Standardize to colon format
+            return f"{chrom}:{pos}:{ref}:{alt}"
+
+        except Exception as e:
+            print(f"Error standardizing variant format {variant}: {str(e)}")
+            return None
+
+    def query_variants(self, variant: str) -> np.ndarray | None:
+        """
+        Query genotypes for a variant, trying flipped alleles if original not found.
+
+        Args:
+            variant (str): Variant ID in any supported format
+
+        Returns:
+            np.ndarray|None: Array of genotypes or None if error/not found
+        """
+        try:
+            std_variant = self._standardize_variant_format(variant)
+            if std_variant is None:
+                return None
+
+            # Try original variant
+            result = self._query_variants_internal(std_variant)
+            if result is not None:
+                return result
+
+            # Try flipped alleles
+            flipped = self._flip_alleles(std_variant)
+            if flipped:
+                genotypes = self._query_variants_internal(flipped)
+                # Because we flipped the alleles, we need to flip the genotypes...
+                genotypes[genotypes != -1] = 2 - genotypes[genotypes != -1]
+                return genotypes
+
+            print(f"Variant not found in either orientation: {variant}")
+            return None
+
+        except Exception as e:
+            print(f"Error in query_variants: {str(e)}")
+            return None
+
+    def _query_variants_internal(self, variant: str) -> np.ndarray | None:
+        """Internal method to query a single variant."""
+        try:
+            variant_mask = self._single_variant_mask(variant)
+            if variant_mask is None:
+                return None
+
+            # Find matching variant
+            selected_variant_indices = np.where(variant_mask)[0]
+            if len(selected_variant_indices) == 0:
+                return None
+
+            # Query the submatrix
+            try:
+                submatrix = self.genotype_matrix[selected_variant_indices, :]
+                if submatrix.size == 0:
+                    return None
+                return submatrix
+            except Exception as e:
+                print(f"Error accessing genotype matrix: {str(e)}")
+                return None
+
+        except Exception as e:
+            print(f"Error in _query_variants_internal: {str(e)}")
+            return None
+
+    def _single_variant_mask(self, varsel: str) -> np.ndarray:
+        """Create mask for single variant."""
+        try:
+            mask = self.variants == varsel
+            if mask.sum() == 0:
+                print(f"Variant {varsel} not found in genotype matrix")
+                return None
+            return mask
+        except Exception as e:
+            print(f"Error in _single_variant_mask: {str(e)}")
+            raise
+
+    def _multiple_variant_mask(self, varsel: list) -> np.ndarray:
+        """Create mask for multiple variants."""
+        try:
+            # Validate all variants
+            for var in varsel:
+                parts = var.split(":")
+                if len(parts) != 4:
+                    raise ValueError(f"Invalid variant format: {var}")
+
+            return np.isin(self.variants.astype(str), varsel)
+        except Exception as e:
+            print(f"Error in _multiple_variant_mask: {str(e)}")
+            raise
+
 
 # ------------------------------------------------------------------------------#
 # icd10 = 'E831'
 # ------------------------------------------------------------------------------#
 
+
 class ICD10HDF5:
     def __init__(self, hdf5_file):
         self.hdf5_file = hdf5_file
-        self.f = h5py.File(hdf5_file, 'r')
+        self.f = h5py.File(hdf5_file, "r")
 
         # Load the data matrix and index information
-        self.phenotype_data = self.f['phenotype_data']
-        self.row_indices = self.f['row_indices'][...]  # Load row data
-        self.col_indices = self.f['col_indices'][...]  # Load column data
+        self.phenotype_data = self.f["phenotype_data"]
+        self.row_indices = self.f["row_indices"][...]  # Load row data
+        self.col_indices = self.f["col_indices"][...]  # Load column data
 
     def get_cases_for_icd10(self, icd10):
         # get data for col indice E831
@@ -169,25 +330,29 @@ class ICD10HDF5:
         indices_data = self.phenotype_data[:, indices]
 
         # get the row indices for the data = 1
-        row_indices = np.where(indices_data == 1)[0] # for row indices, take the second index
+        row_indices = np.where(indices_data == 1)[
+            0
+        ]  # for row indices, take the second index
         cases = self.row_indices[row_indices]
 
         cases = cases.astype(int)
         return cases
 
+
 # ------------------------------------------------------------------------------#
 # Nomaly ScoreHDF5
 # ------------------------------------------------------------------------------#
 
+
 class ScoreHDF5:
     def __init__(self, hdf5_file):
         self.hdf5_file = hdf5_file
-        self.f = h5py.File(hdf5_file, 'r')
+        self.f = h5py.File(hdf5_file, "r")
 
         # Load the data matrix and index information
-        self.data_matrix = self.f['scores']
-        self.rows = self.f['eid'][...]  # Load row data
-        self.columns = self.f['term'][...]  # Load column data
+        self.data_matrix = self.f["scores"]
+        self.rows = self.f["eid"][...]  # Load row data
+        self.columns = self.f["term"][...]  # Load column data
 
     def get_score_by_eid(self, eid):
         mask_row = self.rows.astype(str) == eid
@@ -201,21 +366,22 @@ class ScoreHDF5:
 
 
 class PhenotypesHDF5:
-    def __init__(self, hdf5_file = phenotypes_h5):
+    def __init__(self, hdf5_file=phenotypes_h5):
         self.hdf5_file = hdf5_file
-        self.f = h5py.File(hdf5_file, 'r')
+        self.f = h5py.File(hdf5_file, "r")
+
         self._population_mask_cache = {}  # Add cache dictionary
         self._population_eids_cache = {}  # Cache for filtered eids
 
         # Load the data matrix and index information as numpy arrays
-        self.data_matrix = self.f["phenotype_data"][...][...]
+        self.phenotype_data = self.f["phenotype_data"][...][...]
         self.eids = self.f['eids'][...]  # Load row data
         self.phecodes = self.f['phecodes'][...]  # Load column data
         self.populations = self.f['populations'][...]  # Load population data
 
         # Convert to strings
-        self.phecodes = self.phecodes.astype(str)
-        self.populations = self.populations.astype(str)
+        self.phecodes: np.ndarray = self.phecodes.astype(str)
+        self.populations: np.ndarray = self.populations.astype(str)
 
     def __str__(self):
         return f"PhenotypesHDF5: {self.hdf5_file}"
@@ -227,6 +393,8 @@ class PhenotypesHDF5:
 
     def get_population_mask(self, population):
         if population not in self._population_mask_cache:
+            # Note: We use 'equal' here for speed.
+            # Be aware that there are separate EUR and EUR_S populations!
             self._population_mask_cache[population] = np.char.equal(
                 self.populations, population
             )
@@ -245,7 +413,7 @@ class PhenotypesHDF5:
             raise ValueError(f"Phecode '{phecode}' not found in the data matrix!")
 
         if population is None:
-            return self.eids, self.data_matrix[:, phecode_index]
+            return self.eids, self.phenotype_data[:, phecode_index]
         else:
             population_mask = self.get_population_mask(population)
             if population_mask.sum() == 0:
@@ -253,7 +421,7 @@ class PhenotypesHDF5:
                     f"Population '{population}' not found in the data matrix!"
                 )
             eids = self.get_population_eids(population)
-            cases_data = self.data_matrix[:, phecode_index][population_mask]
+            cases_data = self.phenotype_data[:, phecode_index][population_mask]
             return eids, cases_data
 
 
