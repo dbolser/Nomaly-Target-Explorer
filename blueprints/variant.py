@@ -109,12 +109,11 @@ def run_phewas_if_not_done(variant, flush=False):
     If not (or if flush=True), run PheWAS.
     Returns the processed DataFrame of results.
     """
-    output_prefix = f"variant_{variant}"
-    phewas_path = f"{PHEWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv"
+    phewas_file = f"{PHEWAS_PHENO_DIR}variant_{variant}.assoc_nomaly.tsv"
 
-    if not flush and os.path.exists(phewas_path):
+    if not flush and os.path.exists(phewas_file):
         # Read existing results
-        assoc = pd.read_csv(phewas_path, sep="\t")
+        assoc = pd.read_csv(phewas_file, sep="\t")
     else:
         # Run PheWAS (which now handles file saving internally)
         variant_colon = variant.replace("_", ":")

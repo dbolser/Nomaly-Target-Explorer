@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,16 +21,16 @@
 
     <!-- DataTables extensions for buttons and column visibility -->
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css">
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap5.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
 
 </head>
 
 <body>
     <div class="container mt-4">
         <h3>{{data.description}}</h3>
-                        
+
         <div id="phecodeDetails" class="mb-4">
             <p class="p-2 bg-light rounded">
                 <span><a href="/phecode/{{ data.phecode }}" target="_blank">Phecode: {{ data.phecode }}</a></span> |
@@ -40,7 +41,7 @@
             </p>
             <ul class="meaning-list">
                 {% for meaning in data.meaning %}
-                    <li>{{ meaning }}</li>
+                <li>{{ meaning }}</li>
                 {% endfor %}
             </ul>
         </div>
@@ -54,7 +55,7 @@
                 <span>{{ data.genelen }} genes</span>:
                 {{ data.genes }}
             </p>
-        </div>  
+        </div>
         <!-- Show table of genes, variants, druggability, pharma projects, gwas known -->
         <div class="btn-group mb-3">
             <button class="btn btn-primary" onclick="loadTable2()">Show by Gene</button>
@@ -65,62 +66,90 @@
 
     </div>
     <div class="container-fluid">
-        <div class="p-3 bg-light m-1">     
-        
-        <div id="tableContainer" class="table-responsive">
-            <style>
-                #resultsTable {
-                    font-size: 0.85rem;  /* Adjust the size as needed */
-                }
-            </style>
-            <div id="tableContainer" class="mb-4">
-                <table id="resultsTable" class="table table-striped table-bordered" style="width: 100%;"></table>
+        <div class="p-3 bg-light m-1">
+
+            <div id="tableContainer" class="table-responsive">
+                <style>
+                    /* Match variant.html styling */
+                    #resultsTable td:has(br) {
+                        text-align: right !important;
+                    }
+                </style>
+                <div id="tableContainer" class="mb-4">
+                    <table id="resultsTable" class="table table-striped table-bordered" style="width: 100%;"></table>
+                </div>
             </div>
         </div>
-        </div>
     </div>
-    
-    <!-- Customized scripts --> 
+
+    <!-- Customized scripts -->
     <script>
-        // Function to initialize the DataTable
+        // Function to initialize the DataTable with consistent formatting
         function renderDataTable(data, columns, defaultColumns, numColumns) {
-            // Destroy existing table if it exists
             if ($.fn.DataTable.isDataTable('#resultsTable')) {
                 $('#resultsTable').DataTable().destroy();
             }
 
-            // Initialize DataTable with dynamic columns
+            // Format the data to match variant.html style
+            const formattedData = data.map(row => ({
+                "Variant": row.Variant,
+                "Gene": row.Gene,
+                "AA_Change": row.AA_Change,
+                "HMM_Score": row.HMM_Score,
+                "Counts": `${row.Counts}`,  // Already formatted as cases<br/>controls
+                "RefAF": `${row.RefAF}`,  // Already formatted as cases<br/>controls
+                "AltAF": `${row.AltAF}`,  // Already formatted as cases<br/>controls
+                "Ref_HMOZ": `${row.Ref_HMOZ}`,
+                "Alt_HMOZ": `${row.Alt_HMOZ}`,
+                "HTRZ": `${row.HTRZ}`,
+                "P": row.P ? `${parseFloat(row.P).toExponential(2)}<br/>` : 'N/A',
+                "OR": row.OR ? `${parseFloat(row.OR).toFixed(2)}<br/>` : 'N/A',
+                "GWAS_P": row.GWAS_P ? `${parseFloat(row.GWAS_P).toExponential(2)}<br/>` : 'N/A',
+                "GWAS_OR": row.GWAS_OR ? `${parseFloat(row.GWAS_OR).toFixed(2)}<br/>` : 'N/A'
+            }));
+
+            // Define column order to match variant.html style
+            const columnDefinitions = [
+                { data: "Variant", title: "Variant" },
+                { data: "Gene", title: "Gene" },
+                { data: "AA_Change", title: "AA Change" },
+                { data: "HMM_Score", title: "HMM Score" },
+                { data: "P", title: "PheWAS P" },
+                { data: "OR", title: "PheWAS OR" },
+                { data: "GWAS_P", title: "GWAS P" },
+                { data: "GWAS_OR", title: "GWAS OR" },
+                { data: "Counts", title: "Cases<br/>Controls" },
+                { data: "RefAF", title: "Ref AF" },
+                { data: "AltAF", title: "Alt AF" },
+                { data: "Ref_HMOZ", title: "Ref HMOZ" },
+                { data: "Alt_HMOZ", title: "Alt HMOZ" },
+                { data: "HTRZ", title: "HTRZ" }
+            ];
+
+            // Initialize DataTable with consistent options
             $('#resultsTable').DataTable({
-                data: data,
-                columns: columns.map(col => ({ 
-                    title: col, data: col,
-                    visible: defaultColumns.includes(col),  // Show default columns initially
-                    render: function (data, type, row) {
-            // Client-side formatting for specific columns
-            if (numColumns.includes(col) && type === 'display') {
-                // Check if the value is a number before formatting
-                if (!isNaN(parseFloat(data))) {
-                    return parseFloat(data).toExponential(2); // Format as scientific notation with 3 decimal places
-                }
-            }
-            return data;
-        }
-                })),
-                columnDefs: [
-            {
-                targets: columns.indexOf('drug_program_indication'), // Target the specific column by its index
-                width: '450px' // Set a fixed width for this column
-            }
-        ],
-                // order: [[0, 'asc']],
+                data: formattedData,
+                columns: columnDefinitions,
+                order: [[3, 'asc']],  // Order by PheWAS P-value
                 responsive: true,
                 autoWidth: false,
-                dom: 'Bfrtip',  // Include buttons for column visibility
+                dom: 'Bfrtip',
                 buttons: [
                     {
                         extend: 'colvis',
                         text: 'Select Columns',
-                        columns: ':not(:first-child)'  // Allow toggling for all columns except the first
+                        columns: ':not(:first-child)'
+                    }
+                ],
+                columnDefs: [
+                    {
+                        targets: 0,  // Variant column
+                        render: function (data, type, row) {
+                            if (type === 'display') {
+                                return `<a href="/variant/${data}" target="_blank">${data}</a>`;
+                            }
+                            return data;
+                        }
                     }
                 ]
             });
@@ -128,80 +157,81 @@
 
         const phecode = "{{ phecode }}";
         const term = "{{ term }}";
-        
+
         // Function to load Table 1
         function loadTable1() {
-        const encodedTerm = encodeURIComponent(term);
-        fetch(`/phecode/${phecode}/term/${encodedTerm}/tableVar`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ exampleKey: "exampleValue" }) // Add if the server requires a body
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(resultData => {
-            renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-        })
-        .catch(error => {
-            console.error('Error loading Table 1:', error);
-            alert('Failed to load table data. Check console for details.');
-        });
-    }
+            const encodedTerm = encodeURIComponent(term);
+            fetch(`/phecode/${phecode}/term/${encodedTerm}/tableVar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ exampleKey: "exampleValue" }) // Add if the server requires a body
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(resultData => {
+                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+                })
+                .catch(error => {
+                    console.error('Error loading Table 1:', error);
+                    alert('Failed to load table data. Check console for details.');
+                });
+        }
 
-    function loadTable2() {
-        const encodedTerm = encodeURIComponent(term);
-        fetch(`/phecode/${phecode}/term/${encodedTerm}/tableGene`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ exampleKey: "exampleValue" }) // Add if the server requires a body
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(resultData => {
-            renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-        })
-        .catch(error => {
-            console.error('Error loading Table 2:', error);
-            alert('Failed to load table data. Check console for details.');
-        });
-    }
+        function loadTable2() {
+            const encodedTerm = encodeURIComponent(term);
+            fetch(`/phecode/${phecode}/term/${encodedTerm}/tableGene`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ exampleKey: "exampleValue" }) // Add if the server requires a body
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(resultData => {
+                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+                })
+                .catch(error => {
+                    console.error('Error loading Table 2:', error);
+                    alert('Failed to load table data. Check console for details.');
+                });
+        }
 
-    function loadVariantDetailTable() {
-        const encodedTerm = encodeURIComponent("{{ term }}");
-        fetch(`/phecode/{{ phecode }}/term/${encodedTerm}/tableVariantDetail`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({}) 
-        })
-        .then(response => response.json().then(data => {
-            if (!response.ok) {
-                throw new Error(data.error || 'Error fetching data');
-            }
-            return data;
-        }))
-        .then(resultData => {
-            renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-        })
-        .catch(error => {
-            console.error('Error loading Variant Detail Table:', error);
-            alert('Failed to load table data: ' + error.message);
-        });
-    }
+        function loadVariantDetailTable() {
+            const encodedTerm = encodeURIComponent("{{ term }}");
+            fetch(`/phecode/{{ phecode }}/term/${encodedTerm}/tableVariantDetail`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            })
+                .then(response => response.json().then(data => {
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Error fetching data');
+                    }
+                    return data;
+                }))
+                .then(resultData => {
+                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+                })
+                .catch(error => {
+                    console.error('Error loading Variant Detail Table:', error);
+                    alert('Failed to load table data: ' + error.message);
+                });
+        }
 
     </script>
 </body>
+
 </html>
