@@ -1,26 +1,38 @@
 import os
+import re
+
 import h5py
+
 import numpy as np
 import pandas as pd
 
+import traceback
+from flask import current_app
+
+# Using this for speed
 from functools import cached_property
 
 import plotly.express as px
 
-UKBB_PHENO_DIR = '/data/general/UKBB/Phenotypes/'
-icd10_cases_h5 = UKBB_PHENO_DIR + 'ukbbrun_icd10_2024-09-07_any.h5'
-phenotypes_h5 = UKBB_PHENO_DIR + 'phecode_cases_excludes.h5'
+UKBB_PHENO_DIR = "/data/general/UKBB/Phenotypes/"
+icd10_cases_h5 = UKBB_PHENO_DIR + "ukbbrun_icd10_2024-09-07_any.h5"
+phenotypes_h5 = UKBB_PHENO_DIR + "phecode_cases_excludes.h5"
 
-RESOURCE_DATA_DIR = '/data/general/Data/'
-pharos_path = RESOURCE_DATA_DIR + 'pharos_api_query.out'
-pp_path = RESOURCE_DATA_DIR + 'pp_by_gene.tsv'
-pharos = pd.read_csv(pharos_path, sep="\t", encoding='ISO-8859-1').rename(columns={'#symbol': 'gene'})
-pp = pd.read_csv(pp_path, sep="\t", index_col=0).rename(columns={'Description': 'drug_program_indication'})
-pp['gene'] = pp.index
+RESOURCE_DATA_DIR = "/data/general/Data/"
+pharos_path = RESOURCE_DATA_DIR + "pharos_api_query.out"
+pp_path = RESOURCE_DATA_DIR + "pp_by_gene.tsv"
+pharos = pd.read_csv(pharos_path, sep="\t", encoding="ISO-8859-1").rename(
+    columns={"#symbol": "gene"}
+)
+pp = pd.read_csv(pp_path, sep="\t", index_col=0).rename(
+    columns={"Description": "drug_program_indication"}
+)
+pp["gene"] = pp.index
 
 # ------------------------------------------------------------------------------#
 # Nomaly stats pre-calculated
 # ------------------------------------------------------------------------------#
+
 
 class StatsHDF5:
     def __init__(self, hdf5_file):
@@ -28,24 +40,32 @@ class StatsHDF5:
             self.hdf5_file = hdf5_file
             if not os.path.exists(hdf5_file):
                 raise FileNotFoundError(f"HDF5 file not found: {hdf5_file}")
-            self.f = h5py.File(hdf5_file, 'r')
+            self.f = h5py.File(hdf5_file, "r")
 
             # Load the data matrix and index information
-            self.data_matrix = self.f['data']
-            self.rows = self.f['rows_term'][...].astype(str)  # Load term data
-            self.columns = self.f['columns_phecode'][...].astype(str)  # Load phecode data
-            self.third_dim = self.f['3rddim_statstype'][...].astype(str)  # Load statstype data
+            self.data_matrix = self.f["data"]
+            self.rows = self.f["rows_term"][...].astype(str)  # Load term data
+            self.columns = self.f["columns_phecode"][...].astype(
+                str
+            )  # Load phecode data
+            self.third_dim = self.f["3rddim_statstype"][...].astype(
+                str
+            )  # Load statstype data
 
             # rename third_dim that ends with _p_value to _pvalue
-            self.third_dim = np.array([x.replace('_p_value', '_pvalue') for x in self.third_dim])
+            self.third_dim = np.array(
+                [x.replace("_p_value", "_pvalue") for x in self.third_dim]
+            )
         except Exception as e:
-            current_app.logger.error(f'StatsHDF5 initialization error: {e}\n{traceback.format_exc()}')
+            current_app.logger.error(
+                f"StatsHDF5 initialization error: {e}\n{traceback.format_exc()}"
+            )
             raise
 
     def get_stats_by_disease(self, disease, statstype=None):
         try:
             if disease not in self.columns:
-                disease = disease + '.0'
+                disease = disease + ".0"
                 if disease not in self.columns:
                     raise ValueError(f"Disease {disease} not found in dataset")
 
@@ -62,50 +82,51 @@ class StatsHDF5:
                 # if statstype is specified, return the data for the statstype
                 mask_3rd_dim = self.third_dim == statstype
                 mask_3rd_dim_indices = np.where(mask_3rd_dim)[0][0]
-                return self.data_matrix[:,mask_column_indices, mask_3rd_dim_indices]
+                return self.data_matrix[:, mask_column_indices, mask_3rd_dim_indices]
             elif isinstance(statstype, list):
                 # if statstype is a list of strings, return the data for the statstypes
                 mask_3rd_dim = np.isin(self.third_dim, statstype)
                 mask_3rd_dim_indices = np.where(mask_3rd_dim)[0]
-                return self.data_matrix[:,mask_column_indices, mask_3rd_dim_indices]
+                return self.data_matrix[:, mask_column_indices, mask_3rd_dim_indices]
             else:
-                raise ValueError(f"statstype must be a string or a list of strings. statstype: {statstype}")
+                raise ValueError(
+                    f"statstype must be a string or a list of strings. statstype: {statstype}"
+                )
         except Exception as e:
-            current_app.logger.error(f'Error getting stats for disease {disease}: {e}')
+            current_app.logger.error(f"Error getting stats for disease {disease}: {e}")
             raise
-    
+
     def get_stats_by_term_disease(self, term, disease):
         if disease not in self.columns:
-            disease = disease + '.0'
+            disease = disease + ".0"
             if disease not in self.columns:
-                raise ValueError(f"{disease} not found in the columns of the data matrix.")
-        
+                raise ValueError(
+                    f"{disease} not found in the columns of the data matrix."
+                )
+
         mask_column = self.columns == disease
         mask_column_indices = np.where(mask_column)[0][0]
 
         if term not in self.rows:
             raise ValueError(f"{term} not found in the rows of the data matrix.")
-        
+
         mask_row = self.rows == term
         mask_row_indices = np.where(mask_row)[0][0]
 
         # return a dictionary with the statstype as key and the value as the data
         statsdict = {
-            self.third_dim[i]: self.data_matrix[mask_row_indices, mask_column_indices, i] for i in range(len(self.third_dim))
+            self.third_dim[i]: self.data_matrix[
+                mask_row_indices, mask_column_indices, i
+            ]
+            for i in range(len(self.third_dim))
         }
         return statsdict
 
 
-# stats = StatsHDF5(nomaly_run_stats_h5)
-# data = stats.get_stats_by_disease(tocheck['code'], 'mwu_pvalue')
-# # save data and row names
-# data = pd.DataFrame(data, index=stats.rows.astype(str))
-# data.columns = ['mwu_pvalue']
-# data = data.sort_values(by='mwu_pvalue')
-
 # ------------------------------------------------------------------------------#
 # Genotypes
 # ------------------------------------------------------------------------------#
+
 
 class GenotypeHDF5:
     def __init__(self, hdf5_file):
@@ -151,19 +172,8 @@ class GenotypeHDF5:
         Returns:
             str: Flipped variant ID in same format as input
         """
-        try:
-            if "_" in variant:  # Format: CHR_POS_REF/ALT
-                chrom, pos, alleles = variant.split("_")
-                if "/" not in alleles:
-                    return None
-                ref, alt = alleles.split("/")
-                return f"{chrom}_{pos}_{alt}/{ref}"
-            else:  # Format: CHR:POS:REF:ALT
-                chrom, pos, ref, alt = variant.split(":")
-                return f"{chrom}:{pos}:{alt}:{ref}"
-        except Exception as e:
-            print(f"Error flipping alleles for variant {variant}: {str(e)}")
-            return None
+        chrom, pos, ref, alt = variant.split(":")
+        return f"{chrom}:{pos}:{alt}:{ref}"
 
     def _standardize_variant_format(self, variant: str) -> str | None:
         """
@@ -171,9 +181,8 @@ class GenotypeHDF5:
 
         Handles formats:
         - CHR_POS_REF/ALT (e.g., "8_6870776_C/T")
+        - CHR_POS_REF_ALT (e.g., "8_6870776_C_T")
         - CHR:POS:REF:ALT (e.g., "8:6870776:C:T")
-        - CHR-POS-REF-ALT (e.g., "8-6870776-C-T")
-        - CHR.POS.REF.ALT (e.g., "8.6870776.C.T")
 
         Args:
             variant (str): Variant in any supported format
@@ -182,24 +191,7 @@ class GenotypeHDF5:
             str|None: Standardized variant string or None if invalid format
         """
         try:
-            if not isinstance(variant, str):
-                print(f"Invalid variant type: {type(variant)}, expected string")
-                return None
-
-            # First, extract the components regardless of format
-            if "_" in variant and "/" in variant:  # CHR_POS_REF/ALT
-                chrom, pos, alleles = variant.split("_")
-                ref, alt = alleles.split("/")
-            elif ":" in variant:  # CHR:POS:REF:ALT
-                chrom, pos, ref, alt = variant.split(":")
-            elif "-" in variant:  # CHR-POS-REF-ALT
-                chrom, pos, ref, alt = variant.split("-")
-            elif "." in variant:  # CHR.POS.REF.ALT
-                chrom, pos, ref, alt = variant.split(".")
-            else:
-                print(f"Unrecognized variant format: {variant}")
-                return None
-
+            chrom, pos, ref, alt = re.split(r"[_/:]", variant)
             # Validate components
             if not chrom or not pos or not ref or not alt:
                 print(f"Missing component in variant: {variant}")
@@ -212,7 +204,7 @@ class GenotypeHDF5:
             # Clean chromosome format (e.g., 'chr8' -> '8')
             chrom = chrom.lower().replace("chr", "")
 
-            # Standardize to colon format
+            # Standardize to colon format for genotype lookup (why?)
             return f"{chrom}:{pos}:{ref}:{alt}"
 
         except Exception as e:
@@ -236,14 +228,16 @@ class GenotypeHDF5:
                 return None
 
             # Try original variant
-            result = self._query_variants_internal(std_variant)
-            if result is not None:
-                return result
+            genotypes = self._query_variants_internal(std_variant)
+            if genotypes is not None:
+                print(f"Found variant {variant} in original orientation")
+                return genotypes
 
             # Try flipped alleles
             flipped = self._flip_alleles(std_variant)
-            if flipped:
-                genotypes = self._query_variants_internal(flipped)
+            genotypes = self._query_variants_internal(flipped)
+            if genotypes is not None:
+                print(f"Found variant {variant} in flipped orientation")
                 # Because we flipped the alleles, we need to flip the genotypes...
                 genotypes[genotypes != -1] = 2 - genotypes[genotypes != -1]
                 return genotypes
@@ -291,6 +285,7 @@ class GenotypeHDF5:
         except Exception as e:
             print(f"Error in _single_variant_mask: {str(e)}")
             raise
+
 
 # ------------------------------------------------------------------------------#
 # icd10 = 'E831'
@@ -360,9 +355,9 @@ class PhenotypesHDF5:
 
         # Load the data matrix and index information as numpy arrays
         self.phenotype_data = self.f["phenotype_data"][...][...]
-        self.eids = self.f['eids'][...]  # Load row data
-        self.phecodes = self.f['phecodes'][...]  # Load column data
-        self.populations = self.f['populations'][...]  # Load population data
+        self.eids = self.f["eids"][...]  # Load row data
+        self.phecodes = self.f["phecodes"][...]  # Load column data
+        self.populations = self.f["populations"][...]  # Load population data
 
         # Convert to strings
         self.phecodes: np.ndarray = self.phecodes.astype(str)
@@ -413,7 +408,8 @@ class PhenotypesHDF5:
 # ------------------------------------------------------------------------------#
 # Initiate classes
 # ------------------------------------------------------------------------------#
-NOMALY_RESULTS_DIR = '/data/general/UKBB/Run-v1/DatabaseInputs/'
+NOMALY_RESULTS_DIR = "/data/general/UKBB/Run-v1/DatabaseInputs/"
+
 nomaly_stats_h5 = NOMALY_RESULTS_DIR + 'stats.h5'
 nomaly_genotype_h5 = NOMALY_RESULTS_DIR + 'genotypes.h5'
 nomaly_scores_h5 = NOMALY_RESULTS_DIR + 'float16_scores.h5'

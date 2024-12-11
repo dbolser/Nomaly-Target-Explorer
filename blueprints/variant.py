@@ -137,14 +137,14 @@ def run_phewas_if_not_done(variant, flush=False):
                 "Sex": row.get("sex", "TBD"),
                 "Description": row.get("description", "TBD"),
                 "Group": row.get("phecode_group", "TBD"),
+                "P": f"{row['p_value']:.2e}<br/>",
+                "OR": f"{row['odds_ratio']:.2f}<br/>",
                 "Counts": f"{row['n_cases']}<br/>{row['n_controls']}",
                 "RefAF": f"{row['ref_allele_freq_cases']:.5f}<br/>{row['ref_allele_freq_controls']:.5f}",
                 "AltAF": f"{row['alt_allele_freq_cases']:.5f}<br/>{row['alt_allele_freq_controls']:.5f}",
                 "Ref_HMOZ": f"{row.get('homozygous_ref_cases', 0)}<br/>{row.get('homozygous_ref_controls', 0)}",
                 "Alt_HMOZ": f"{row.get('homozygous_alt_cases', 0)}<br/>{row.get('homozygous_alt_controls', 0)}",
                 "HTRZ": f"{row.get('heterozygous_cases', 0)}<br/>{row.get('heterozygous_controls', 0)}",
-                "P": f"{row['p_value']:.2e}<br/>",
-                "OR": f"{row['odds_ratio']:.2f}<br/>",
             }
         )
 

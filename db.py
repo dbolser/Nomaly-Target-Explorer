@@ -101,6 +101,7 @@ def get_term_names(terms_list):
 
     return term_name_dict
 
+
 def get_term_domains(terms_list):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -129,6 +130,7 @@ def get_term_domains(terms_list):
             term_domain_dict[term].add(domain)
 
     return term_domain_dict
+
 
 def get_term_genes(terms_list):
     conn = get_db_connection()
@@ -169,6 +171,7 @@ def get_term_genes(terms_list):
 
     return term_gene_df
 
+
 def get_term_domain_genes_variant(term):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -193,6 +196,7 @@ def get_term_domain_genes_variant(term):
 
     return term_df
 
+
 def get_term_domain_genes(term):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -216,3 +220,41 @@ def get_term_domain_genes(term):
     term_df = pd.DataFrame(results, columns=columns)
 
     return term_df
+
+
+
+def get_term_variants(term: str) -> pd.DataFrame:
+    """
+    Return a DataFrame of variant_id, gene, aa, hmm_score for the given term.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    query = """
+    SELECT term, variant_id, gene, aa, ABS(wild - mutant) AS hmm_score
+    FROM variants_consequences
+    INNER JOIN terms2snps USING (variant_id)
+    WHERE term = %s
+    """
+    print(f"\nExecuting query for term: {term}")
+    print(f"Query: {query}")
+
+    cur.execute(query, (term,))
+    results = cur.fetchall()
+    print(f"Number of results from DB: {len(results)}")
+
+    columns = [desc[0] for desc in cur.description]
+    cur.close()
+    conn.close()
+
+    df = pd.DataFrame(results, columns=columns) if results else pd.DataFrame()
+    print(f"Created DataFrame with shape: {df.shape}")
+
+    # Convert numpy types to Python native types
+    if not df.empty:
+        df["hmm_score"] = df["hmm_score"].astype(float)
+        print("Sample of data:")
+        print(df.head())
+
+    return df
+
