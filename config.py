@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -24,29 +26,28 @@ class Config:
     MYSQL_DB = os.getenv("MYSQL_DB")
 
     # Application paths
-    PHEWAS_PHENO_DIR = "/data/clu/ukbb/by_variant/"
-    UKBB_PHENO_DIR = "/data/general/UKBB/Phenotypes/"
-    GWAS_PHENO_DIR = "/data/clu/ukbb/by_pheno/"
+    NOMALY_RESULTS_DIR = Path("/data/general/UKBB/Run-v2/DatabaseInputs")
+    PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
+    UKBB_PHENO_DIR = Path("/data/general/UKBB/Phenotypes")
+    GWAS_PHENO_DIR = Path("/data/clu/ukbb/by_pheno")
 
+    PHENOTYPES_H5 = UKBB_PHENO_DIR / "phecode_cases_excludes.h5"
+    GENOTYPES_H5 = NOMALY_RESULTS_DIR / "genotypes.h5"
 
 class DevelopmentConfig(Config):
     """Development configuration"""
-
     DEBUG = True
 
 
 class ProductionConfig(Config):
     """Production configuration"""
-
     pass
 
 
 class TestingConfig(Config):
     """Testing configuration"""
-
     TESTING = True
     DEBUG = True
-    # Add test-specific settings here
 
 
 # Map environment names to config objects
