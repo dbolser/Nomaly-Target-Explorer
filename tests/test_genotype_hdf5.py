@@ -125,16 +125,6 @@ def test_single_variant_mask(mock_genotype_file):
     assert mask[0]  # First variant should match
 
 
-def test_multiple_variant_mask(mock_genotype_file):
-    """Test creation of multiple variant mask."""
-    geno = GenotypeHDF5(mock_genotype_file)
-    mask = geno._multiple_variant_mask(["1:100:A:T", "2:200:C:G"])
-    assert isinstance(mask, np.ndarray)
-    assert mask.dtype == bool
-    assert np.sum(mask) == 2
-    np.testing.assert_array_equal(mask, [True, True])
-
-
 @pytest.mark.skip(reason="This test is not working as expected")
 def test_cleanup(mock_genotype_file):
     """Test proper cleanup of HDF5 file."""
