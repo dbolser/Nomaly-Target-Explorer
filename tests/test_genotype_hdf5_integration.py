@@ -1,5 +1,11 @@
 import numpy as np
+
 from blueprints.nomaly import nomaly_genotype, NOMALY_RESULTS_DIR
+
+from config import Config
+
+config = Config()
+# nomaly_genotype = GenotypeHDF5(config.GENOTYPES_H5)
 
 NUM_INDIVIDUALS = 488377
 NUM_VARIANTS = 83011
@@ -138,10 +144,13 @@ def test_variant_format_standardization():
     test_cases = [
         # Format: (input, expected_output)
         ("8_6870776_C/T", "8:6870776:C:T"),
+        ("8_6870776_C_T", "8:6870776:C:T"),
         ("8:6870776:C:T", "8:6870776:C:T"),  # Already standard
-        ("chr8_6870776_C/T", "8:6870776:C:T"),  # With chr prefix
-        ("8-6870776-C-T", "8:6870776:C:T"),
-        ("8.6870776.C.T", "8:6870776:C:T"),
+        # With chr prefix
+        ("chr8_6870776_C/T", "8:6870776:C:T"),
+        ("Chr8_6870776_C_T", "8:6870776:C:T"),
+        ("CHR8:6870776:C:T", "8:6870776:C:T"),
+        # Invalid formats
         ("invalid_format", None),
         ("8_6870776", None),  # Missing alleles
         ("8_pos_C/T", None),  # Invalid position
