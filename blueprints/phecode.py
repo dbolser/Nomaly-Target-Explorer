@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template, request, jsonify
 import threading
 import pandas as pd
 import os
@@ -33,15 +33,8 @@ def show_phecode(phecode):
     data = get_phecode_info(phecode)
     data['runbatch'] = "Run v1"
 
-    # # Example data (replace with actual data retrieval logic)
-    # data = {
-    #     "phecode": phecode,
-    #     "sex": "Both",
-    #     "affected": 150,
-    #     "excluded": 10,
-    #     "phecode_exclude": "None",
-    #     "phecode_group": "Cardiovascular"
-    # }
+    # Add show_gwas flag based on URL parameter
+    data["show_gwas"] = request.args.get("gwas") == "1"
 
     return render_template('phecode.html', data=data)
 
@@ -49,6 +42,10 @@ def show_phecode(phecode):
 def show_phecode2(phecode):
     data = get_phecode_info(phecode)
     data['runbatch'] = "Run v2"
+
+    # Add show_gwas flag based on URL parameter
+    data["show_gwas"] = request.args.get("gwas") == "1"
+
     return render_template('phecode.html', data=data)
 
 # ----------------------------------------------------- #
@@ -347,7 +344,7 @@ def run_gwas_if_not_done(phecode):
     # GWAS results file path
     # ----------------------------------------------------- #
     output_prefix = f'phecode_{phecode}'
-    gwas_path = f'{GWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv'
+    gwas_path = f"{GWAS_PHENO_DIR}/{output_prefix}.assoc_nomaly.tsv"
 
     # ----------------------------------------------------- #
     # Check if GWAS has been run for this Phecode
@@ -382,7 +379,7 @@ def read_gwas(phecode):
     # GWAS results file path
     # ----------------------------------------------------- #
     output_prefix = f'phecode_{phecode}'
-    gwas_path = f'{GWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv'
+    gwas_path = f"{GWAS_PHENO_DIR}/{output_prefix}.assoc_nomaly.tsv"
 
     if not os.path.exists(gwas_path):
         return []
