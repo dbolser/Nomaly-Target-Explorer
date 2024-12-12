@@ -330,3 +330,19 @@ def get_term_variants(term: str) -> pd.DataFrame:
     except Exception as e:
         logger.error(f"Error fetching term variants: {str(e)}", exc_info=True)
         raise
+
+def get_all_variants() -> pd.DataFrame:
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                query = """
+                SELECT DISTINCT variant_id FROM variants_consequences
+                """
+                cur.execute(query)
+                results = cur.fetchall()
+                return pd.DataFrame(results, columns=["variant_id"])
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching all variants: {str(e)}", exc_info=True)
+        raise

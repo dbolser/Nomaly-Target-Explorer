@@ -5,7 +5,6 @@ import os
 import traceback
 
 from blueprints.gwas import variant_level_assoc, GWAS_PHENO_DIR
-from blueprints.phewas import phecode_level_assoc, PHEWAS_PHENO_DIR
 
 from db import get_term_domains, get_term_names, get_term_genes, get_phecode_info
 from db import get_term_domain_genes_variant, get_term_domain_genes
@@ -16,6 +15,8 @@ from blueprints.nomaly import nomaly_stats
 
 from errors import DataNotFoundError, GWASError
 import logging
+
+from blueprints.phewas import get_formatted_phewas_data  # Update import
 
 
 # Create the blueprint
@@ -199,23 +200,6 @@ def ensure_gwas(phecode):
             print(f"GWAS failed or returned no results for {phecode}")
 
 
-def ensure_phewas(variant_id):
-    """
-    Check if PheWAS results for this variant exist.
-    If not, run PheWAS.
-    """
-    phewas_path = f"{PHEWAS_PHENO_DIR}/variant_{variant_id}.assoc_nomaly.tsv"
-
-    if os.path.exists(phewas_path):
-        return True
-
-    try:
-        assoc = phecode_level_assoc(variant_id)
-        if assoc is None or assoc.empty:
-            print(f"PheWAS returned no results for variant {variant_id}")
-    except Exception as e:
-        print(f"Error running PheWAS for variant {variant_id}: {e}")
-
 
 def load_gwas_data(phecode, variant_id):
     """
@@ -247,36 +231,6 @@ def load_gwas_data(phecode, variant_id):
     }
 
 
-def load_phewas_data(variant_id: str, phecode: str):
-    """
-    Load PheWAS data for a given variant and filter by phecode.
-    Returns dict with allele freq, OR, p-value, counts, etc.
-    If not found, returns None.
-    """
-    ensure_phewas(variant_id)
-    phewas_file = f"{PHEWAS_PHENO_DIR}variant_{variant_id}.assoc_nomaly.tsv"
-    if not os.path.exists(phewas_file):
-        print(f"PheWAS file not found for variant {variant_id}")
-        return None
-
-    phewas_df = pd.read_csv(phewas_file, sep="\t", dtype={"phecode": str})
-    phewas_row = phewas_df[phewas_df["phecode"] == phecode]
-    if phewas_row.empty:
-        print(f"PheWAS row not found for variant {variant_id} and phecode {phecode}")
-        return None
-    row = phewas_row.iloc[0]
-    return {
-        "P": f"{row['p_value']:.2e}<br/>",
-        "OR": f"{row['odds_ratio']:.2f}<br/>",
-        "Counts": f"{row['n_cases']}<br/>{row['n_controls']}",
-        "RefAF": f"{row['ref_allele_freq_cases']:.5f}<br/>{row['ref_allele_freq_controls']:.5f}",
-        "AltAF": f"{row['alt_allele_freq_cases']:.5f}<br/>{row['alt_allele_freq_controls']:.5f}",
-        "Ref_HMOZ": f"{row.get('homozygous_ref_cases', 0)}<br/>{row.get('homozygous_ref_controls', 0)}",
-        "Alt_HMOZ": f"{row.get('homozygous_alt_cases', 0)}<br/>{row.get('homozygous_alt_controls', 0)}",
-        "HTRZ": f"{row.get('heterozygous_cases', 0)}<br/>{row.get('heterozygous_controls', 0)}",
-    }
-
-
 @phecode_term_bp.route(
     "/phecode/<string:phecode>/term/<string:term>/tableVariantDetail",
     methods=["GET", "POST"],
@@ -300,8 +254,8 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
             print(f"\nProcessing variant {idx+1}/{len(term_df)}: {variant_id}")
             standard_variant_id = variant_id.replace("/", "_")
 
-            # Load PheWAS data
-            phewas_data = load_phewas_data(standard_variant_id, phecode)
+            # Pass phecode to get_formatted_phewas_data for single-phecode analysis
+            phewas_data = get_formatted_phewas_data(standard_variant_id, phecode)
             print(f"PheWAS data found: {phewas_data is not None}")
 
             # Load GWAS data
@@ -316,9 +270,9 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
                 "HMM_Score": f"{row['hmm_score']:.2f}",
             }
 
-            # Add PheWAS data if available
-            if phewas_data:
-                record.update(phewas_data)
+            # Add PheWAS data if available (taking first result since we filtered by phecode)
+            if phewas_data and len(phewas_data) > 0:
+                record.update(phewas_data[0])
 
             # Add GWAS data if available
             if gwas_data:
