@@ -1,7 +1,5 @@
-import pytest
 import pandas as pd
-import numpy as np
-from db import get_all_phecodes, get_db_connection
+from db import get_all_phecodes
 
 def test_get_all_phecodes(mocker):
     # Mock data that matches the expected database return
