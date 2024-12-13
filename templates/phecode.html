@@ -56,29 +56,29 @@
 
 <!-- Button to run the background task -->
 {% if data.show_gwas %}
-    <button id="runTaskButton" class="btn btn-primary">GWAS Task</button>
+<button id="runTaskButton" class="btn btn-primary">GWAS Task</button>
 
-    <!-- Result display area -->
-    <div id="taskResult" class="mt-3"></div>
-    <br>
+<!-- Result display area -->
+<div id="taskResult" class="mt-3"></div>
+<br>
 
-    <div id="GWAStableContainer" style="display: none;">
-        <h4>Per Variant GWAS Results</h4>
-        <table id="variantTable" class="table table-striped table-bordered">
-            <thead>
-                <tr>
-                    <th>Variant</th>
-                    <th>Gene</th>
-                    <th>RSID</th>
-                    <th>F_A</th>
-                    <th>F_U</th>
-                    <th>OR</th>
-                    <th>P</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
+<div id="GWAStableContainer" style="display: none;">
+    <h4>Per Variant GWAS Results</h4>
+    <table id="variantTable" class="table table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>Variant</th>
+                <th>Gene</th>
+                <th>RSID</th>
+                <th>F_A</th>
+                <th>F_U</th>
+                <th>OR</th>
+                <th>P</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
 {% endif %}
 {% endblock %}
 
@@ -167,10 +167,10 @@
             resultDiv.innerHTML = `Error: ${error.message}`;
         } finally {
             console.log('Attempting to hide the spinner and show the result container.');
-            
+
             const spinner = document.getElementById('nomalySpinner');
             const resultContainer = document.getElementById('NomalyResultContainer');
-            
+
             if (spinner) {
                 console.log('Spinner found:', spinner);
                 spinner.style.display = 'none';
@@ -181,7 +181,7 @@
             } else {
                 console.error('Spinner element not found.');
             }
-            
+
             if (resultContainer) {
                 console.log('Result container found:', resultContainer);
                 resultContainer.style.display = 'block';

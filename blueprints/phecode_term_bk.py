@@ -1,5 +1,4 @@
-import math
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, render_template, jsonify
 
 import pandas as pd
 import os
@@ -18,8 +17,6 @@ from errors import DataNotFoundError, GWASError
 import logging
 
 from blueprints.phewas import get_formatted_phewas_data  # Update import
-
-from blueprints.phecode_term_helper import load_cached_results, save_results
 
 
 # Create the blueprint
@@ -203,7 +200,8 @@ def ensure_gwas(phecode):
             print(f"GWAS failed or returned no results for {phecode}")
 
 
-def load_gwas_data(phecode):
+
+def load_gwas_data(phecode, variant_id):
     """
     Load GWAS data for a given phecode and return row for this variant.
     Returns a dict with keys: GWAS_P, GWAS_OR, etc.
@@ -216,7 +214,21 @@ def load_gwas_data(phecode):
         return None
     gwas_df = pd.read_csv(gwas_file, sep="\t")
 
-    return gwas_df
+    variant_col = "nomaly_variant"
+    row = gwas_df[gwas_df[variant_col] == variant_id]
+    if row.empty:
+        print(f"Variant {variant_id} not found in GWAS file")
+        return None
+
+    r = row.iloc[0]
+
+    return {
+        "GWAS_P": f"{r.get('P', 1):.2e}",
+        "GWAS_OR": f"{r.get('OR', 1):.2f}",
+        "GWAS_F_A": f"{r.get('F_A', 1):.5f}",
+        "GWAS_F_U": f"{r.get('F_U', 1):.5f}",
+        "GWAS_RSID": r.get("RSID"),
+    }
 
 
 @phecode_term_bp.route(
@@ -225,63 +237,10 @@ def load_gwas_data(phecode):
 )
 def show_phecode_term_variant_detail(phecode: str, term: str):
     try:
-        # Get flush parameter from POST body
-        # flush = request.get_json().get("flush", False) if request.is_json else False
-        flush = False
-
-        # First check cache
-        cached_data = load_cached_results(phecode, term, flush)
-        if cached_data is not None:
-            logger.info(f"Using cached data for phecode {phecode}, term {term}")
-            return jsonify(
-                {
-                    "data": cached_data["data"],
-                    "columns": [
-                        "Variant",
-                        "Gene",
-                        "AA_Change",
-                        "HMM_Score",
-                        "TDL",
-                        "TBIO",
-                        "Classification",
-                        "Drug_Program_Indication",
-                        "GWAS_P",
-                        "GWAS_OR",
-                    ],
-                    "defaultColumns": [
-                        "Variant",
-                        "Gene",
-                        "AA_Change",
-                        "HMM_Score",
-                        "TDL",
-                        "TBIO",
-                        "Classification",
-                        # "Drug_Program_Indication",
-                        "GWAS_P",
-                        "GWAS_OR",
-                    ],
-                    "numColumns": ["HMM_Score", "GWAS_P", "GWAS_OR"],
-                }
-            )
-
-        # If no cache, get variants from DB
-        print(f"Fetching variants for term: {term}")
+        # Get variants from DB
+        print(f"\nFetching variants for term: {term}")
         term_df = get_term_variants(term)
         print(f"Initial term_df shape: {term_df.shape}")
-
-        # Fill NA values before merging
-        term_df = term_df.fillna("None")
-
-        # Add pharos data
-        term_df = term_df.merge(pharos, on="gene", how="left")
-        print(f"After pharos merge shape: {term_df.shape}")
-
-        term_df = term_df.fillna("None")  # Fill NAs after first merge
-
-        # Add pp data
-        term_df = term_df.merge(pp, on="gene", how="left")
-        print(f"After pp merge shape: {term_df.shape}")
-        term_df = term_df.fillna("None")  # Fill NAs after second merge
 
         if term_df.empty:
             print("No variants found for this term!")
@@ -289,86 +248,85 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
                 {"data": [], "columns": [], "defaultColumns": [], "numColumns": []}
             )
 
-        # Load GWAS data for all variants
-        gwas_data = load_gwas_data(phecode)
-        print(f"GWAS data found: {gwas_data is not None}")
-
-        # If P is NaN, set to 1
-        gwas_data["P"] = gwas_data["P"].fillna(1)
-        gwas_data["OR"] = gwas_data["OR"].fillna(1)
         data_records = []
         for idx, row in term_df.iterrows():
             variant_id = row["variant_id"]
             print(f"\nProcessing variant {idx+1}/{len(term_df)}: {variant_id}")
-            # standard_variant_id = variant_id.replace("/", "_")
+            standard_variant_id = variant_id.replace("/", "_")
+
+            # Pass phecode to get_formatted_phewas_data for single-phecode analysis
+            phewas_data = get_formatted_phewas_data(standard_variant_id, phecode)
+            print(f"PheWAS data found: {phewas_data is not None}")
+
+            # Load GWAS data
+            gwas_data = load_gwas_data(phecode, variant_id)
+            print(f"GWAS data found: {gwas_data is not None}")
 
             # Construct record
             record = {
                 "Variant": variant_id,
                 "Gene": row["gene"],
-                "AA_Change": str(row["aa"]),
-                "HMM_Score": f"{float(row['hmm_score']):.2f}",
-                "TDL": str(row.get("tdl", "None")),
-                "TBIO": str(row.get("tbio", "None")),
-                "Classification": str(row.get("classification", "None")),
-                "Drug_Program_Indication": str(
-                    row.get("drug_program_indication", "None")
-                ),
+                "AA_Change": row["aa"],
+                "HMM_Score": f"{row['hmm_score']:.2f}",
             }
 
+            # Add PheWAS data if available (taking first result since we filtered by phecode)
+            if phewas_data and len(phewas_data) > 0:
+                record.update(phewas_data[0])
+
             # Add GWAS data if available
-            row = gwas_data[gwas_data["nomaly_variant"] == variant_id]
-
-            if row.empty:
-                print(f"Variant {variant_id} not found in GWAS file")
-
-            else:
-                r = row.iloc[0]
-                record.update(
-                    {
-                        "GWAS_P": f"{r.get('P', 1):.2e}",
-                        "GWAS_OR": f"{r.get('OR', 1):.2f}",
-                        "GWAS_F_A": f"{r.get('F_A', 1):.5f}",
-                        "GWAS_F_U": f"{r.get('F_U', 1):.5f}",
-                        "GWAS_RSID": r.get("RSID"),
-                    }
-                )
+            if gwas_data:
+                record.update(gwas_data)
 
             data_records.append(record)
-
-        # Cache the results
-        save_results(phecode, term, data_records)
 
         print(f"\nFinal number of records: {len(data_records)}")
         if len(data_records) > 0:
             print("Sample record:", data_records[0])
 
+        # Define columns based on the data
+        columns = [
+            "Variant",
+            "Gene",
+            "AA_Change",
+            "HMM_Score",
+            "Ref_HMOZ",
+            "Alt_HMOZ",
+            "HTRZ",
+            "RefAF",
+            "AltAF",
+            "Cases_Count",
+            "Controls_Count",
+            "P",
+            "OR",
+        ]
+        if any(gwas_data for r in data_records):
+            columns.extend(["GWAS_P", "GWAS_OR"])
+
+        default_columns = [
+            "Variant",
+            "Gene",
+            "AA_Change",
+            "Ref_HMOZ",
+            "Alt_HMOZ",
+            "HTRZ",
+            "P",
+            "GWAS_P",
+        ]
+        num_columns = ["HMM_Score", "P", "OR", "GWAS_P", "GWAS_OR"]
+
+        # Debug print
+        if len(data_records) > 0:
+            print("\nFirst record keys:", data_records[0].keys())
+            print("First record:", data_records[0])
+            print("\nColumns being sent:", columns)
+
         return jsonify(
             {
                 "data": data_records,
-                "columns": [
-                    "Variant",
-                    "Gene",
-                    "AA_Change",
-                    "HMM_Score",
-                    "TDL",
-                    "TBIO",
-                    "Classification",
-                    "Drug_Program_Indication",
-                    "GWAS_P",
-                    "GWAS_OR",
-                ],
-                "defaultColumns": [
-                    "Variant",
-                    "Gene",
-                    "AA_Change",
-                    "TDL",
-                    "TBIO",
-                    "Classification",
-                    "Drug_Program_Indication",
-                    "GWAS_P",
-                ],
-                "numColumns": ["HMM_Score", "GWAS_P", "GWAS_OR"],
+                "columns": columns,
+                "defaultColumns": default_columns,
+                "numColumns": num_columns,
             }
         )
 
@@ -377,23 +335,3 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
         print(error_msg)
         print(traceback.format_exc())
         return jsonify({"error": error_msg}), 500
-
-
-def main():
-    print("Hello")
-
-    term = "MP:0004957"
-    term_df = get_term_variants(term)
-    print(term_df.head())
-
-    phecode = "282"
-    # Load GWAS data for all variants
-    gwas_data = load_gwas_data(phecode)
-    print(f"GWAS data found: {gwas_data is not None}")
-
-    result = show_phecode_term_variant_detail(phecode, term)
-    print(result)
-
-
-if __name__ == "__main__":
-    main()

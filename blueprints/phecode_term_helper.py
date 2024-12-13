@@ -6,7 +6,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-CACHE_DIR = "/data/clu/ukbb/by_variant_phecode/"
+CACHE_DIR = "/data/clu/ukbb/by_phecode_term/"
 
 
 def ensure_cache_dir():
@@ -32,11 +32,10 @@ def delete_cache(phecode: str, term: str) -> bool:
     return False
 
 
-def load_cached_results(
-    phecode: str, term: str, flush: bool = False
-) -> List[Dict] | None:
+def load_cached_results(phecode: str, term: str, flush: bool = False) -> Dict | None:
     """Load cached results if they exist and flush is not requested"""
     if flush:
+        logger.info(f"Flush requested for phecode {phecode}, term {term}")
         delete_cache(phecode, term)
         return None
 
@@ -49,6 +48,8 @@ def load_cached_results(
             return cached_data
         except Exception as e:
             logger.error(f"Error loading cached results: {e}")
+            # If there's an error reading the cache, delete it
+            delete_cache(phecode, term)
     return None
 
 

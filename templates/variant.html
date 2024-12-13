@@ -76,9 +76,9 @@
     }
 </style>
 <script>
-    $(document).ready(function() {
+    $(document).ready(function () {
         // Event listener for the PheWAS button
-        document.getElementById('runPheWASButton').addEventListener('click', function() {
+        document.getElementById('runPheWASButton').addEventListener('click', function () {
             const resultDiv = document.getElementById('phewasResult');
             const variant = "{{ data.variant_id }}".replace(':', '_').replace('/', '_');
 
@@ -93,43 +93,43 @@
                     'Content-Type': 'application/json'
                 }
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === "Task started") {
-                    resultDiv.innerHTML = "PheWAS analysis started. Please wait...";
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === "Task started") {
+                        resultDiv.innerHTML = "PheWAS analysis started. Please wait...";
 
-                    // Poll the server for the result
-                    const checkResult = setInterval(() => {
-                        fetch(`/phewas-result/${variant}`)
-                        .then(response => response.json())
-                        .then(resultData => {
-                            console.log("Received result:", resultData); // Add debugging
+                        // Poll the server for the result
+                        const checkResult = setInterval(() => {
+                            fetch(`/phewas-result/${variant}`)
+                                .then(response => response.json())
+                                .then(resultData => {
+                                    console.log("Received result:", resultData); // Add debugging
 
-                            if (resultData.result && resultData.result.includes("Failed")) {
-                                resultDiv.innerHTML = `Failed: ${resultData.result}`;
-                                clearInterval(checkResult);
-                            } else if (resultData.result && !resultData.result.includes("Processing...")) {
-                                resultDiv.innerHTML = resultData.result;
+                                    if (resultData.result && resultData.result.includes("Failed")) {
+                                        resultDiv.innerHTML = `Failed: ${resultData.result}`;
+                                        clearInterval(checkResult);
+                                    } else if (resultData.result && !resultData.result.includes("Processing...")) {
+                                        resultDiv.innerHTML = resultData.result;
 
-                                // Check if we have associations to display
-                                if (resultData.associations && resultData.associations.length > 0) {
-                                    populatePheWASTable(resultData.associations);
-                                }
+                                        // Check if we have associations to display
+                                        if (resultData.associations && resultData.associations.length > 0) {
+                                            populatePheWASTable(resultData.associations);
+                                        }
 
-                                clearInterval(checkResult);
-                            }
-                        })
-                            .catch(error => {
-                                console.error("Error fetching results:", error);
-                                resultDiv.innerHTML = `Error: ${error.message}`;
-                                clearInterval(checkResult);
-                        });
-                    }, 1000);
-                }
-            })
-            .catch(error => {
-                resultDiv.innerHTML = `Error: ${error.message}`;
-            });
+                                        clearInterval(checkResult);
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error("Error fetching results:", error);
+                                    resultDiv.innerHTML = `Error: ${error.message}`;
+                                    clearInterval(checkResult);
+                                });
+                        }, 1000);
+                    }
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = `Error: ${error.message}`;
+                });
         });
 
         // Function to populate the PheWAS table
