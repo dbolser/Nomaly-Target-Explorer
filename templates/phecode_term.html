@@ -71,14 +71,6 @@
             "Gene": row.Gene,
             "AA_Change": row.AA_Change,
             "HMM_Score": row.HMM_Score,
-            "Counts": `${row.Counts}`,  // Already formatted as cases<br/>controls
-            "RefAF": `${row.RefAF}`,  // Already formatted as cases<br/>controls
-            "AltAF": `${row.AltAF}`,  // Already formatted as cases<br/>controls
-            "Ref_HMOZ": `${row.Ref_HMOZ}`,
-            "Alt_HMOZ": `${row.Alt_HMOZ}`,
-            "HTRZ": `${row.HTRZ}`,
-            "P": row.P ? `${parseFloat(row.P).toExponential(2)}<br/>` : 'N/A',
-            "OR": row.OR ? `${parseFloat(row.OR).toFixed(2)}<br/>` : 'N/A',
             "GWAS_P": row.GWAS_P ? `${parseFloat(row.GWAS_P).toExponential(2)}<br/>` : 'N/A',
             "GWAS_OR": row.GWAS_OR ? `${parseFloat(row.GWAS_OR).toFixed(2)}<br/>` : 'N/A'
         }));
@@ -89,23 +81,15 @@
             { data: "Gene", title: "Gene" },
             { data: "AA_Change", title: "AA Change" },
             { data: "HMM_Score", title: "HMM Score" },
-            { data: "P", title: "PheWAS P" },
-            { data: "OR", title: "PheWAS OR" },
             { data: "GWAS_P", title: "GWAS P" },
-            { data: "GWAS_OR", title: "GWAS OR" },
-            { data: "Counts", title: "Cases<br/>Controls" },
-            { data: "RefAF", title: "Ref AF" },
-            { data: "AltAF", title: "Alt AF" },
-            { data: "Ref_HMOZ", title: "Ref HMOZ" },
-            { data: "Alt_HMOZ", title: "Alt HMOZ" },
-            { data: "HTRZ", title: "HTRZ" }
+            { data: "GWAS_OR", title: "GWAS OR" }
         ];
 
         // Initialize DataTable with consistent options
         $('#resultsTable').DataTable({
             data: formattedData,
             columns: columnDefinitions,
-            order: [[3, 'asc']],  // Order by PheWAS P-value
+            order: [[4, 'asc']],  // Order by GWAS P-value
             responsive: true,
             autoWidth: false,
             dom: 'Bfrtip',

@@ -203,7 +203,7 @@ def ensure_gwas(phecode):
 
 
 
-def load_gwas_data(phecode, variant_id):
+def load_gwas_data(phecode):
     """
     Load GWAS data for a given phecode and return row for this variant.
     Returns a dict with keys: GWAS_P, GWAS_OR, etc.
@@ -216,22 +216,7 @@ def load_gwas_data(phecode, variant_id):
         return None
     gwas_df = pd.read_csv(gwas_file, sep="\t")
 
-    variant_col = "nomaly_variant"
-    row = gwas_df[gwas_df[variant_col] == variant_id]
-    if row.empty:
-        print(f"Variant {variant_id} not found in GWAS file")
-        return None
-
-    r = row.iloc[0]
-
-    return {
-        "GWAS_P": f"{r.get('P', 1):.2e}",
-        "GWAS_OR": f"{r.get('OR', 1):.2f}",
-        "GWAS_F_A": f"{r.get('F_A', 1):.5f}",
-        "GWAS_F_U": f"{r.get('F_U', 1):.5f}",
-        "GWAS_RSID": r.get("RSID"),
-    }
-
+    return gwas_df
 
 @phecode_term_bp.route(
     "/phecode/<string:phecode>/term/<string:term>/tableVariantDetail",
@@ -256,11 +241,9 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
                         "HMM_Score",
                         "GWAS_P",
                         "GWAS_OR",
-                        "P",
-                        "OR",
                     ],
-                    "defaultColumns": ["Variant", "Gene", "AA_Change", "GWAS_P", "P"],
-                    "numColumns": ["HMM_Score", "GWAS_P", "GWAS_OR", "P", "OR"],
+                    "defaultColumns": ["Variant", "Gene", "AA_Change", "GWAS_P"],
+                    "numColumns": ["HMM_Score", "GWAS_P", "GWAS_OR"],
                 }
             )
 
@@ -275,19 +258,15 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
                 {"data": [], "columns": [], "defaultColumns": [], "numColumns": []}
             )
 
+        # Load GWAS data for all variants
+        gwas_data = load_gwas_data(phecode)
+        print(f"GWAS data found: {gwas_data is not None}")
+
         data_records = []
         for idx, row in term_df.iterrows():
             variant_id = row["variant_id"]
             print(f"\nProcessing variant {idx+1}/{len(term_df)}: {variant_id}")
             standard_variant_id = variant_id.replace("/", "_")
-
-            # Pass phecode to get_formatted_phewas_data for single-phecode analysis
-            phewas_data = get_formatted_phewas_data(standard_variant_id, phecode)
-            print(f"PheWAS data found: {phewas_data is not None}")
-
-            # Load GWAS data
-            gwas_data = load_gwas_data(phecode, variant_id)
-            print(f"GWAS data found: {gwas_data is not None}")
 
             # Construct record
             record = {
@@ -297,13 +276,23 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
                 "HMM_Score": f"{row['hmm_score']:.2f}",
             }
 
-            # Add PheWAS data if available (taking first result since we filtered by phecode)
-            if phewas_data and len(phewas_data) > 0:
-                record.update(phewas_data[0])
-
             # Add GWAS data if available
-            if gwas_data:
-                record.update(gwas_data)
+            row = gwas_data[gwas_data["nomaly_variant"] == variant_id]
+
+            if row.empty:
+                print(f"Variant {variant_id} not found in GWAS file")
+
+            else:
+                r = row.iloc[0]
+                record.update(
+                    {
+                        "GWAS_P": f"{r.get('P', 1):.2e}",
+                        "GWAS_OR": f"{r.get('OR', 1):.2f}",
+                        "GWAS_F_A": f"{r.get('F_A', 1):.5f}",
+                        "GWAS_F_U": f"{r.get('F_U', 1):.5f}",
+                        "GWAS_RSID": r.get("RSID"),
+                    }
+                )
 
             data_records.append(record)
 
@@ -314,49 +303,19 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
         if len(data_records) > 0:
             print("Sample record:", data_records[0])
 
-        # Define columns based on the data
-        columns = [
-            "Variant",
-            "Gene",
-            "AA_Change",
-            "HMM_Score",
-            "Ref_HMOZ",
-            "Alt_HMOZ",
-            "HTRZ",
-            "RefAF",
-            "AltAF",
-            "Cases_Count",
-            "Controls_Count",
-            "P",
-            "OR",
-        ]
-        if any(gwas_data for r in data_records):
-            columns.extend(["GWAS_P", "GWAS_OR"])
-
-        default_columns = [
-            "Variant",
-            "Gene",
-            "AA_Change",
-            "Ref_HMOZ",
-            "Alt_HMOZ",
-            "HTRZ",
-            "P",
-            "GWAS_P",
-        ]
-        num_columns = ["HMM_Score", "P", "OR", "GWAS_P", "GWAS_OR"]
-
-        # Debug print
-        if len(data_records) > 0:
-            print("\nFirst record keys:", data_records[0].keys())
-            print("First record:", data_records[0])
-            print("\nColumns being sent:", columns)
-
         return jsonify(
             {
                 "data": data_records,
-                "columns": columns,
-                "defaultColumns": default_columns,
-                "numColumns": num_columns,
+                "columns": [
+                    "Variant",
+                    "Gene",
+                    "AA_Change",
+                    "HMM_Score",
+                    "GWAS_P",
+                    "GWAS_OR",
+                ],
+                "defaultColumns": ["Variant", "Gene", "AA_Change", "GWAS_P"],
+                "numColumns": ["HMM_Score", "GWAS_P", "GWAS_OR"],
             }
         )
 
