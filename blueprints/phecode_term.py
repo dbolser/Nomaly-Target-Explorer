@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template, jsonify, request
 
 import pandas as pd
 import os
@@ -17,6 +17,8 @@ from errors import DataNotFoundError, GWASError
 import logging
 
 from blueprints.phewas import get_formatted_phewas_data  # Update import
+
+from blueprints.phecode_term_helper import load_cached_results, save_results
 
 
 # Create the blueprint
@@ -237,7 +239,32 @@ def load_gwas_data(phecode, variant_id):
 )
 def show_phecode_term_variant_detail(phecode: str, term: str):
     try:
-        # Get variants from DB
+        # Get flush parameter from request
+        flush = request.args.get("flush", "0") == "1"
+
+        # First check cache
+        cached_data = load_cached_results(phecode, term, flush)
+        if cached_data is not None:
+            logger.info(f"Using cached data for phecode {phecode}, term {term}")
+            return jsonify(
+                {
+                    "data": cached_data["data"],
+                    "columns": [
+                        "Variant",
+                        "Gene",
+                        "AA_Change",
+                        "HMM_Score",
+                        "GWAS_P",
+                        "GWAS_OR",
+                        "P",
+                        "OR",
+                    ],
+                    "defaultColumns": ["Variant", "Gene", "AA_Change", "GWAS_P", "P"],
+                    "numColumns": ["HMM_Score", "GWAS_P", "GWAS_OR", "P", "OR"],
+                }
+            )
+
+        # If no cache, get variants from DB
         print(f"\nFetching variants for term: {term}")
         term_df = get_term_variants(term)
         print(f"Initial term_df shape: {term_df.shape}")
@@ -279,6 +306,9 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
                 record.update(gwas_data)
 
             data_records.append(record)
+
+        # Cache the results
+        save_results(phecode, term, data_records)
 
         print(f"\nFinal number of records: {len(data_records)}")
         if len(data_records) > 0:
