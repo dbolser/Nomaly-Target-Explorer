@@ -26,26 +26,34 @@ class Config:
     MYSQL_DB = os.getenv("MYSQL_DB")
 
     # Application paths
-    NOMALY_RESULTS_DIR = Path("/data/general/UKBB/Run-v2/DatabaseInputs")
-    PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
+    NOMALY_RESULTS_DIR = Path("/data/general/UKBB/Run-v1/DatabaseInputs")
     UKBB_PHENO_DIR = Path("/data/general/UKBB/Phenotypes")
+    PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
     GWAS_PHENO_DIR = Path("/data/clu/ukbb/by_pheno")
 
     PHENOTYPES_H5 = UKBB_PHENO_DIR / "phecode_cases_excludes.h5"
-    GENOTYPES_H5 = NOMALY_RESULTS_DIR / "genotypes.h5"
+
+    NOMALY_RESULTS_DIR_v2 = Path("/data/general/UKBB/Run-v2/DatabaseInputs")
+
+    # GENOTYPES_H5 = NOMALY_RESULTS_DIR / "genotypes.h5"
+    GENOTYPES_H5 = NOMALY_RESULTS_DIR_v2 / "Test/original_script.h5"
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""
+
     DEBUG = True
 
 
 class ProductionConfig(Config):
     """Production configuration"""
+
     pass
 
 
 class TestingConfig(Config):
     """Testing configuration"""
+
     TESTING = True
     DEBUG = True
 
