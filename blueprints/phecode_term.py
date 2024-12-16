@@ -252,6 +252,7 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
     default_columns = [
         "Variant",
         "Gene",
+        "Classification",
         "AA_Change",
         "HMM_Score",
         "GWAS_P",
@@ -266,21 +267,23 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
 
     try:
         # Get flush parameter from POST body
-        if request:
+        if request.is_json:
             flush = request.get_json().get("flush", False)
+            logger.info(f"Flush parameter received: {flush}")
 
         # First check cache
         cached_data = load_cached_results(phecode, term, flush)
-        if cached_data is not None:
+        
+        if cached_data is not None and "data" in cached_data:
             logger.info(f"Using cached data for phecode {phecode}, term {term}")
-            return jsonify(
-                {
-                    "data": cached_data["data"],
-                    "columns": columns,
-                    "defaultColumns": default_columns,
-                    "numColumns": numeric_columns,
-                }
-            )
+            return jsonify({
+                "data": cached_data["data"],
+                "columns": columns,
+                "defaultColumns": default_columns,
+                "numColumns": numeric_columns,
+            })
+        
+        logger.warning(f"Cache miss or flush requested for phecode {phecode}, term {term}")
 
         # If no cache, get variants from DB
         print(f"Fetching variants for term: {term}")

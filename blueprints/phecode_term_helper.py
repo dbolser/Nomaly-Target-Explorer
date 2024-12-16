@@ -40,16 +40,21 @@ def load_cached_results(phecode: str, term: str, flush: bool = False) -> Dict | 
         return None
 
     cache_path = get_cache_path(phecode, term)
+    logger.info(f"Checking cache at: {cache_path}")
+    
     if os.path.exists(cache_path):
         try:
             with open(cache_path, "r") as f:
                 cached_data = json.load(f)
-            logger.info(f"Loaded cached results for phecode {phecode}, term {term}")
+            logger.info(f"Successfully loaded cache for phecode {phecode}, term {term}")
             return cached_data
         except Exception as e:
             logger.error(f"Error loading cached results: {e}")
             # If there's an error reading the cache, delete it
             delete_cache(phecode, term)
+            return None
+    
+    logger.info(f"No cache file found at {cache_path}")
     return None
 
 

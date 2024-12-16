@@ -154,26 +154,31 @@
     function loadVariantDetailTable() {
         const encodedTerm = encodeURIComponent(term);
         const url = `/phecode/${phecode}/term/${encodedTerm}/tableVariantDetail`;
+        
+        // Log the request
+        console.log('Sending request to:', url);
+        
         fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ flush: true })
-        })
-            .then(response => response.json().then(data => {
-                if (!response.ok) {
-                    throw new Error(data.error || 'Error fetching data');
-                }
-                return data;
-            }))
-            .then(resultData => {
-                renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+            body: JSON.stringify({ 
+                flush: false  // Only set to true when you want to bypass cache
             })
-            .catch(error => {
-                console.error('Error loading Variant Detail Table:', error);
-                alert('Failed to load table data: ' + error.message);
-            });
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            return response.json();
+        })
+        .then(resultData => {
+            console.log('Received data:', resultData);
+            renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+        })
+        .catch(error => {
+            console.error('Error loading Variant Detail Table:', error);
+            alert('Failed to load table data: ' + error.message);
+        });
     }
 </script>
 {% endblock %}
