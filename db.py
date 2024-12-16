@@ -295,11 +295,29 @@ def get_term_variants(term: str) -> pd.DataFrame:
         with get_db_connection() as conn:
             with conn.cursor(dictionary=True) as cur:
                 query = """
-    SELECT term, variant_id, gene, aa, ABS(wild - mutant) AS hmm_score
-    FROM variants_consequences
-    INNER JOIN terms2snps USING (variant_id)
-    WHERE term = %s
-    """
+                SELECT
+                    term,
+                    variant_id,
+                    gene,
+                    GROUP_CONCAT(DISTINCT aa) AS aa,
+                    MAX(ABS(wild - mutant)) as hmm_score
+                FROM
+                    variants_consequences
+                INNER JOIN
+                    terms2snps
+                USING
+                    (variant_id)
+                WHERE
+                    term = %s
+                GROUP BY
+                    term,
+                    variant_id,
+                    gene,
+                    wild,
+                    mutant
+                HAVING
+                    ABS(wild - mutant) = MAX(ABS(wild - mutant));
+                """
                 print(f"\nExecuting query for term: {term}")
                 print(f"Query: {query}")
 
@@ -330,6 +348,7 @@ def get_term_variants(term: str) -> pd.DataFrame:
     except Exception as e:
         logger.error(f"Error fetching term variants: {str(e)}", exc_info=True)
         raise
+
 
 def get_all_variants() -> pd.DataFrame:
     try:
