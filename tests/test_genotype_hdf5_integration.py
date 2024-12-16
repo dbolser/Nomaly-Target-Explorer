@@ -1,11 +1,11 @@
 import numpy as np
 
-from blueprints.nomaly import nomaly_genotype, NOMALY_RESULTS_DIR
+from blueprints.nomaly import GenotypeHDF5, NOMALY_RESULTS_DIR
 
 from config import Config
 
 config = Config()
-# nomaly_genotype = GenotypeHDF5(config.GENOTYPES_H5)
+nomaly_genotype = GenotypeHDF5(config.GENOTYPES_H5)
 
 NUM_INDIVIDUALS = 488377
 NUM_VARIANTS = 83011
@@ -60,7 +60,6 @@ def test_known_variant_genotype_distribution():
     expected_heterozygous = 108371
     expected_alt_homozygous = 296223
 
-    # Allow for some variation (±5%)
     assert np.sum(genotypes == 0) == expected_ref_homozygous
     assert np.sum(genotypes == 1) == expected_heterozygous
     assert np.sum(genotypes == 2) == expected_alt_homozygous
@@ -84,16 +83,25 @@ def test_individual_id_format():
     """Test that individual IDs are in the expected format."""
     sample_ids = nomaly_genotype.individual[:1000]
 
-    # Count the number of -1s in the sample_ids
+    # THIS WAS A PROBLEM IN THE ORIGINAL FILE, e..g there was exactly 1 -1 in
+    # the sample_ids!
+
+    NUM_MISSING_IDS = 1
+
     assert (
-        np.sum(sample_ids == -1) == 1
-    ), "There should be no -1s in the sample_ids...ahhh"
+        np.sum(sample_ids == -1) == NUM_MISSING_IDS
+    ), f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
+
+    assert (
+        np.sum(sample_ids < 0) == NUM_MISSING_IDS
+    ), f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
 
     for id_num in sample_ids:
         assert isinstance(id_num, np.integer)
         if id_num == -1:
             continue
-        assert id_num > 0, f"Individual ID: {id_num} is not greater than 0"
+        assert id_num >= 100000, f"Individual ID: {id_num} is not greater than 100000"
+        assert id_num < 10000000, f"Individual ID: {id_num} is not less than 10000000"
         assert len(str(id_num)) >= 5  # Example: Expecting at least 5-digit IDs
 
 
@@ -111,7 +119,7 @@ def test_missing_data_handling():
 
 def test_file_path():
     """Verify the production file path."""
-    expected_path = f"{NOMALY_RESULTS_DIR}genotypes.h5"
+    expected_path = f"{NOMALY_RESULTS_DIR}/genotypes.h5"
     assert nomaly_genotype.hdf5_file == expected_path
 
 
@@ -229,3 +237,24 @@ def test_genotype_flipping():
     assert all(
         genotypes_flipped[missing_mask] == -1
     ), "Missing genotypes changed during flipping"
+
+
+def test_variant_counts():
+    """Test the variant counts."""
+    counts = nomaly_genotype.get_variant_counts()
+
+    # Verify we have the expected number of variants
+    assert len(counts) == NUM_VARIANTS
+
+    # Test specific variant counts using DataFrame indexing
+    variant1 = "19:44908684:C:T"
+    assert counts.loc[variant1, "heterozygous"] == 108371
+    assert counts.loc[variant1, "homozygous_alt"] == 296223
+    assert counts.loc[variant1, "homozygous_ref"] == 9874
+    assert counts.loc[variant1, "missing"] == 73909
+
+    variant2 = "11:69083946:T:C"
+    assert counts.loc[variant2, "heterozygous"] == 11499
+    assert counts.loc[variant2, "homozygous_alt"] == 474918
+    assert counts.loc[variant2, "homozygous_ref"] == 1516
+    assert counts.loc[variant2, "missing"] == 444
