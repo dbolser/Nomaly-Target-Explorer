@@ -65,162 +65,6 @@ def show_phecode_term(phecode, term):
         return render_template("error.html", error="An unexpected error occurred"), 500
 
 
-# Route to render the Phecode - term variants table
-@phecode_term_bp.route(
-    "/phecode/<string:phecode>/term/<string:term>/tableVar", methods=["POST"]
-)
-def show_phecode_term_tableVar(phecode, term):
-    # get term variants and other info including gene, domain
-    term_df = get_term_domain_genes_variant(term)
-    print(f"Initial data shape: {term_df.shape}")
-    print(f"Initial genes: {term_df['gene'].nunique()}")
-
-    # add pharos
-    print(f"Pharos genes: {len(pharos['gene'].unique())}")
-    term_df = term_df.merge(pharos, on="gene", how="left")
-    print(f"After pharos merge shape: {term_df.shape}")
-    print(f"Genes after pharos merge: {term_df['gene'].nunique()}")
-
-    # add pp
-    print(f"PP genes: {len(pp['gene'].unique())}")
-    term_df = term_df.merge(pp, on="gene", how="left")
-    print(f"Final shape: {term_df.shape}")
-    print(f"Final genes: {term_df['gene'].nunique()}")
-
-    # Sample some data
-    print("\nSample of final data:")
-    print(term_df.head())
-
-    # ['variant_id', 'gene', 'aa', 'hmm', 'hmm_pos', 'sf', 'fa', 'tdl', 'tbio', 'pubmed_scores', 'generifs', 'antibodies', 'go_terms', 'tchem', 'tclin', 'drug_list', 'tdark', 'gwas', 'gwas_hits', 'disease_associations1', 'disease_associations2', 'classification', 'notes', 'indication_mesh_term', 'catall', 'succ_1_2', 'succ_2_3', 'succ_3_a', 'year_launch']
-
-    print(term_df.columns)
-
-    # replace na
-    term_df = term_df.fillna("None")
-
-    nomalyResults = {
-        "data": term_df.to_dict(orient="records"),
-        "columns": [
-            "variant_id",
-            "gene",
-            "tdl",
-            "tbio",
-            "classification",
-            "drug_list",
-            "drug_program_indication",
-            "disease_associations1",
-            "disease_associations2",
-            "notes",
-        ],
-        "defaultColumns": [
-            "variant_id",
-            "gene",
-            "tdl",
-            "tbio",
-            "classification",
-            "gwas_hits",
-            "disease_associations1",
-            "drug_program_indication",
-        ],
-        "numColumns": [],
-    }
-
-    return nomalyResults
-
-
-@phecode_term_bp.route(
-    "/phecode/<string:phecode>/term/<string:term>/tableGene", methods=["POST"]
-)
-def show_phecode_term_tableGene(phecode, term):
-    # get term variants and other info including gene, domain
-    term_df = get_term_domain_genes(term)
-    print(term_df.shape)
-
-    # add pharos
-    term_df = pharos[pharos["gene"].isin(term_df["gene"])]
-    print(term_df.shape)
-
-    # add pp
-    term_df = term_df.merge(pp, on="gene", how="left")
-    print(term_df.shape)
-
-    # ['variant_id', 'gene', 'aa', 'hmm', 'hmm_pos', 'sf', 'fa', 'tdl', 'tbio', 'pubmed_scores', 'generifs', 'antibodies', 'go_terms', 'tchem', 'tclin', 'drug_list', 'tdark', 'gwas', 'gwas_hits', 'disease_associations1', 'disease_associations2', 'classification', 'notes', 'indication_mesh_term', 'catall', 'succ_1_2', 'succ_2_3', 'succ_3_a', 'year_launch']
-
-    print(term_df.columns)
-
-    # replace na
-    term_df = term_df.fillna("None")
-
-    nomalyResults = {
-        "data": term_df.to_dict(orient="records"),
-        "columns": [
-            "gene",
-            "tdl",
-            "tbio",
-            "classification",
-            "pubmed_scores",
-            "generifs",
-            "antibodies",
-            "go_terms",
-            "tchem",
-            "tclin",
-            "drug_list",
-            "tdark",
-            "drug_program_indication",
-            "gwas",
-            "gwas_hits",
-            "disease_associations1",
-            "disease_associations2",
-            "notes",
-        ],
-        "defaultColumns": [
-            "gene",
-            "tdl",
-            "tbio",
-            "classification",
-            "gwas_hits",
-            "disease_associations1",
-            "drug_program_indication",
-        ],
-        "numColumns": [],
-    }
-
-    return nomalyResults
-
-
-def ensure_gwas(phecode):
-    """
-    Check if GWAS results for this phecode exist.
-    If not, run GWAS.
-    """
-    output_prefix = f"phecode_{phecode}"
-    gwas_path = f"{GWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv"
-    if not os.path.exists(gwas_path):
-        # Run GWAS
-        assoc = variant_level_assoc(pheno_type="PheCode", code=phecode)
-        if assoc is not None and not assoc.empty:
-            # assoc is already saved by variant_level_assoc function call or we can save here
-            pass
-        else:
-            print(f"GWAS failed or returned no results for {phecode}")
-
-
-def load_gwas_data(phecode):
-    """
-    Load GWAS data for a given phecode and return row for this variant.
-    Returns a dict with keys: GWAS_P, GWAS_OR, etc.
-    If not found, returns None.
-    """
-    ensure_gwas(phecode)
-    gwas_file = f"{GWAS_PHENO_DIR}phecode_{phecode}.assoc_nomaly.tsv"
-    if not os.path.exists(gwas_file):
-        print(f"GWAS file not found for phecode {phecode}")
-        return None
-    gwas_df = pd.read_csv(gwas_file, sep="\t")
-
-    return gwas_df
-
-
 @phecode_term_bp.route(
     "/phecode/<string:phecode>/term/<string:term>/tableVariantDetail",
     methods=["GET", "POST"],
@@ -266,10 +110,11 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
     numeric_columns = ["HMM_Score", "GWAS_P", "GWAS_OR", "vs00", "vs01", "vs11"]
 
     try:
-        # Get flush parameter from POST body
+        # Get flush parameter from POST body or URL query parameter
+        flush = request.args.get("flush", "false").lower() == "true"  # Handle URL parameter
         if request.is_json:
-            flush = request.get_json().get("flush", False)
-            logger.info(f"Flush parameter received: {flush}")
+            flush = request.get_json().get("flush", flush)  # POST body overrides URL parameter if present
+        logger.info(f"Flush parameter received: {flush}")
 
         # First check cache
         cached_data = load_cached_results(phecode, term, flush)
@@ -425,6 +270,39 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
         print(error_msg)
         print(traceback.format_exc())
         return jsonify({"error": error_msg}), 500
+
+
+def ensure_gwas(phecode):
+    """
+    Check if GWAS results for this phecode exist.
+    If not, run GWAS.
+    """
+    output_prefix = f"phecode_{phecode}"
+    gwas_path = f"{GWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv"
+    if not os.path.exists(gwas_path):
+        # Run GWAS
+        assoc = variant_level_assoc(pheno_type="PheCode", code=phecode)
+        if assoc is not None and not assoc.empty:
+            # assoc is already saved by variant_level_assoc function call or we can save here
+            pass
+        else:
+            print(f"GWAS failed or returned no results for {phecode}")
+
+
+def load_gwas_data(phecode):
+    """
+    Load GWAS data for a given phecode and return row for this variant.
+    Returns a dict with keys: GWAS_P, GWAS_OR, etc.
+    If not found, returns None.
+    """
+    ensure_gwas(phecode)
+    gwas_file = f"{GWAS_PHENO_DIR}phecode_{phecode}.assoc_nomaly.tsv"
+    if not os.path.exists(gwas_file):
+        print(f"GWAS file not found for phecode {phecode}")
+        return None
+    gwas_df = pd.read_csv(gwas_file, sep="\t")
+
+    return gwas_df
 
 
 def main():

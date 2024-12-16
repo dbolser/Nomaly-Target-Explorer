@@ -31,12 +31,6 @@
             {{ data.genes }}
         </p>
     </div>
-    <!-- Show table of genes, variants, druggability, pharma projects, gwas known -->
-    <div class="btn-group mb-3">
-        <button class="btn btn-primary" onclick="loadTable2()">Show by Gene</button>
-        <button class="btn btn-secondary" onclick="loadTable1()">Show by Variant</button>
-        <button class="btn btn-info" onclick="loadVariantDetailTable()">Show Variant Details</button>
-    </div>
 
 </div>
 <div class="container-fluid">
@@ -100,85 +94,42 @@
         });
     }
 
-    // Function to load Table 1 (by Variant)
-    function loadTable1() {
-        const encodedTerm = encodeURIComponent(term);
-        fetch(`/phecode/${phecode}/term/${encodedTerm}/tableVar`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({})
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(resultData => {
-                renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-            })
-            .catch(error => {
-                console.error('Error loading Table 1:', error);
-                alert('Failed to load table data. Check console for details.');
-            });
-    }
-
-    // Function to load Table 2 (by Gene)
-    function loadTable2() {
-        const encodedTerm = encodeURIComponent(term);
-        fetch(`/phecode/${phecode}/term/${encodedTerm}/tableGene`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({})
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(resultData => {
-                renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-            })
-            .catch(error => {
-                console.error('Error loading Table 2:', error);
-                alert('Failed to load table data. Check console for details.');
-            });
-    }
-
     // Function to load Variant Detail Table
     function loadVariantDetailTable() {
         const encodedTerm = encodeURIComponent(term);
-        const url = `/phecode/${phecode}/term/${encodedTerm}/tableVariantDetail`;
-        
-        // Log the request
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const flush = urlParams.get('flush') === 'true';
+        const url = `/phecode/${phecode}/term/${encodedTerm}/tableVariantDetail?flush=${flush}`;
+
         console.log('Sending request to:', url);
-        
+
         fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
-                flush: false  // Only set to true when you want to bypass cache
+            body: JSON.stringify({
+                flush: flush  // Pass through the flush parameter from URL
             })
         })
-        .then(response => {
-            console.log('Response status:', response.status);
-            return response.json();
-        })
-        .then(resultData => {
-            console.log('Received data:', resultData);
-            renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-        })
-        .catch(error => {
-            console.error('Error loading Variant Detail Table:', error);
-            alert('Failed to load table data: ' + error.message);
-        });
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(resultData => {
+                console.log('Received data:', resultData);
+                renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+            })
+            .catch(error => {
+                console.error('Error loading Variant Detail Table:', error);
+                alert('Failed to load table data: ' + error.message);
+            });
     }
+
+    // Load variant details when the page loads
+    document.addEventListener('DOMContentLoaded', function () {
+        loadVariantDetailTable();
+    });
 </script>
 {% endblock %}
