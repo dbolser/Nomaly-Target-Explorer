@@ -37,6 +37,10 @@ class Config:
 
     # GENOTYPES_H5 = NOMALY_RESULTS_DIR / "genotypes.h5"
     GENOTYPES_H5 = NOMALY_RESULTS_DIR_v2 / "Test/original_script.h5"
+    # GENOTYPES_H5 = NOMALY_RESULTS_DIR_v2 / "Test/changs_original.h5"
+    GENOTYPES_H5_PLUS_COUNTS = (
+        NOMALY_RESULTS_DIR_v2 / "Test/changs_original_plus_counts.h5"
+    )
 
 
 class DevelopmentConfig(Config):
