@@ -61,44 +61,17 @@
             $('#resultsTable').DataTable().destroy();
         }
 
-        // Format the data to match variant.html style
-        const formattedData = data.map(row => ({
-            "Variant": row.Variant,
-            "Gene": row.Gene,
-            "AA_Change": row.AA_Change,
-            "HMM_Score": row.HMM_Score,
-            "TDL": row.TDL,
-            "TBIO": row.TBIO,
-            "Classification": row.Classification,
-            "Drug_Program_Indication": row.Drug_Program_Indication,
-            "GWAS_P": row.GWAS_P ? `${parseFloat(row.GWAS_P).toExponential(2)}<br/>` : 'N/A',
-            "GWAS_OR": row.GWAS_OR ? `${parseFloat(row.GWAS_OR).toFixed(2)}<br/>` : 'N/A'
+        // No need to map/format the data as it's already in the correct format from backend
+        const columnDefinitions = columns.map(col => ({
+            data: col,
+            title: col.replace(/_/g, ' '),
+            visible: defaultColumns.includes(col)
         }));
 
-        // Define column order to match variant.html style
-        const columnDefinitions = [
-            { data: "Variant", title: "Variant" },
-            { data: "Gene", title: "Gene" },
-            { data: "AA_Change", title: "AA Change" },
-            { data: "HMM_Score", title: "HMM Score" },
-            { data: "TDL", title: "TDL" },
-            { data: "TBIO", title: "TBIO" },
-            { data: "Classification", title: "Classification" },
-            { data: "Drug_Program_Indication", title: "Drug Program" },
-            { data: "GWAS_P", title: "GWAS P" },
-            { data: "GWAS_OR", title: "GWAS OR" },
-        ];
-
-        // Add visible property to column definitions based on defaultColumns
-        columnDefinitions.forEach(col => {
-            col.visible = defaultColumns.includes(col.data);
-        });
-
-        // Initialize DataTable with consistent options
         $('#resultsTable').DataTable({
-            data: formattedData,
+            data: data,
             columns: columnDefinitions,
-            order: [[8, 'asc']],
+            order: [[8, 'asc']],  // Assuming GWAS_P is the 9th column
             responsive: true,
             autoWidth: false,
             dom: 'Bfrtip',
@@ -120,8 +93,7 @@
                     }
                 },
                 {
-                    // Target all numeric columns
-                    targets: numColumns.map(col => columnDefinitions.findIndex(def => def.data === col)),
+                    targets: numColumns.map(col => columns.indexOf(col)),
                     className: 'text-end'  // Bootstrap class for right alignment
                 }
             ]
@@ -179,16 +151,15 @@
     }
 
     // Function to load Variant Detail Table
-    function loadVariantDetailTable(flush = false) {
+    function loadVariantDetailTable() {
         const encodedTerm = encodeURIComponent(term);
         const url = `/phecode/${phecode}/term/${encodedTerm}/tableVariantDetail`;
-        // Add flush parameter to POST body in URL
         fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ flush: flush })
+            body: JSON.stringify({ flush: true })
         })
             .then(response => response.json().then(data => {
                 if (!response.ok) {

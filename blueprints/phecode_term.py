@@ -14,10 +14,12 @@ from db import get_term_variants
 from blueprints.nomaly import pharos, pp
 from blueprints.nomaly import nomaly_stats
 
+from blueprints.nomaly import nomaly_genotype
+
 from errors import DataNotFoundError, GWASError
 import logging
 
-from blueprints.phewas import get_formatted_phewas_data  # Update import
+# from blueprints.phewas import get_formatted_phewas_data
 
 from blueprints.phecode_term_helper import load_cached_results, save_results
 
@@ -223,11 +225,49 @@ def load_gwas_data(phecode):
     "/phecode/<string:phecode>/term/<string:term>/tableVariantDetail",
     methods=["GET", "POST"],
 )
-def show_phecode_term_variant_detail(phecode: str, term: str):
+def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = False):
+    # Define the columns
+    columns = [
+        "Variant",
+        "Gene",
+        "AA_Change",
+        "HMM_Score",
+        "TDL",
+        "TBIO",
+        "Classification",
+        "Drug_Program_Indication",
+        "GWAS_P",
+        "GWAS_OR",
+        "GWAS_F_A",
+        "GWAS_F_U",
+        "GWAS_RSID",
+        "vs00",
+        "vs01",
+        "vs11",
+        "hmoz_alt",
+        "hmoz_ref",
+        "htrz",
+    ]
+
+    default_columns = [
+        "Variant",
+        "Gene",
+        "AA_Change",
+        "HMM_Score",
+        "GWAS_P",
+        "GWAS_OR",
+        "GWAS_RSID",
+        "vs00",
+        "vs01",
+        "vs11",
+    ]
+
+    numeric_columns = ["HMM_Score", "GWAS_P", "GWAS_OR", "vs00", "vs01", "vs11"]
+
     try:
         # Get flush parameter from POST body
-        # flush = request.get_json().get("flush", False) if request.is_json else False
-        flush = False
+        if request:
+            flush = request.get_json().get("flush", False)
 
         # First check cache
         cached_data = load_cached_results(phecode, term, flush)
@@ -236,31 +276,9 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
             return jsonify(
                 {
                     "data": cached_data["data"],
-                    "columns": [
-                        "Variant",
-                        "Gene",
-                        "AA_Change",
-                        "HMM_Score",
-                        "TDL",
-                        "TBIO",
-                        "Classification",
-                        "Drug_Program_Indication",
-                        "GWAS_P",
-                        "GWAS_OR",
-                    ],
-                    "defaultColumns": [
-                        "Variant",
-                        "Gene",
-                        "AA_Change",
-                        "HMM_Score",
-                        "TDL",
-                        "TBIO",
-                        "Classification",
-                        # "Drug_Program_Indication",
-                        "GWAS_P",
-                        "GWAS_OR",
-                    ],
-                    "numColumns": ["HMM_Score", "GWAS_P", "GWAS_OR"],
+                    "columns": columns,
+                    "defaultColumns": default_columns,
+                    "numColumns": numeric_columns,
                 }
             )
 
@@ -296,7 +314,45 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
         # If P is NaN, set to 1
         gwas_data["P"] = gwas_data["P"].fillna(1)
         gwas_data["OR"] = gwas_data["OR"].fillna(1)
+
+        # Load genotype counts for all variants
+        genotype_counts = nomaly_genotype.get_variant_counts()
+
         data_records = []
+
+        # Calculate 'the score'...
+        for idx, row in term_df.iterrows():
+            variant_id = row["variant_id"]
+            variant_id = variant_id.replace("_", ":")
+            variant_id = variant_id.replace("/", ":")
+
+            if variant_id not in genotype_counts.index:
+                # Swap the alleles (the last two parts of the variant_id)
+                alleles = variant_id.split(":")
+                alleles[-1], alleles[-2] = alleles[-2], alleles[-1]
+                variant_id = ":".join(alleles)
+                if variant_id not in genotype_counts.index:
+                    print(f"Variant {variant_id} not found in genotype counts")
+                    continue
+
+            hmoz_alt = genotype_counts.loc[variant_id, "homozygous_alt"]
+            htrz = genotype_counts.loc[variant_id, "heterozygous"]
+            hmoz_ref = genotype_counts.loc[variant_id, "homozygous_ref"]
+            total = hmoz_alt + hmoz_ref + htrz
+
+            f00 = hmoz_alt / total
+            f01 = htrz / total
+            f11 = hmoz_ref / total
+
+            HMM_score = row["hmm_score"]
+
+            term_df.at[idx, "vs00"] = HMM_score * f01 + (HMM_score**2 * f11)
+            term_df.at[idx, "vs01"] = HMM_score**2 * (f00 + f01)
+            term_df.at[idx, "vs11"] = HMM_score * f01 + (HMM_score**2 * f00)
+            term_df.at[idx, "hmoz_alt"] = hmoz_alt
+            term_df.at[idx, "hmoz_ref"] = hmoz_ref
+            term_df.at[idx, "htrz"] = htrz
+
         for idx, row in term_df.iterrows():
             variant_id = row["variant_id"]
             print(f"\nProcessing variant {idx+1}/{len(term_df)}: {variant_id}")
@@ -314,6 +370,12 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
                 "Drug_Program_Indication": str(
                     row.get("drug_program_indication", "None")
                 ),
+                "vs00": f"{float(row['vs00']):.2f}",
+                "vs01": f"{float(row['vs01']):.2f}",
+                "vs11": f"{float(row['vs11']):.2f}",
+                "hmoz_alt": row["hmoz_alt"],
+                "hmoz_ref": row["hmoz_ref"],
+                "htrz": row["htrz"],
             }
 
             # Add GWAS data if available
@@ -343,34 +405,17 @@ def show_phecode_term_variant_detail(phecode: str, term: str):
         if len(data_records) > 0:
             print("Sample record:", data_records[0])
 
-        return jsonify(
-            {
-                "data": data_records,
-                "columns": [
-                    "Variant",
-                    "Gene",
-                    "AA_Change",
-                    "HMM_Score",
-                    "TDL",
-                    "TBIO",
-                    "Classification",
-                    "Drug_Program_Indication",
-                    "GWAS_P",
-                    "GWAS_OR",
-                ],
-                "defaultColumns": [
-                    "Variant",
-                    "Gene",
-                    "AA_Change",
-                    "TDL",
-                    "TBIO",
-                    "Classification",
-                    "Drug_Program_Indication",
-                    "GWAS_P",
-                ],
-                "numColumns": ["HMM_Score", "GWAS_P", "GWAS_OR"],
-            }
-        )
+        result = {
+            "data": data_records,
+            "columns": columns,
+            "defaultColumns": default_columns,
+            "numColumns": numeric_columns,
+        }
+
+        if request:
+            return jsonify(result)
+        else:
+            return pd.DataFrame(result["data"])
 
     except Exception as e:
         error_msg = f"Error processing phecode {phecode}, term {term}: {str(e)}"
@@ -391,8 +436,12 @@ def main():
     gwas_data = load_gwas_data(phecode)
     print(f"GWAS data found: {gwas_data is not None}")
 
-    result = show_phecode_term_variant_detail(phecode, term)
+    result = show_phecode_term_variant_detail(phecode, term, flush=True)
     print(result)
+
+    result.iloc[0]
+
+    print(f"Hello")
 
 
 if __name__ == "__main__":
