@@ -221,13 +221,18 @@
                                 fetch(`/task-result/${phecode}`)
                                     .then(response => response.json())
                                     .then(resultData => {
-                                        if (resultData.result.includes("Failed")) {
-                                            resultDiv.innerHTML = `Failed: ${resultData.result}`;
-                                            clearInterval(checkResult);
-                                        } else if (!resultData.result.includes("Processing...")) {
+                                        console.log('Received result data:', resultData);  // Add debugging
+                                        if (resultData.status === 'completed') {
                                             resultDiv.innerHTML = `Result: ${resultData.result}`;
                                             clearInterval(checkResult);
-                                            populateTable(resultData.associations);
+                                            if (resultData.associations) {
+                                                populateTable(resultData.associations);
+                                            }
+                                        } else if (resultData.status === 'failed') {
+                                            resultDiv.innerHTML = `Failed: ${resultData.result}`;
+                                            clearInterval(checkResult);
+                                        } else {
+                                            resultDiv.innerHTML = "Task in progress...";
                                         }
                                     })
                                     .catch(err => {
