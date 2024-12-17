@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template, request, jsonify
 import threading
 import pandas as pd
 import os
@@ -33,15 +33,8 @@ def show_phecode(phecode):
     data = get_phecode_info(phecode)
     data['runbatch'] = "Run v1"
 
-    # # Example data (replace with actual data retrieval logic)
-    # data = {
-    #     "phecode": phecode,
-    #     "sex": "Both",
-    #     "affected": 150,
-    #     "excluded": 10,
-    #     "phecode_exclude": "None",
-    #     "phecode_group": "Cardiovascular"
-    # }
+    # Add show_gwas flag based on URL parameter
+    data["show_gwas"] = request.args.get("gwas") == "1"
 
     return render_template('phecode.html', data=data)
 
@@ -49,6 +42,10 @@ def show_phecode(phecode):
 def show_phecode2(phecode):
     data = get_phecode_info(phecode)
     data['runbatch'] = "Run v2"
+
+    # Add show_gwas flag based on URL parameter
+    data["show_gwas"] = request.args.get("gwas") == "1"
+
     return render_template('phecode.html', data=data)
 
 # ----------------------------------------------------- #
@@ -148,6 +145,13 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
     if addgene:
         plot_df = add_gene_info_to_DataTable(plot_df, phecode)
 
+    # Round all P-values to scientific notation with 2 decimal places
+    pval_columns = pval_nondirect + pval_pos + pval_neg
+    for col in pval_columns:
+        plot_df[col] = plot_df[col].apply(
+            lambda x: f"{float(x):0.2e}" if x != "None" else x
+        )
+
     # Replace NaN values with None (valid JSON format)
     plot_df = plot_df.fillna('None')
 
@@ -221,6 +225,41 @@ def get_nomaly_stats(phecode):
 
     # print(diseasestats['num_rp'].values[0], diseasestats['num_rn'].values[0], flush=True)
 
+    # Update column names mapping to include tooltips
+    column_display_names = {
+        "minrank": {
+            "display": "Min Rank",
+            "tooltip": "Minimum rank across all statistical tests",
+        },
+        "term": {"display": "Term", "tooltip": "Term identifier"},
+        "name": {"display": "Description", "tooltip": "Term description"},
+        "domain": {"display": "Domain", "tooltip": "Domain categories"},
+        "mwu_pvalue": {
+            "display": "MWU P-value",
+            "tooltip": "P-value for the Mann-Whitney U test",
+        },
+        "mcc_pvalue": {
+            "display": "MCC P-value",
+            "tooltip": "P-value for Matthews Correlation Coefficient",
+        },
+        "yjs_pvalue": {
+            "display": "YJS P-value",
+            "tooltip": "P-value for Youden J Statistic",
+        },
+        "lrp_pvalue": {
+            "display": "LRP P-value",
+            "tooltip": "P-value for Likelihood Ratio Positive",
+        },
+        "metric1_pvalue": {
+            "display": "Metric1 P-value",
+            "tooltip": "P-value for Metric 1",
+        },
+        "lrn_protective_pvalue": {
+            "display": "LRN Protective P-value",
+            "tooltip": "P-value for Likelihood Ratio Negative (Protective)",
+        },
+    }
+
     # if adding gene: add 'gene', 'sig gene',
     nomalyResults = {
         'qqplot': graph_html,
@@ -228,7 +267,9 @@ def get_nomaly_stats(phecode):
         'control': diseasestats['num_rn'].values[0],
         'data': plot_df.to_dict(orient='records'),
         'columns': ['minrank', 'term', 'name', 'domain'] + columns_pval,
-        'defaultColumns': ['minrank','term','name', 'domain', 'mwu_pvalue', 'metric1_pvalue', 'mcc_pvalue'],
+        'columnNames': [column_display_names[col]['display'] for col in ['minrank', 'term', 'name', 'domain'] + columns_pval],
+        'columnTooltips': [column_display_names[col]['tooltip'] for col in ['minrank', 'term', 'name', 'domain'] + columns_pval],
+        'defaultColumns': ['minrank', 'term', 'name', 'domain', 'mwu_pvalue', 'metric1_pvalue', 'mcc_pvalue'],
         'numColumns': columns_pval,
     }
     return nomalyResults
@@ -253,13 +294,30 @@ def get_nomaly_stats2(phecode):
     pval_neg = ['lrn_protective_pvalue']
     columns_pval = pval_nondirect + pval_pos + pval_neg
 
+    # Use same column names mapping
+    column_display_names = {
+        "minrank": "Rank",
+        "term": "Term",
+        "name": "Name",
+        "domain": "Domain",
+        "mwu_pvalue": "MWU Pvalue",
+        "mcc_pvalue": "MCC Pvalue",
+        "yjs_pvalue": "YJS Pvalue",
+        "lrp_pvalue": "LRP Pvalue",
+        "metric1_pvalue": "Metric1 Pvalue",
+        "lrn_protective_pvalue": "LRN Protective Pvalue",
+    }
+
     nomalyResults = {
-        'qqplot': graph_html,
-        'data': plot_df.to_dict(orient='records'),
-        'columns': ['minrank', 'term', 'name', 'domain'] + columns_pval,
-        'defaultColumns': ['minrank','term','name', 'domain'],
-        #   + ['mwu_pvalue', 'metric1_pvalue', 'yjs_pvalue','mcc_pvalue'],
-        'numColumns': columns_pval,
+        "qqplot": graph_html,
+        "data": plot_df.to_dict(orient="records"),
+        "columns": ["minrank", "term", "name", "domain"] + columns_pval,
+        "columnNames": [
+            column_display_names[col]
+            for col in ["minrank", "term", "name", "domain"] + columns_pval
+        ],
+        "defaultColumns": ["minrank", "term", "name", "domain"],
+        "numColumns": columns_pval,
     }
     return nomalyResults
 
@@ -286,7 +344,7 @@ def run_gwas_if_not_done(phecode):
     # GWAS results file path
     # ----------------------------------------------------- #
     output_prefix = f'phecode_{phecode}'
-    gwas_path = f'{GWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv'
+    gwas_path = f"{GWAS_PHENO_DIR}/{output_prefix}.assoc_nomaly.tsv"
 
     # ----------------------------------------------------- #
     # Check if GWAS has been run for this Phecode
@@ -321,7 +379,7 @@ def read_gwas(phecode):
     # GWAS results file path
     # ----------------------------------------------------- #
     output_prefix = f'phecode_{phecode}'
-    gwas_path = f'{GWAS_PHENO_DIR}{output_prefix}.assoc_nomaly.tsv'
+    gwas_path = f"{GWAS_PHENO_DIR}/{output_prefix}.assoc_nomaly.tsv"
 
     if not os.path.exists(gwas_path):
         return []
@@ -350,7 +408,9 @@ def read_gwas(phecode):
     assoc_sig = assoc[assoc['P']<0.05]
 
     # change RSID to link
-    assoc_sig['RSID'] = assoc_sig['RSID'].map(lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/{x}">{x}</a>')
+    assoc_sig.loc[:, "RSID"] = assoc_sig["RSID"].map(
+        lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/{x}">{x}</a>'
+    )
     # assoc_sig['Variant'] = assoc_sig['Variant'].map(lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/?term={x.split('_')[0]}">{x}</a>')
     # assoc_sig['Variant'] = assoc_sig['Variant'] + assoc_sig['RSID']
 

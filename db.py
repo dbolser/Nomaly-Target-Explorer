@@ -1,33 +1,41 @@
 import mysql.connector
-from mysql.connector import Error
+from mysql.connector.abstracts import MySQLConnectionAbstract
+
 import pandas as pd
 
+from errors import DatabaseConnectionError, DataNotFoundError
+from flask import current_app
+from utils import app_context
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 # Connect to the database
-def get_db_connection():
-    # Database connection configuration
-    db_config = {
-        'host': 'localhost',
-        'database': 'ukbb',
-        'user': 'clu',
-        'password': 'mysqlOutse3',
-        'raise_on_warnings': False
-    }
+def get_db_connection() -> MySQLConnectionAbstract:
     try:
-        conn = mysql.connector.connect(**db_config)
-        return conn
+        with app_context():
+            conn = mysql.connector.connect(
+                host=current_app.config["MYSQL_HOST"],
+                user=current_app.config["MYSQL_USER"],
+                password=current_app.config["MYSQL_PASSWORD"],
+                database=current_app.config["MYSQL_DB"],
+            )
+            # TODO: See tests/unit/test_models.py
+            assert isinstance(conn, MySQLConnectionAbstract)
+            return conn
     except Exception as e:
-        print(f"Error connecting to database: {e}")
-        return None
+        logger.error("Database connection failed", exc_info=True)
+        raise DatabaseConnectionError(f"Could not connect to database: {str(e)}")
 
 
 def get_all_phecodes() -> pd.DataFrame:
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(
-        """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                cur.execute(
+                    """
         SELECT 
           phecode, description, sex, phecode_group #, 
           #GROUP_CONCAT(icd10 ORDER BY icd10_count DESC),
@@ -40,205 +48,320 @@ def get_all_phecodes() -> pd.DataFrame:
         #GROUP BY phecode
         ;
         """
-    )
-    results = cur.fetchall()
+                )
+                results = cur.fetchall()
 
-    # cur.close()
-    # conn.close()
+                if not results:
+                    raise DataNotFoundError("No data found for all phecodes")
 
-    # 4. Get the column names
-    columns = [desc[0] for desc in cur.description]
+                assert cur.description is not None
+                columns = [desc[0] for desc in cur.description]
 
-    # 7. Convert the rows and columns into a Pandas DataFrame
-    filtered_df = pd.DataFrame(results, columns=columns)
+                filtered_df = pd.DataFrame(results, columns=columns)
 
-    return filtered_df
+                return filtered_df
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching all phecodes: {str(e)}", exc_info=True)
+        raise
 
 
-def get_phecode_info(phecode):
+def get_phecode_info(phecode: str) -> dict:
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                cur.execute(
+                    "SELECT * FROM phecode_definition WHERE phecode = %s", (phecode,)
+                )
+                results = cur.fetchone()
 
-    conn = get_db_connection()
-    cur = conn.cursor()
+                if not results:
+                    raise DataNotFoundError(f"No data found for phecode: {phecode}")
 
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(
-        f"""
-        SELECT p.phecode, p.description, p.sex, p.phecode_group, p.phecode_exclude, p.affected, p.excluded, icd10.icd10, icd10.meaning, icd10.icd10_count
-        FROM phecode_definition p
-        JOIN icd10_phecode ip ON p.phecode = ip.phecode
-        JOIN icd10_coding icd10 ON ip.icd10 = icd10.icd10
-        WHERE p.phecode = '{phecode}';
-        """
-    )
-    results = cur.fetchall()
+                assert isinstance(results, dict)
+                return results
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching phecode info: {str(e)}", exc_info=True)
+        raise
 
-    cur.close()
-    conn.close()
 
-    # 4. Get the column names
-    columns = [desc[0] for desc in cur.description]
+def get_term_names(terms_list: list[str]) -> dict[str, str]:
+    if not terms_list:
+        logger.warning("No terms provided")
+        return {}
 
-    # 7. Convert the rows and columns into a Pandas DataFrame
-    filtered_df = pd.DataFrame(results, columns=columns)
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                placeholders = ", ".join(f"'{x}'" for x in terms_list)
+                query = (
+                    f"SELECT term, name FROM term_info WHERE term IN ({placeholders})"
+                )
 
-    # Add icd10_count to meaning
-    filtered_df['meaning'] = filtered_df['meaning'] + ' | ' + filtered_df['icd10_count'].astype(str)
+                cur.execute(query)
+                results = cur.fetchall()
 
-    # Group by 'description' and aggregate meanings into a list
-    grouped = filtered_df.groupby(['description', 'phecode', 'sex', 'affected', 'excluded', 'phecode_exclude', 'phecode_group'
-    ]).agg({
-        'meaning': lambda x: list(x)  # Group meanings into a list
-    }).reset_index()
+                if not results:
+                    logger.warning(f"No data found for terms: {terms_list}")
+                    return {}
 
-    # Convert results to a list of dictionaries
-    results = grouped.to_dict(orient='records')
+                # turn into a dictionary, Note results is a list of dictionaries
+                term_name_dict = {result["term"]: result["name"] for result in results}
 
-    # results only has one row
-    data = results[0]
+                return term_name_dict
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching term names: {str(e)}", exc_info=True)
+        raise
 
-    # # Example data (replace with actual data retrieval logic)
-    # data = {
-    #     "phecode": phecode,
-    #     "sex": "Both",
-    #     "affected": 150,
-    #     "excluded": 10,
-    #     "phecode_exclude": "None",
-    #     "phecode_group": "Cardiovascular"
-    # }
 
-    return data
+def get_term_domains(terms_list: list[str]) -> dict[str, set[str]]:
+    if not terms_list:
+        logger.warning("No terms provided")
+        return {}
 
-def get_term_names(terms_list):
-    conn = get_db_connection()
-    cur = conn.cursor()
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                placeholders = ", ".join(f"'{x}'" for x in terms_list)
+                query = f"SELECT term, domain, domaintype FROM term_domain WHERE term IN ({placeholders})"
 
-    placeholders = ", ".join(f"'{x}'" for x in terms_list)
-    query = f"SELECT term, name FROM term_info WHERE term IN ({placeholders})"
+                # filter the phecodes and the ICD10 table based on the query
+                cur.execute(query)
+                results = cur.fetchall()
 
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(query)
-    results = cur.fetchall()
+                # turn into a dictionary, Note results is a list of dictionaries
+                term_domain_dict = {}
+                for result in results:
+                    term = result["term"]
+                    domain = result["domain"]
+                    domaintype = result["domaintype"]
 
-    cur.close()
-    conn.close()
+                    if term not in term_domain_dict:
+                        term_domain_dict[term] = set()
+                    # add domain with link
+                    if domaintype == "sf" or domaintype == "fa":
+                        # TODO: Don't do this in the DB module, separate concerns!
+                        term_domain_dict[term].add(
+                            f'<a href="https://supfam.org/SUPERFAMILY/cgi-bin/scop.cgi?sunid={domain}">{domain}</a>'
+                        )
+                    elif domain.startswith("PF"):
+                        term_domain_dict[term].add(
+                            f'<a href="https://www.ebi.ac.uk/interpro/entry/pfam/{domain}">{domain}</a>'
+                        )
+                    else:
+                        term_domain_dict[term].add(domain)
 
-    # turn into a dictionary
-    term_name_dict = {term: name for term, name in results}
+        return term_domain_dict
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching term domains: {str(e)}", exc_info=True)
+        raise
 
-    return term_name_dict
 
-def get_term_domains(terms_list):
-    conn = get_db_connection()
-    cur = conn.cursor()
+def get_term_genes(terms_list: list[str]) -> pd.DataFrame:
+    if not terms_list:
+        logger.warning("No terms provided")
+        return pd.DataFrame()
 
-    placeholders = ", ".join(f"'{x}'" for x in terms_list)
-    query = f"SELECT term, domain, domaintype FROM term_domain WHERE term IN ({placeholders})"
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                placeholders = ", ".join(f"'{x}'" for x in terms_list)
 
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(query)
-    results = cur.fetchall()
+                query = f"""
+                SELECT DISTINCT td.term, vc.gene
+                FROM term_domain td
+                JOIN variants_consequences vc ON td.domain = vc.sf
+                WHERE td.domaintype = 'sf' AND td.term IN ({placeholders})
+                """
+                cur.execute(query)
+                results = cur.fetchall()
 
-    cur.close()
-    conn.close()
+                # dataframe
+                term_gene_df = pd.DataFrame(results, columns=["term", "gene"])
 
-    # turn into a dictionary
-    term_domain_dict = {}
-    for term, domain, domaintype in results:
-        if term not in term_domain_dict:
-            term_domain_dict[term] = set()
-        # add domain with link
-        if domaintype == 'sf' or domaintype == 'fa':
-            term_domain_dict[term].add(f'<a href="https://supfam.org/SUPERFAMILY/cgi-bin/scop.cgi?sunid={domain}">{domain}</a>')
-        elif domain.startswith('PF'):
-            term_domain_dict[term].add(f'<a href="https://www.ebi.ac.uk/interpro/entry/pfam/{domain}">{domain}</a>')
-        else:
-            term_domain_dict[term].add(domain)
+                # get the FA domains
+                query = f"""
+                    SELECT DISTINCT td.term, vc.gene
+                    FROM term_domain td
+                    JOIN variants_consequences vc ON td.domain = vc.fa
+                    WHERE td.domaintype = 'fa' AND td.term IN ({placeholders})
+                """
+                cur.execute(query)
+                results = cur.fetchall()
 
-    return term_domain_dict
+                # dataframe
+                term_gene_df = pd.concat(
+                    [term_gene_df, pd.DataFrame(results, columns=["term", "gene"])],
+                    axis=0,
+                )
 
-def get_term_genes(terms_list):
-    conn = get_db_connection()
-    cur = conn.cursor()
+                # drop duplicates
+                term_gene_df.drop_duplicates(inplace=True)
 
-    placeholders = ", ".join(f"'{x}'" for x in terms_list)
+                return term_gene_df
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching term genes: {str(e)}", exc_info=True)
+        raise
 
-    query = f"""
-    SELECT DISTINCT td.term, vc.gene
-    FROM term_domain td
-    JOIN variants_consequences vc ON td.domain = vc.sf
-    WHERE td.domaintype = 'sf' AND td.term IN ({placeholders})
+
+def get_term_domain_genes_variant(term: str) -> pd.DataFrame:
+    if not term:
+        logger.warning("No term provided")
+        return pd.DataFrame()
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                # vc.aa, vc.hmm, vc.hmm_pos, vc.sf, vc.fa
+                query = f"""
+                SELECT DISTINCT vc.variant_id, vc.gene
+                FROM terms2snps ts
+                JOIN variants_consequences vc ON ts.variant_id = vc.variant_id
+                WHERE ts.term = '{term}'
+                """
+                cur.execute(query)
+                results = cur.fetchall()
+
+                if not results:
+                    raise DataNotFoundError(f"No data found for term: {term}")
+
+                assert cur.description is not None
+                columns = [desc[0] for desc in cur.description]
+
+                # dataframe
+                term_df = pd.DataFrame(results, columns=columns)
+
+                return term_df
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching term domain genes: {str(e)}", exc_info=True)
+        raise
+
+
+def get_term_domain_genes(term: str) -> pd.DataFrame:
+    if not term:
+        logger.warning("No term provided")
+        return pd.DataFrame()
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                # vc.aa, vc.hmm, vc.hmm_pos, vc.sf, vc.fa
+                query = f"""
+                SELECT DISTINCT vc.gene
+                FROM terms2snps ts
+                JOIN variants_consequences vc ON ts.variant_id = vc.variant_id
+                WHERE ts.term = '{term}'
+                """
+                cur.execute(query)
+                results = cur.fetchall()
+
+                if not results:
+                    raise DataNotFoundError(f"No data found for term: {term}")
+
+                assert cur.description is not None
+                columns = [desc[0] for desc in cur.description]
+
+                # dataframe
+                term_df = pd.DataFrame(results, columns=columns)
+
+                return term_df
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching term domain genes: {str(e)}", exc_info=True)
+        raise
+
+
+def get_term_variants(term: str) -> pd.DataFrame:
     """
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(query)
-    results = cur.fetchall()
-
-    # dataframe
-    term_gene_df = pd.DataFrame(results, columns=['term', 'gene'])
-    
-    query = f"""
-    SELECT DISTINCT td.term, vc.gene
-    FROM term_domain td
-    JOIN variants_consequences vc ON td.domain = vc.fa
-    WHERE td.domaintype = 'fa' AND td.term IN ({placeholders})
+    Return a DataFrame of variant_id, gene, aa, hmm_score for the given term.
     """
-    cur.execute(query)
-    results = cur.fetchall()
+    if not term:
+        logger.warning("No term provided")
+        return pd.DataFrame()
 
-    cur.close()
-    conn.close()
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                query = """
+                SELECT
+                    term,
+                    variant_id,
+                    gene,
+                    GROUP_CONCAT(DISTINCT aa) AS aa,
+                    MAX(ABS(wild - mutant)) as hmm_score
+                FROM
+                    variants_consequences
+                INNER JOIN
+                    terms2snps
+                USING
+                    (variant_id)
+                WHERE
+                    term = %s
+                GROUP BY
+                    term,
+                    variant_id,
+                    gene,
+                    wild,
+                    mutant
+                HAVING
+                    ABS(wild - mutant) = MAX(ABS(wild - mutant));
+                """
+                print(f"\nExecuting query for term: {term}")
+                print(f"Query: {query}")
 
-    # dataframe
-    term_gene_df = pd.concat([term_gene_df, pd.DataFrame(results, columns=['term', 'gene'])], axis=0)
+                cur.execute(query, (term,))
+                results = cur.fetchall()
+                print(f"Number of results from DB: {len(results)}")
 
-    # drop duplicates
-    term_gene_df.drop_duplicates(inplace=True)
+                if not results:
+                    logger.warning(f"No data found for term: {term}")
+                    return pd.DataFrame()
 
-    return term_gene_df
+                assert cur.description is not None
+                columns = [desc[0] for desc in cur.description]
 
-def get_term_domain_genes_variant(term):
-    conn = get_db_connection()
-    cur = conn.cursor()
+                df = pd.DataFrame(results, columns=columns)
 
-    # vc.aa, vc.hmm, vc.hmm_pos, vc.sf, vc.fa
-    query = f"""
-    SELECT DISTINCT vc.variant_id, vc.gene
-    FROM terms2snps ts
-    JOIN variants_consequences vc ON ts.variant_id = vc.variant_id
-    WHERE ts.term = '{term}'
-    """
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(query)
-    results = cur.fetchall()
+                print(f"Created DataFrame with shape: {df.shape}")
 
-    columns = [desc[0] for desc in cur.description]
+                # Convert numpy types to Python native types
+                if not df.empty:
+                    df["hmm_score"] = df["hmm_score"].astype(float)
+                    print("Sample of data:")
+                    print(df.head())
 
-    cur.close()
+                return df
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching term variants: {str(e)}", exc_info=True)
+        raise
 
-    # dataframe
-    term_df = pd.DataFrame(results, columns=columns)
 
-    return term_df
-
-def get_term_domain_genes(term):
-    conn = get_db_connection()
-    cur = conn.cursor()
-
-    # vc.aa, vc.hmm, vc.hmm_pos, vc.sf, vc.fa
-    query = f"""
-    SELECT DISTINCT vc.gene
-    FROM terms2snps ts
-    JOIN variants_consequences vc ON ts.variant_id = vc.variant_id
-    WHERE ts.term = '{term}'
-    """
-    # filter the phecodes and the ICD10 table based on the query
-    cur.execute(query)
-    results = cur.fetchall()
-
-    columns = [desc[0] for desc in cur.description]
-
-    cur.close()
-
-    # dataframe
-    term_df = pd.DataFrame(results, columns=columns)
-
-    return term_df
+def get_all_variants() -> pd.DataFrame:
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                query = """
+                SELECT DISTINCT variant_id FROM variants_consequences
+                """
+                cur.execute(query)
+                results = cur.fetchall()
+                return pd.DataFrame(results, columns=["variant_id"])
+    except DatabaseConnectionError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching all variants: {str(e)}", exc_info=True)
+        raise

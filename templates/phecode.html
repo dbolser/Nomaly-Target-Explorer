@@ -10,6 +10,7 @@
         <span>Phecode: {{ data.phecode }} ({{data.runbatch}})</span> |
         <span>Sex: {{ data.sex }}</span> |
         <span>Affected: <strong>{{ data.affected }}</strong></span> |
+        <span>Control: {{ data.control }} </span> |
         <span>Excluded: {{ data.excluded }} ({{ data.phecode_exclude }})</span> |
         <span>Disease: {{ data.phecode_group }}</span>
     </p>
@@ -20,10 +21,18 @@
     </ul>
 </div>
 
-<!-- Nomaly result display -->
-<!-- <h3> Prioritised terms </h3> -->
+<!-- Centered spinner -->
+<div id="nomalySpinner" class="d-flex justify-content-center align-items-center my-5">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
 
+<!-- Nomaly result display -->
+
+<!--
 <button id="nomalyButton" class="btn btn-success mb-3"> Nomaly Prioritised Terms </button>
+-->
 
 <div id="NomalyResultContainer" style="display: none;">
     <div id="nomalyResult" class="mt-3"></div>
@@ -35,6 +44,7 @@
         <!-- Test numbers will be populated here -->
     </div>
 
+    <h4>Per Term Nomaly Results</h4>
     <!-- Div for DataTable -->
     <div id="tableContainer" class="mb-4">
         <table id="resultsTable" class="table table-striped table-bordered" style="width: 100%; font-size: 0.85rem;">
@@ -45,6 +55,7 @@
 <p></p>
 
 <!-- Button to run the background task -->
+{% if data.show_gwas %}
 <button id="runTaskButton" class="btn btn-primary">GWAS Task</button>
 
 <!-- Result display area -->
@@ -52,7 +63,7 @@
 <br>
 
 <div id="GWAStableContainer" style="display: none;">
-    <h4>Variant level view</h4>
+    <h4>Per Variant GWAS Results</h4>
     <table id="variantTable" class="table table-striped table-bordered">
         <thead>
             <tr>
@@ -68,17 +79,19 @@
         <tbody></tbody>
     </table>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
 {{ super() }} {# Include parent block's JS #}
 <script>
-        // Add this line to define phecode from the template data
-        const phecode = "{{ data.phecode }}";
-        const runbatch = "{{ data.runbatch }}";
+    // Define phecode and runbatch from template data
+    const phecode = "{{ data.phecode }}";
+    const runbatch = "{{ data.runbatch }}";
 
     // Function to render the Plotly graph
     function renderPlot(graphHtml) {
+        console.log('Rendering Plotly graph');
         $('#NomalyResultContainer').show();
         const iframe = document.getElementById('plotIframe');
         iframe.srcdoc = graphHtml;
@@ -86,135 +99,156 @@
 
     // Function to populate the test numbers
     function populateTestNumbers(testnumbers) {
+        console.log('Populating test numbers:', testnumbers);
         const testnumbersDiv = document.getElementById('testnumbers');
         testnumbersDiv.innerHTML = testnumbers;
     }
 
     // Function to initialize the DataTable
-    function renderDataTable(data, columns, defaultColumns, numColumns) {
-        // Destroy existing table if it exists
+    function renderDataTable(resultData, columns, defaultColumns, numColumns) {
+        console.log('Rendering DataTable');
         if ($.fn.DataTable.isDataTable('#resultsTable')) {
             $('#resultsTable').DataTable().destroy();
         }
 
-        // Initialize DataTable with dynamic columns
         $('#resultsTable').DataTable({
-            data: data,
-            columns: columns.map(col => ({
-                title: col,
+            data: resultData.data,
+            columns: columns.map((col, index) => ({
+                title: `<span title="${resultData.columnTooltips[index]}">${resultData.columnNames[index]}</span>`,
                 data: col,
-                visible: defaultColumns.includes(col),  // Show default columns initially
-                render: function (data, type, row) {
-                    // Client-side formatting for specific columns
-                    if (numColumns.includes(col) && type === 'display') {
-                        // Check if the value is a number before formatting
-                        if (!isNaN(parseFloat(data))) {
-                            return parseFloat(data).toExponential(2); // Format as scientific notation with 2 decimal places
-                        }
-                    }
-                    return data;
-                }
+                visible: defaultColumns.includes(col),
+                className: col.includes('pvalue') ? 'dt-right' : '',
             })),
             order: [[0, 'asc']],
             responsive: true,
             autoWidth: true,
-            dom: 'Bfrtip',  // Include buttons for column visibility
+            pageLength: 25,
             buttons: [
                 {
                     extend: 'colvis',
                     text: 'Select Columns',
-                    columns: ':not(:first-child)'  // Allow toggling for all columns except the first
+                    columns: ':not(:first-child)'
                 }
             ]
         });
     }
 
-    // Event listener for the button click Nomaly detail Uncomment below to use the button
-    document.getElementById('nomalyButton').addEventListener('click', function () {
-        const phecode = "{{ data.phecode }}";
-        const runbatch = "{{ data.runbatch }}";
+    // Refactored Function to load Nomaly data using async/await
+    async function loadNomalyData() {
+        console.log('Starting load - showing spinner');
+        $('#nomalySpinner').show();
+        $('#NomalyResultContainer').hide();
 
-        const resultDiv = document.getElementById('nomalyResult');
+        const endpoint = runbatch === "Run v1" ? `/nomaly-stats/${phecode}` : `/nomaly-stats2/${phecode}`;
+        console.log('Fetching data from:', endpoint);
 
-        // Send a POST request to get the Nomaly result
-        if (runbatch == "Run v1") {
-            fetch(`/nomaly-stats/${phecode}`, {
+        try {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 }
-            }).then(response => response.json())
-                .then(resultData => {
-                    // Render Plotly graph
-                    renderPlot(resultData.qqplot);
-                    // resultDiv.innerHTML = `${resultData.statstype}`;
-                    populateTestNumbers("Tested affected: " + resultData.affected + " Tested control: " + resultData.control);
-                    // Render DataTable
-                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-                }).catch(error => {
-                    resultDiv.innerHTML = `Error: ${error.message}`;
-                });
-        } else if (runbatch == "Run v2") {
-            fetch(`/nomaly-stats2/${phecode}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            }).then(response => response.json())
-                .then(resultData => {
-                    renderPlot(resultData.qqplot);
-                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-                }).catch(error => {
-                    resultDiv.innerHTML = `Error: ${error.message}`;
-                });
-        }
-    });
-
-    // Event listener for the button click GWAS task
-    document.getElementById('runTaskButton').addEventListener('click', function () {
-        const resultDiv = document.getElementById('taskResult');
-
-        // Send a POST request to start the background task
-        fetch(`/run-task/${phecode}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === "Task started") {
-                    resultDiv.innerHTML = "Task started. Please wait...";
-
-                    // Poll the server for the result
-                    const checkResult = setInterval(() => {
-                        fetch(`/task-result/${phecode}`)
-                            .then(response => response.json())
-                            .then(resultData => {
-                                if (resultData.result.includes("Failed")) {
-                                    resultDiv.innerHTML = `Failed: ${resultData.result}`;
-                                    clearInterval(checkResult);
-                                } else if (!resultData.result.includes("Processing...")) {
-                                    resultDiv.innerHTML = `Result: ${resultData.result}`;
-                                    clearInterval(checkResult);
-                                    // populate the table with the result
-                                    populateTable(resultData.associations);
-                                }
-                            });
-                    }, 1000);
-                }
-            })
-            .catch(error => {
-                resultDiv.innerHTML = `Error: ${error.message}`;
             });
+
+            console.log('Received response');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const resultData = await response.json();
+            console.log('Data received, rendering content');
+            renderPlot(resultData.qqplot);
+
+            renderDataTable(resultData, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+            console.log('Content rendered');
+        } catch (error) {
+            console.error('Error occurred:', error);
+            const resultDiv = document.getElementById('nomalyResult');
+            resultDiv.innerHTML = `Error: ${error.message}`;
+        } finally {
+            console.log('Attempting to hide the spinner and show the result container.');
+
+            const spinner = document.getElementById('nomalySpinner');
+            const resultContainer = document.getElementById('NomalyResultContainer');
+
+            if (spinner) {
+                console.log('Spinner found:', spinner);
+                spinner.style.display = 'none';
+                spinner.style.visibility = 'hidden';
+                spinner.classList.remove('d-flex');
+                spinner.classList.add('d-none');
+                console.log('Spinner display set to none.');
+            } else {
+                console.error('Spinner element not found.');
+            }
+
+            if (resultContainer) {
+                console.log('Result container found:', resultContainer);
+                resultContainer.style.display = 'block';
+                resultContainer.classList.remove('d-none');
+                console.log('Result container display set to block.');
+            } else {
+                console.error('Result container element not found.');
+            }
+        }
+    }
+
+    // Initialize data load on document ready
+    $(document).ready(function () {
+        console.log('Document ready, calling loadNomalyData');
+        loadNomalyData();
+
+        // Conditional Event Listener Attachment
+        const runTaskButton = document.getElementById('runTaskButton');
+        if (runTaskButton) {
+            runTaskButton.addEventListener('click', function () {
+                const resultDiv = document.getElementById('taskResult');
+                console.log('GWAS Task button clicked');
+
+                fetch(`/run-task/${phecode}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === "Task started") {
+                            resultDiv.innerHTML = "Task started. Please wait...";
+                            console.log('Task started, polling for results');
+
+                            const checkResult = setInterval(() => {
+                                fetch(`/task-result/${phecode}`)
+                                    .then(response => response.json())
+                                    .then(resultData => {
+                                        if (resultData.result.includes("Failed")) {
+                                            resultDiv.innerHTML = `Failed: ${resultData.result}`;
+                                            clearInterval(checkResult);
+                                        } else if (!resultData.result.includes("Processing...")) {
+                                            resultDiv.innerHTML = `Result: ${resultData.result}`;
+                                            clearInterval(checkResult);
+                                            populateTable(resultData.associations);
+                                        }
+                                    })
+                                    .catch(err => {
+                                        console.error('Error fetching task result:', err);
+                                    });
+                            }, 1000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error starting task:', error);
+                        resultDiv.innerHTML = `Error: ${error.message}`;
+                    });
+            });
+        }
     });
 
     // Function to populate the GWAS table
     function populateTable(data) {
-        // Show the table container
+        console.log('Populating GWAS table');
         $('#GWAStableContainer').show();
 
-        // Initialize DataTable if not already initialized
         if (!$.fn.DataTable.isDataTable('#variantTable')) {
             $('#variantTable').DataTable({
                 data: data,
@@ -223,10 +257,7 @@
                         data: 'Variant',
                         render: function (data, type, row) {
                             if (type === 'display') {
-                                // Format variant string: "5:33951588_C/G" -> "5_33951588_C_G"
-                                const formattedVariant = data
-                                    .replace(':', '_')
-                                    .replace('/', '_');
+                                const formattedVariant = data.replace(':', '_').replace('/', '_');
                                 return `<a href="/variant/${formattedVariant}" target="_blank">${data}</a>`;
                             }
                             return data;
@@ -239,7 +270,9 @@
                     { data: 'OR', orderable: true },
                     { data: 'P', orderable: true }
                 ],
-                order: [[6, 'asc']] // Default ordering by 'P' column
+                order: [[6, 'asc']],
+                pageLength: 25,
+
             });
         }
     }
