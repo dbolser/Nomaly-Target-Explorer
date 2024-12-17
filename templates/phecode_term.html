@@ -44,8 +44,7 @@
 
         <!-- Added collapsible info box -->
         <div class="mb-3">
-            <button class="btn btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#columnInfo"
-                aria-expanded="false" aria-controls="columnInfo">
+            <button class="btn btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#columnInfo" aria-expanded="false" aria-controls="columnInfo">
                 Show Column Descriptions
             </button>
             <div class="collapse mt-2" id="columnInfo">
@@ -55,13 +54,11 @@
                         <li><strong>Variant:</strong> GRCh38_Ref/Alt</li>
                         <li><strong>HMM Score:</strong> Evolutionary intolerance by protein domain</li>
                         <li><strong>Classification:</strong> PHAROS</li>
-                        <li><strong>vs00, vs01, vs11:</strong> Genotype specific score. Rare genotypes with high HMM
-                            gets a higher score</li>
-                        <li><strong>GWAS P, OR:</strong> Allele-level test by {{ data.phecode_group }} (disease
-                            dependent)</li>
+                        <li><strong>vs00, vs01, vs11:</strong> Genotype specific score. Rare genotypes with high HMM gets a higher score</li>
+                        <li><strong>GWAS P, OR:</strong> Allele-level test by {{ data.phecode_group }} (disease dependent)</li>
                         <li><strong>RSID:</strong> Reference SNP ID</li>
                     </ul>
-
+                    
                     <h5>Hidden Columns:</h5>
                     <ul>
                         <li><strong>Variant level:</strong> Click the variant to get variant level information</li>
