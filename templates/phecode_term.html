@@ -87,7 +87,8 @@
                             <li><strong>Variant:</strong> GRCh38_Ref/Alt</li>
                             <li><strong>HMM Score:</strong> Evolutionary intolerance by protein domain</li>
                             <li><strong>Classification:</strong> PHAROS</li>
-                            <li><strong>vs00, vs01, vs11:</strong> Genotype specific score. Rare genotypes with high HMM
+                            <li><strong>vs00, vs01, vs11:</strong> Genotype specific score. Rare genotypes with high
+                                HMM
                                 gets a higher score</li>
                             <li><strong>GWAS P, OR:</strong> Allele-level test by {{ data.phecode_group }} (disease
                                 dependent)</li>
@@ -96,8 +97,10 @@
 
                         <h5>Hidden Columns:</h5>
                         <ul>
-                            <li><strong>Variant level:</strong> Click the variant to get variant level information</li>
-                            <li><strong>From GWAS:</strong> Frequency in affected (F_A), frequency in unaffected (F_U)
+                            <li><strong>Variant level:</strong> Click the variant to get variant level information
+                            </li>
+                            <li><strong>From GWAS:</strong> Frequency in affected (F_A), frequency in unaffected
+                                (F_U)
                             </li>
                             <li><strong>Gene Information:</strong> Drug Program Indication, TDL, TBIO</li>
                         </ul>
@@ -106,179 +109,129 @@
             </div>
 
             <div class="alert alert-warning" role="alert">
-                NOTE: the table can take long to load if thousands of variants were involved. Please don't refresh. (You
+                NOTE: the table can take long to load if thousands of variants were involved. Please don't refresh.
+                (You
                 will get an error code if you refresh!).
             </div>
-        </div>
-        <div class="container-fluid">
-            <div class="p-3 bg-light m-1">
-                <!-- Added alert message -->
-                <div class="alert alert-info" role="alert">
-                    The table below shows all variants involved in the prediction for this term in the study cohort,
-                    including
-                    variant-level information (frequency, counts), Nomaly annotation (intolerance score HMM, genotype
-                    specific
-                    scores), and allele-level disease association (GWAS).
-                </div>
 
-                <!-- Added collapsible info box -->
-                <div class="mb-3">
-                    <button class="btn btn-outline-info" type="button" data-bs-toggle="collapse"
-                        data-bs-target="#columnInfo" aria-expanded="false" aria-controls="columnInfo">
-                        Show Column Descriptions
-                    </button>
-                    <div class="collapse mt-2" id="columnInfo">
-                        <div class="card card-body">
-                            <h5>Visible Columns:</h5>
-                            <ul>
-                                <li><strong>Variant:</strong> GRCh38_Ref/Alt</li>
-                                <li><strong>HMM Score:</strong> Evolutionary intolerance by protein domain</li>
-                                <li><strong>Classification:</strong> PHAROS</li>
-                                <li><strong>vs00, vs01, vs11:</strong> Genotype specific score. Rare genotypes with high
-                                    HMM
-                                    gets a higher score</li>
-                                <li><strong>GWAS P, OR:</strong> Allele-level test by {{ data.phecode_group }} (disease
-                                    dependent)</li>
-                                <li><strong>RSID:</strong> Reference SNP ID</li>
-                            </ul>
-
-                            <h5>Hidden Columns:</h5>
-                            <ul>
-                                <li><strong>Variant level:</strong> Click the variant to get variant level information
-                                </li>
-                                <li><strong>From GWAS:</strong> Frequency in affected (F_A), frequency in unaffected
-                                    (F_U)
-                                </li>
-                                <li><strong>Gene Information:</strong> Drug Program Indication, TDL, TBIO</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="alert alert-warning" role="alert">
-                    NOTE: the table can take long to load if thousands of variants were involved. Please don't refresh.
-                    (You
-                    will get an error code if you refresh!).
-                </div>
-
-                <div id="tableContainer" class="table-responsive">
-                    <style>
-                        #resultsTable {
-                            font-size: 0.85rem;
-                            /* Adjust the size as needed */
-                        }
-                    </style>
-                    <div id="tableContainer" class="mb-4">
-                        <table id="resultsTable" class="table table-striped table-bordered" style="width: 100%;">
-                        </table>
-                    </div>
+            <div id="tableContainer" class="table-responsive">
+                <style>
+                    #resultsTable {
+                        font-size: 0.85rem;
+                        /* Adjust the size as needed */
+                    }
+                </style>
+                <div id="tableContainer" class="mb-4">
+                    <table id="resultsTable" class="table table-striped table-bordered" style="width: 100%;">
+                    </table>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Customized scripts -->
-        <script>
-            // Function to initialize the DataTable
-            function renderDataTable(data, columns, defaultColumns, numColumns) {
-                // Destroy existing table if it exists
-                if ($.fn.DataTable.isDataTable('#resultsTable')) {
-                    $('#resultsTable').DataTable().destroy();
-                }
+    <!-- Customized scripts -->
+    <script>
+        // Function to initialize the DataTable
+        function renderDataTable(data, columns, defaultColumns, numColumns) {
+            // Destroy existing table if it exists
+            if ($.fn.DataTable.isDataTable('#resultsTable')) {
+                $('#resultsTable').DataTable().destroy();
+            }
 
-                const columnDefinitions = columns.map(col => ({
-                    data: col,
-                    title: col.replace(/_/g, ' '),
-                    visible: defaultColumns.includes(col)
-                }));
+            const columnDefinitions = columns.map(col => ({
+                data: col,
+                title: col.replace(/_/g, ' '),
+                visible: defaultColumns.includes(col)
+            }));
 
-                // Find the GWAS P column index
-                const gwasPIndex = columns.findIndex(col => col === 'GWAS_P');
+            // Find the GWAS P column index
+            const gwasPIndex = columns.findIndex(col => col === 'GWAS_P');
 
-                $('#resultsTable').DataTable({
-                    data: data,
-                    columns: columnDefinitions,
-                    order: [[gwasPIndex, 'asc']],  // Default sort by GWAS P
-                    responsive: true,
-                    autoWidth: false,
-                    dom: 'Bfrtip',
-                    buttons: [
-                        {
-                            extend: 'colvis',
-                            text: 'Select Columns',
-                            columns: ':not(:first-child)'
+            $('#resultsTable').DataTable({
+                data: data,
+                columns: columnDefinitions,
+                order: [[gwasPIndex, 'asc']],  // Default sort by GWAS P
+                responsive: true,
+                autoWidth: false,
+                dom: 'Bfrtip',
+                buttons: [
+                    {
+                        extend: 'colvis',
+                        text: 'Select Columns',
+                        columns: ':not(:first-child)'
+                    }
+                ],
+                columnDefs: [{
+                    targets: 0,  // Variant column
+                    render: function (data, type, row) {
+                        if (type === 'display') {
+                            return variantUtils.createLink(data);
                         }
-                    ],
-                    columnDefs: [{
-                        targets: 0,  // Variant column
-                        render: function (data, type, row) {
-                            if (type === 'display') {
-                                return variantUtils.createLink(data);
-                            }
-                            if (type === 'sort') {
-                                const parts = data.split(/[_:]/);
-                                const chr = isNaN(parts[0]) ? parts[0] : parseInt(parts[0]);
-                                return (typeof chr === 'number' ?
-                                    chr.toString().padStart(3, '0') :
-                                    'ZZZ' + chr) + '_' + parts[1].padStart(10, '0');
-                            }
-                            return data;
+                        if (type === 'sort') {
+                            const parts = data.split(/[_:]/);
+                            const chr = isNaN(parts[0]) ? parts[0] : parseInt(parts[0]);
+                            return (typeof chr === 'number' ?
+                                chr.toString().padStart(3, '0') :
+                                'ZZZ' + chr) + '_' + parts[1].padStart(10, '0');
                         }
-                    }]
+                        return data;
+                    }
+                }]
+            });
+        }
+
+        const phecode = "{{ phecode }}";
+        const term = "{{ term }}";
+
+        // Function to load Table 1
+        function loadTable1() {
+            const encodedTerm = encodeURIComponent(term);
+            fetch(`/phecode/${phecode}/term/${encodedTerm}/tableVar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ exampleKey: "exampleValue" }) // Add if the server requires a body
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(resultData => {
+                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
+                })
+                .catch(error => {
+                    console.error('Error loading Table 1:', error);
+                    alert('Failed to load table data. Check console for details.');
                 });
-            }
+        }
 
-            const phecode = "{{ phecode }}";
-            const term = "{{ term }}";
-
-            // Function to load Table 1
-            function loadTable1() {
-                const encodedTerm = encodeURIComponent(term);
-                fetch(`/phecode/${phecode}/term/${encodedTerm}/tableVar`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ exampleKey: "exampleValue" }) // Add if the server requires a body
+        function loadTable2() {
+            const encodedTerm = encodeURIComponent(term);
+            fetch(`/phecode/${phecode}/term/${encodedTerm}/tableGene`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ exampleKey: "exampleValue" }) // Add if the server requires a body
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
                 })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(resultData => {
-                        renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-                    })
-                    .catch(error => {
-                        console.error('Error loading Table 1:', error);
-                        alert('Failed to load table data. Check console for details.');
-                    });
-            }
-
-            function loadTable2() {
-                const encodedTerm = encodeURIComponent(term);
-                fetch(`/phecode/${phecode}/term/${encodedTerm}/tableGene`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ exampleKey: "exampleValue" }) // Add if the server requires a body
+                .then(resultData => {
+                    renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
                 })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(resultData => {
-                        renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
-                    })
-                    .catch(error => {
-                        console.error('Error loading Table 2:', error);
-                        alert('Failed to load table data. Check console for details.');
-                    });
-            }
-        </script>
+                .catch(error => {
+                    console.error('Error loading Table 2:', error);
+                    alert('Failed to load table data. Check console for details.');
+                });
+        }
+    </script>
 </body>
 
 </html>
