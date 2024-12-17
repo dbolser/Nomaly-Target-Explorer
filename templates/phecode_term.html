@@ -133,40 +133,45 @@
                 $('#resultsTable').DataTable().destroy();
             }
 
-            // Initialize DataTable with dynamic columns
+            const columnDefinitions = columns.map(col => ({
+                data: col,
+                title: col.replace(/_/g, ' '),
+                visible: defaultColumns.includes(col)
+            }));
+
+            // Find the GWAS P column index
+            const gwasPIndex = columns.findIndex(col => col === 'GWAS_P');
+
             $('#resultsTable').DataTable({
                 data: data,
-                columns: columns.map(col => ({
-                    title: col, data: col,
-                    visible: defaultColumns.includes(col),  // Show default columns initially
-                    render: function (data, type, row) {
-                        // Client-side formatting for specific columns
-                        if (numColumns.includes(col) && type === 'display') {
-                            // Check if the value is a number before formatting
-                            if (!isNaN(parseFloat(data))) {
-                                return parseFloat(data).toExponential(2); // Format as scientific notation with 3 decimal places
-                            }
-                        }
-                        return data;
-                    }
-                })),
-                columnDefs: [
-                    {
-                        targets: columns.indexOf('drug_program_indication'), // Target the specific column by its index
-                        width: '450px' // Set a fixed width for this column
-                    }
-                ],
-                // order: [[0, 'asc']],
+                columns: columnDefinitions,
+                order: [[gwasPIndex, 'asc']],  // Default sort by GWAS P
                 responsive: true,
                 autoWidth: false,
-                dom: 'Bfrtip',  // Include buttons for column visibility
+                dom: 'Bfrtip',
                 buttons: [
                     {
                         extend: 'colvis',
                         text: 'Select Columns',
-                        columns: ':not(:first-child)'  // Allow toggling for all columns except the first
+                        columns: ':not(:first-child)'
                     }
-                ]
+                ],
+                columnDefs: [{
+                    targets: 0,  // Variant column
+                    render: function (data, type, row) {
+                        if (type === 'display') {
+                            return variantUtils.createLink(data);
+                        }
+                        if (type === 'sort') {
+                            const parts = data.split(/[_:]/);
+                            const chr = isNaN(parts[0]) ? parts[0] : parseInt(parts[0]);
+                            return (typeof chr === 'number' ?
+                                chr.toString().padStart(3, '0') :
+                                'ZZZ' + chr) + '_' + parts[1].padStart(10, '0');
+                        }
+                        return data;
+                    }
+                }]
             });
         }
 
