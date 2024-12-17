@@ -12,4 +12,7 @@
         "jinja-html": "html"
     },
     "editor.formatOnSave": true,
+    "search.exclude": {
+        "**/.venv": true
+    },
 }
