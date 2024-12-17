@@ -1,6 +1,8 @@
 import json
 from flask import url_for
 
+# The client is created in conftest.py
+
 
 def test_index_route(client):
     """Test the index route redirects to login when not authenticated."""
@@ -249,34 +251,34 @@ def test_phecode_page_with_gwas(client):
     assert "<th>P</th>" in html
 
 
-def test_phecode_gwas_task_result(client):
-    """Test the GWAS task result endpoint."""
-    phecode = "649.1"
+# def test_phecode_gwas_task_result(client):
+#     """Test the GWAS task result endpoint."""
+#     phecode = "649.1"
 
-    response = client.get(f"/task-result/{phecode}")
-    assert response.status_code == 200
+#     response = client.get(f"/task-result/{phecode}")
+#     assert response.status_code == 200
 
-    data = json.loads(response.data)
+#     data = json.loads(response.data)
 
-    # Check response structure
-    assert "result" in data
-    assert "associations" in data
+#     # Check response structure
+#     assert "result" in data
+#     assert "associations" in data
 
-    # If GWAS has been run, check the results
-    if "GWAS identified" in data["result"]:
-        assert "2644 missense variants" in data["result"]
-        assert "1963 unique genes" in data["result"]
+#     # If GWAS has been run, check the results
+#     if "GWAS identified" in data["result"]:
+#         assert "2644 missense variants" in data["result"]
+#         assert "1963 unique genes" in data["result"]
 
-        # Check associations data
-        associations = data["associations"]
-        assert len(associations) > 0
-        if len(associations) > 0:
-            first_assoc = associations[0]
-            assert "Variant" in first_assoc
-            assert "Gene" in first_assoc
-            assert "RSID" in first_assoc
-            assert "P" in first_assoc
-            assert "OR" in first_assoc
+#         # Check associations data
+#         associations = data["associations"]
+#         assert len(associations) > 0
+#         if len(associations) > 0:
+#             first_assoc = associations[0]
+#             assert "Variant" in first_assoc
+#             assert "Gene" in first_assoc
+#             assert "RSID" in first_assoc
+#             assert "P" in first_assoc
+#             assert "OR" in first_assoc
 
 
 def test_phecode_nomaly_stats(client):

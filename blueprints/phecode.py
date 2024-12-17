@@ -2,14 +2,16 @@ from flask import Blueprint, render_template, request, jsonify
 import logging
 from db import get_phecode_info, get_term_domains, get_term_names, get_term_genes
 from blueprints.gwas import run_gwas, format_gwas_results
-
-
-from blueprints.nomaly import nomaly_stats, make_qqplot
-from blueprints.nomaly import nomaly_stats_v2
+from blueprints.nomaly import nomaly_stats, nomaly_stats_v2, make_qqplot
 import plotly.io as pio
 
 logger = logging.getLogger(__name__)
 phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
+
+
+def get_stats_handler(version=1):
+    """Get the appropriate stats handler based on version."""
+    return nomaly_stats_v2 if version == 2 else nomaly_stats
 
 
 @phecode_bp.route("/phecode/<string:phecode>", methods=["GET"])
@@ -43,22 +45,20 @@ def run_task(phecode):
         )
     except Exception as e:
         logger.exception(f"GWAS failed for {phecode}")
-        return jsonify({"status": "failed", "result": str(e)})
+        error_message = f"GWAS analysis failed: {str(e)}"
+        return jsonify({"status": "failed", "result": error_message}), 500
 
 
-def read_disease_stats_from_nomaly_statsHDF5(nomaly_stats, phecode):
+def read_disease_stats_from_nomaly_statsHDF5(stats_handler, phecode):
+    """Read disease stats from HDF5 file using the provided stats handler."""
     try:
-        diseasestats = nomaly_stats.get_stats_by_disease(phecode)
+        diseasestats = stats_handler.get_stats_by_disease(phecode)
     except Exception as e:
-        print(
+        logger.error(
             f"Failed to get Nomaly stats for Phecode {phecode}, exception was {e}",
-            flush=True,
+            exc_info=True,
         )
-        return jsonify(
-            {
-                "error": f"Failed to get Nomaly stats for Phecode {phecode}, ask admin to check logs."
-            }
-        )
+        return None, None
 
     # rename columns
     for col in diseasestats.columns:
@@ -89,6 +89,7 @@ def make_qqplot_html(plot_df_pval):
 
 
 def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
+    """Format and prepare nomaly stats for datatable display."""
     pval_nondirect = ["mwu_pvalue", "mcc_pvalue", "yjs_pvalue", "lrp_pvalue"]
     pval_pos = ["metric1_pvalue"]
     pval_neg = ["lrn_protective_pvalue"]
@@ -165,20 +166,9 @@ def add_gene_info_to_DataTable(plot_df, phecode):
     return plot_df
 
 
-@phecode_bp.route("/nomaly-stats/<string:phecode>", methods=["POST"])
-def get_nomaly_stats(phecode):
-    diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
-        nomaly_stats, phecode
-    )
-    graph_html = make_qqplot_html(plot_df)
-    plot_df = show_datatable_nomaly_stats(plot_df, phecode)
-
-    # term to link
-    plot_df["term"] = plot_df["term"].map(
-        lambda x: f'<a href="/phecode/{phecode}/term/{x}">{x}</a>'
-    )
-
-    column_display_names = {
+def get_column_display_names():
+    """Get the display names and tooltips for columns."""
+    return {
         "minrank": {
             "display": "Min Rank",
             "tooltip": "Minimum rank across all statistical tests",
@@ -212,80 +202,63 @@ def get_nomaly_stats(phecode):
         },
     }
 
+
+def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
+    """Prepare the JSON response for nomaly stats."""
+    if diseasestats is None or plot_df is None:
+        return jsonify({"error": "Failed to get Nomaly stats"}), 500
+
+    graph_html = make_qqplot_html(plot_df)
+    plot_df = show_datatable_nomaly_stats(plot_df, phecode)
+
+    # Add links with appropriate version
+    base_url = "/phecode2" if version == 2 else "/phecode"
+    plot_df["term"] = plot_df["term"].map(
+        lambda x: f'<a href="{base_url}/{phecode}/term/{x}">{x}</a>'
+    )
+
     pval_nondirect = ["mwu_pvalue", "mcc_pvalue", "yjs_pvalue", "lrp_pvalue"]
     pval_pos = ["metric1_pvalue"]
     pval_neg = ["lrn_protective_pvalue"]
     columns_pval = pval_nondirect + pval_pos + pval_neg
 
-    return jsonify(
-        {
-            "qqplot": graph_html,
-            "affected": diseasestats["num_rp"].values[0],
-            "control": diseasestats["num_rn"].values[0],
-            "data": plot_df.to_dict(orient="records"),
-            "columns": ["minrank", "term", "name", "domain"] + columns_pval,
-            "columnNames": [
-                column_display_names[col]["display"]
-                for col in ["minrank", "term", "name", "domain"] + columns_pval
-            ],
-            "columnTooltips": [
-                column_display_names[col]["tooltip"]
-                for col in ["minrank", "term", "name", "domain"] + columns_pval
-            ],
-            "defaultColumns": [
-                "minrank",
-                "term",
-                "name",
-                "domain",
-                "mwu_pvalue",
-                "metric1_pvalue",
-                "mcc_pvalue",
-            ],
-            "numColumns": columns_pval,
-        }
+    column_display_names = get_column_display_names()
+    base_columns = ["minrank", "term", "name", "domain"]
+
+    response = {
+        "qqplot": graph_html,
+        "affected": diseasestats["num_rp"].values[0],
+        "control": diseasestats["num_rn"].values[0],
+        "data": plot_df.to_dict(orient="records"),
+        "columns": base_columns + columns_pval,
+        "columnNames": [
+            column_display_names[col]["display"] for col in base_columns + columns_pval
+        ],
+        "columnTooltips": [
+            column_display_names[col]["tooltip"] for col in base_columns + columns_pval
+        ],
+        "defaultColumns": base_columns + ["mwu_pvalue", "metric1_pvalue", "mcc_pvalue"],
+        "numColumns": columns_pval,
+    }
+
+    return jsonify(response)
+
+
+@phecode_bp.route("/nomaly-stats/<string:phecode>", methods=["POST"])
+def get_nomaly_stats(phecode):
+    """Get nomaly stats for v1."""
+    stats_handler = get_stats_handler(version=1)
+    diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
+        stats_handler, phecode
     )
+    return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1)
 
 
 @phecode_bp.route("/nomaly-stats2/<string:phecode>", methods=["POST"])
 def get_nomaly_stats2(phecode):
+    """Get nomaly stats for v2."""
+    stats_handler = get_stats_handler(version=2)
     diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
-        nomaly_stats_v2, phecode
+        stats_handler, phecode
     )
-    graph_html = make_qqplot_html(plot_df)
-    plot_df = show_datatable_nomaly_stats(plot_df, phecode)
-
-    plot_df["term"] = plot_df["term"].map(
-        lambda x: f'<a href="/phecode2/{phecode}/term/{x}">{x}</a>'
-    )
-
-    pval_nondirect = ["mwu_pvalue", "mcc_pvalue", "yjs_pvalue", "lrp_pvalue"]
-    pval_pos = ["metric1_pvalue"]
-    pval_neg = ["lrn_protective_pvalue"]
-    columns_pval = pval_nondirect + pval_pos + pval_neg
-
-    column_display_names = {
-        "minrank": "Rank",
-        "term": "Term",
-        "name": "Name",
-        "domain": "Domain",
-        "mwu_pvalue": "MWU Pvalue",
-        "mcc_pvalue": "MCC Pvalue",
-        "yjs_pvalue": "YJS Pvalue",
-        "lrp_pvalue": "LRP Pvalue",
-        "metric1_pvalue": "Metric1 Pvalue",
-        "lrn_protective_pvalue": "LRN Protective Pvalue",
-    }
-
-    return jsonify(
-        {
-            "qqplot": graph_html,
-            "data": plot_df.to_dict(orient="records"),
-            "columns": ["minrank", "term", "name", "domain"] + columns_pval,
-            "columnNames": [
-                column_display_names[col]
-                for col in ["minrank", "term", "name", "domain"] + columns_pval
-            ],
-            "defaultColumns": ["minrank", "term", "name", "domain"],
-            "numColumns": columns_pval,
-        }
-    )
+    return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=2)

@@ -70,6 +70,11 @@ def show_phecode_term(phecode, term):
     methods=["GET", "POST"],
 )
 def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = False):
+    logger.info(
+        f"Starting variant detail processing for phecode {phecode}, term {term}"
+    )
+    logger.debug(f"Flush parameter: {flush}")
+
     # Define the columns
     columns = [
         "Variant",
@@ -90,6 +95,7 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
         "GWAS_OR",
         "GWAS_RSID",
     ]
+    logger.debug(f"Defined {len(columns)} columns")
 
     default_columns = [
         "Variant",
@@ -160,7 +166,12 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
 
         # Load GWAS data
         gwas_data = run_gwas(phecode)
-        print(f"GWAS data found: {not gwas_data.empty}")
+        logger.info(f"GWAS data found: {not gwas_data.empty}")
+        logger.info(f"GWAS data columns: {gwas_data.columns.tolist()}")
+        logger.info(f"First few rows of GWAS data:\n{gwas_data.head()}")
+        print(f"GWAS data found: {not gwas_data.empty}", flush=True)
+        print(f"GWAS data columns: {gwas_data.columns.tolist()}", flush=True)
+        print(f"First few rows of GWAS data:\n{gwas_data.head()}", flush=True)
 
         # Fill missing values in GWAS data
         gwas_data["P"] = gwas_data["P"].fillna(1)
@@ -172,6 +183,8 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
         data_records = []
         for idx, row in term_df.iterrows():
             variant_id = row["variant_id"].replace("_", ":").replace("/", ":")
+            logger.info(f"\nProcessing variant: {variant_id}")
+            print(f"\nProcessing variant: {variant_id}", flush=True)
 
             # Try both allele orientations for genotype counts
             if variant_id not in genotype_counts.index:
@@ -184,21 +197,21 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
 
             # Calculate genotype frequencies
             counts = genotype_counts.loc[variant_id]
-            total = counts.sum()
-            f00 = counts["homozygous_alt"] / total
-            f01 = counts["heterozygous"] / total
-            f11 = counts["homozygous_ref"] / total
+            total = int(counts.sum())
+            f00 = float(counts["homozygous_alt"]) / total
+            f01 = float(counts["heterozygous"]) / total
+            f11 = float(counts["homozygous_ref"]) / total
 
             # Calculate variant scores
-            HMM_score = row["hmm_score"]
+            HMM_score = float(row["hmm_score"])
             vs00 = HMM_score * f01 + (HMM_score**2 * f11)
             vs01 = HMM_score**2 * (f00 + f01)
             vs11 = HMM_score * f01 + (HMM_score**2 * f00)
 
-            # Build record
+            # Build record with explicit type conversion
             record = {
                 "Variant": variant_id,
-                "Gene": row["gene"],
+                "Gene": str(row["gene"]),
                 "AA_Change": str(row["aa"]),
                 "HMM_Score": f"{float(row['hmm_score']):.2f}",
                 "TDL": str(row.get("tdl", "None")),
@@ -210,24 +223,68 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
                 "vs00": f"{vs00:.2f}",
                 "vs01": f"{vs01:.2f}",
                 "vs11": f"{vs11:.2f}",
-                "hmoz_alt": counts["homozygous_alt"],
-                "hmoz_ref": counts["homozygous_ref"],
-                "htrz": counts["heterozygous"],
+                "hmoz_alt": int(counts["homozygous_alt"]),
+                "hmoz_ref": int(counts["homozygous_ref"]),
+                "htrz": int(counts["heterozygous"]),
+                # Initialize GWAS fields with default values
+                "GWAS_P": "",
+                "GWAS_OR": "",
+                "GWAS_F_A": "",
+                "GWAS_F_U": "",
+                "GWAS_RSID": "",
             }
 
             # Add GWAS data if available
-            gwas_row = gwas_data[gwas_data["nomaly_variant"] == variant_id]
-            if not gwas_row.empty:
-                r = gwas_row.iloc[0]
-                record.update(
-                    {
-                        "GWAS_P": f"{r.get('P', 1):.2e}",
-                        "GWAS_OR": f"{r.get('OR', 1):.2f}",
-                        "GWAS_F_A": f"{r.get('F_A', 1):.5f}",
-                        "GWAS_F_U": f"{r.get('F_U', 1):.5f}",
-                        "GWAS_RSID": r.get("RSID"),
-                    }
-                )
+            # Convert variant format from 1:23519074:A:G to 1_23519074_A/G
+            gwas_variant_id = variant_id.replace(
+                ":", "_", 2
+            )  # Replace first two colons with underscore
+            gwas_variant_id = gwas_variant_id.replace(
+                ":", "/"
+            )  # Replace last colon with slash
+            print(f"\nLooking for variant: {variant_id}")
+            print(f"Converted to GWAS format: {gwas_variant_id}")
+
+            gwas_row = gwas_data[gwas_data["nomaly_variant"] == gwas_variant_id]
+
+            print(f"GWAS data variants: {gwas_data['nomaly_variant'].head()}")
+            print(f"Found match: {not gwas_row.empty}")
+
+            logger.info(f"Found GWAS data for variant: {not gwas_row.empty}")
+            logger.info(
+                f"GWAS row data:\n{gwas_row.to_dict('records')}"
+                if not gwas_row.empty
+                else "No GWAS data found"
+            )
+            print(f"Found GWAS data for variant: {not gwas_row.empty}", flush=True)
+            print(
+                f"GWAS row data:\n{gwas_row.to_dict('records')}"
+                if not gwas_row.empty
+                else "No GWAS data found",
+                flush=True,
+            )
+
+            record.update(
+                {
+                    "GWAS_P": f"{float(gwas_row.iloc[0].get('P', 1)):.2e}"
+                    if not gwas_row.empty
+                    else "",
+                    "GWAS_OR": f"{float(gwas_row.iloc[0].get('OR', 1)):.2f}"
+                    if not gwas_row.empty
+                    else "",
+                    "GWAS_F_A": f"{float(gwas_row.iloc[0].get('F_A', 1)):.5f}"
+                    if not gwas_row.empty
+                    else "",
+                    "GWAS_F_U": f"{float(gwas_row.iloc[0].get('F_U', 1)):.5f}"
+                    if not gwas_row.empty
+                    else "",
+                    "GWAS_RSID": str(gwas_row.iloc[0].get("RSID", ""))
+                    if not gwas_row.empty
+                    else "",
+                }
+            )
+            logger.info(f"Final record GWAS fields: {record}")
+            print(f"Final record GWAS fields: {record}", flush=True)
 
             data_records.append(record)
 
@@ -241,6 +298,8 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
             "defaultColumns": default_columns,
             "numColumns": numeric_columns,
         }
+
+        print(f"Hello")  # Test print at end
 
         return jsonify(result) if request else pd.DataFrame(result["data"])
 
@@ -260,7 +319,7 @@ def main():
 
     phecode = "282"
     # Load GWAS data for all variants
-    gwas_data = load_gwas_data(phecode)
+    gwas_data = run_gwas(phecode)
     print(f"GWAS data found: {gwas_data is not None}")
 
     result = show_phecode_term_variant_detail(phecode, term, flush=True)

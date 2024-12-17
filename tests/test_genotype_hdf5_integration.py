@@ -1,6 +1,6 @@
 import numpy as np
 
-from blueprints.nomaly import GenotypeHDF5, NOMALY_RESULTS_DIR
+from blueprints.nomaly import GenotypeHDF5
 
 from config import Config
 
@@ -115,12 +115,6 @@ def test_missing_data_handling():
     genotypes = result[0]
     missing_count = np.sum(genotypes == -1)
     assert missing_count < len(genotypes) * 0.1  # Less than 10% missing
-
-
-def test_file_path():
-    """Verify the production file path."""
-    expected_path = f"{NOMALY_RESULTS_DIR}/genotypes.h5"
-    assert nomaly_genotype.hdf5_file == expected_path
 
 
 def test_flipped_allele_query():

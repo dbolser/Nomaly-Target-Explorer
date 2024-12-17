@@ -35,5 +35,10 @@ def setup_logging(app):
     phecode_logger.addHandler(file_handler)
     phecode_logger.setLevel(logging.INFO)
 
+    # Set up the Phecode Term logger
+    phecode_term_logger = logging.getLogger("blueprints.phecode_term")
+    phecode_term_logger.addHandler(file_handler)
+    phecode_term_logger.setLevel(logging.INFO)
+
     # Return the configured logger
     return app.logger
