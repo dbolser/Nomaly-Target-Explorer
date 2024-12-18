@@ -1,9 +1,16 @@
 .content {
-    padding-bottom: 60px; /* Height of footer plus some spacing */
-    min-height: calc(100vh - 120px); /* Adjust based on header height */
+    padding-bottom: 60px;
+    min-height: calc(100vh - 120px);
     overflow-y: auto;
 }
 
+/* Main container spacing */
+.container.mt-4 {
+    margin-bottom: 70px;  /* Space before footer */
+    min-height: 120px;    /* Minimum height for content */
+}
+
+/* Footer styling */
 .footer {
     position: fixed;
     bottom: 0;
@@ -11,6 +18,7 @@
     height: 50px;
     background-color: #f8f9fa;
     padding: 0 20px;
+    z-index: 1000;
 }
 
 .footer-content {
@@ -46,4 +54,4 @@
     font-weight: bold;
     margin: 0;
     font-size: 1.1rem;
-} 
+}
