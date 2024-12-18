@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
 from flask_mysqldb import MySQL
 from flask_session import Session
 import MySQLdb.cursors
@@ -12,8 +12,7 @@ import os
 from blueprints.main import main_bp
 from blueprints.phecode import phecode_bp
 from blueprints.phecode_term import phecode_term_bp
-# from blueprints.page1 import page1_bp
-
+from blueprints.page1 import disease_select
 from blueprints.variant import variant_bp
 
 app = Flask(__name__)
@@ -45,17 +44,28 @@ def login():
         username = request.form['username']
         password = request.form['password']
 
-        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute('SELECT * FROM users WHERE username = %s AND password = %s', (username, password))
-        user = cursor.fetchone()
-        
-        if user:
-            session['loggedin'] = True
-            session['id'] = user['id']
-            session['username'] = user['username']
-            return redirect(url_for('index'))
-        else:
-            flash('Incorrect username or password!')
+        try:
+            cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+            if cursor is None:
+                raise DatabaseConnectionError("Could not establish database connection")
+                
+            cursor.execute('SELECT * FROM users WHERE username = %s AND password = %s', (username, password))
+            user = cursor.fetchone()
+            
+            if user:
+                session['loggedin'] = True
+                session['id'] = user['id']
+                session['username'] = user['username']
+                return redirect(url_for('index'))
+            else:
+                flash('Incorrect username or password!')
+        except MySQLdb.Error as e:
+            app.logger.error(f"Database error: {str(e)}")
+            flash('A database error occurred. Please try again later.')
+        finally:
+            if 'cursor' in locals():
+                cursor.close()
+                
     return render_template('login.html')
 
 # Logout route
@@ -76,15 +86,11 @@ app.register_blueprint(phecode_bp)
 # register phecode_term_bp blueprint: /phecode/<string:phecode>/term/<string:term>  
 app.register_blueprint(phecode_term_bp)
 
+# register disease blueprint: /page1
+app.register_blueprint(disease_select)
 
-
-
-# app.register_blueprint(page1_bp)
-@app.route('/page1')
-def page1():
-    if 'loggedin' in session:
-        return render_template('page1.html', username=session['username'])
-    return redirect(url_for('login'))
+# register variant blueprint: /variant/<string:variant>
+app.register_blueprint(variant_bp)
 
 @app.route('/page2')
 def page2():
@@ -92,20 +98,9 @@ def page2():
         return render_template('page2.html', username=session['username'])
     return redirect(url_for('login'))
 
-# Search routes for each search section
-@app.route('/search1', methods=['GET'])
-def search1():
-    if 'loggedin' in session:
-        # Process search query here
-        return f"Search results for Section 1: {request.args.get('query1')}"
-    return redirect(url_for('login'))
-
-# register variant blueprint: /variant/<string:variant>
-app.register_blueprint(variant_bp)
-
 # Error handlers
 @app.errorhandler(Exception)
-def handle_exception(e):
+def handle_exception(e: Exception) -> tuple[str | Response, int]:
     """Handle all unhandled exceptions"""
     if isinstance(e, HTTPException):
         response = {

@@ -9,10 +9,17 @@ import pandas as pd
 
 # Create the blueprint
 # page1_bp = Blueprint('page1', __name__)
-disease_select = Blueprint('disease', __name__, template_folder='../templates')
+disease_select = Blueprint("disease", __name__, template_folder="../templates")
 
 
 # Route for page1 with tables
-@disease_select.route('/page1')
+@disease_select.route("/page1")
 def render_page1():
-    return render_template('page1.html')
+    search_terms = [
+        "Hidradenitis",
+        "Rosacea",
+        "Ehlers",
+        "Polycystic Ovarian",
+        "Endometriosis",
+    ]
+    return render_template("page1.html", search_terms=search_terms)
