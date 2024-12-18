@@ -9,13 +9,13 @@
 <div class="mb-4">
     {% set counter = namespace(value=1) %}
     {% for category, terms in search_categories.items() %}
-    <h2 class="mt-5 mb-4">{{ category }}</h2>
+    <h2 class="mt-5 mb-4 ps-2">{{ category }}</h2>
     {% for term in terms %}
-    <div class="search-section mb-4">
+    <div class="search-section mb-4 ms-4">
         <h3>Results for "{{ term }}"</h3>
         <p class="mb-3">Any Phecode or ICD10 descriptions that contains the word "{{ term }}" will be displayed here.</p>
         <form>
-            <ul id="results-list-{{ counter.value }}" class="results"></ul>
+            <ul id="results-list-{{ counter.value }}" class="results ms-2"></ul>
         </form>
     </div>
     {% set counter.value = counter.value + 1 %}
