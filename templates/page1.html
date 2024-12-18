@@ -7,14 +7,19 @@
 
 <!-- Section 1 -->
 <div class="mb-4">
-    {% for term in search_terms %}
+    {% set counter = namespace(value=1) %}
+    {% for category, terms in search_categories.items() %}
+    <h2 class="mt-5 mb-4">{{ category }}</h2>
+    {% for term in terms %}
     <div class="search-section mb-4">
         <h3>Results for "{{ term }}"</h3>
         <p class="mb-3">Any Phecode or ICD10 descriptions that contains the word "{{ term }}" will be displayed here.</p>
         <form>
-            <ul id="results-list-{{ loop.index }}" class="results"></ul>
+            <ul id="results-list-{{ counter.value }}" class="results"></ul>
         </form>
     </div>
+    {% set counter.value = counter.value + 1 %}
+    {% endfor %}
     {% endfor %}
 </div>
 
@@ -24,10 +29,12 @@
 {{ super() }}
 <script>
     $(document).ready(function () {
-        // Get search terms from the server, with a default if not provided
-        const searchTerms = {{ search_terms|default([])|tojson }};
+        // Get search categories from the server
+        const searchCategories = {{ search_categories|default({})|tojson }};
         
-        // Only run searches if we have terms
+        // Flatten the categories into a single array of terms
+        const searchTerms = Object.values(searchCategories).flat();
+        
         if (searchTerms.length > 0) {
             searchTerms.forEach((term, index) => {
                 searchData(term, index + 1);
