@@ -1,14 +1,5 @@
-from flask import render_template, request, jsonify, Blueprint
-from flask import session, redirect, url_for
-from db import get_db_connection
-import pandas as pd
+from flask import render_template, Blueprint
 
-# ----------------------------------------------------- #
-# Phecode Blueprint
-# ----------------------------------------------------- #
-
-# Create the blueprint
-# page1_bp = Blueprint('page1', __name__)
 disease_select = Blueprint("disease", __name__, template_folder="../templates")
 
 
@@ -24,7 +15,6 @@ def render_page1():
         "Women's Health": [
             "Polycystic Ovarian",
             "Endometriosis",
-            "Ehlers",
         ],
     }
     return render_template("page1.html", search_categories=search_categories)
