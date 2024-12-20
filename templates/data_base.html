@@ -21,6 +21,57 @@
 <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
 
 <script>
+    // Variant display and linking utilities
+    const variantUtils = {
+        // Convert variant ID to display format (1:1234567_A/T)
+        toDisplayFormat: function (variantId) {
+            const parts = variantId.split('_');
+            if (parts.length >= 3) {
+                return `${parts[0]}:${parts[1]}_${parts[2]}`;
+            }
+            return variantId;
+        },
+
+        // Convert variant ID to URL format (1_1234567_A_T)
+        toUrlFormat: function (variantId) {
+            return variantId.replace(/[:/]/g, '_');
+        },
+
+        // Create HTML link for variant
+        createLink: function (variantId) {
+            const displayText = this.toDisplayFormat(variantId);
+            const urlFormat = this.toUrlFormat(variantId);
+            return `<a href="/variant/${urlFormat}" target="_blank">${displayText}</a>`;
+        },
+
+        // Comparison function for sorting variants
+        compare: function (a, b) {
+            const partsA = a.split(/[_:]/);
+            const partsB = b.split(/[_:]/);
+
+            // Convert chromosome to number if possible
+            const chrA = isNaN(partsA[0]) ? partsA[0] : parseInt(partsA[0]);
+            const chrB = isNaN(partsB[0]) ? partsB[0] : parseInt(partsB[0]);
+
+            // First compare chromosomes
+            if (chrA !== chrB) {
+                // Handle X, Y chromosomes
+                if (typeof chrA === 'string' && typeof chrB === 'number') return 1;
+                if (typeof chrA === 'number' && typeof chrB === 'string') return -1;
+                // For numbers, use numeric comparison instead of string
+                if (typeof chrA === 'number' && typeof chrB === 'number') {
+                    return chrA - chrB;
+                }
+                return chrA < chrB ? -1 : 1;
+            }
+
+            // Then compare positions
+            const posA = parseInt(partsA[1]);
+            const posB = parseInt(partsB[1]);
+            return posA - posB;
+        }
+    };
+
     // Helper function to create table structure
     function createTableStructure(tableId, data) {
         const container = document.getElementById(tableId + 'Container');
@@ -75,7 +126,7 @@
             $(`#${tableId}`).DataTable().destroy();
         }
 
-        // Default options
+        // Add variant column handling to default options
         const defaultOptions = {
             data: data,
             columns: columns,
@@ -90,7 +141,23 @@
                     text: 'Select Columns',
                     columns: ':not(:first-child)'
                 }
-            ]
+            ],
+            columnDefs: [{
+                targets: columns.findIndex(col => col.data === 'Variant'),
+                render: function (data, type, row) {
+                    if (type === 'display') {
+                        return variantUtils.createLink(data);
+                    }
+                    if (type === 'sort') {
+                        const parts = data.split(/[_:]/);
+                        const chr = isNaN(parts[0]) ? parts[0] : parseInt(parts[0]);
+                        // Return a padded string for sorting: numeric chromosomes padded to 3 digits
+                        return (typeof chr === 'number' ? chr.toString().padStart(3, '0') : chr) + parts[1];
+                    }
+                    return data;
+                },
+                sortable: true
+            }]
         };
 
         // Merge default options with provided options

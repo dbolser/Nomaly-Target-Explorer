@@ -1,0 +1,57 @@
+.content {
+    padding-bottom: 60px;
+    min-height: calc(100vh - 120px);
+    overflow-y: auto;
+}
+
+/* Main container spacing */
+.container.mt-4 {
+    margin-bottom: 70px;  /* Space before footer */
+    min-height: 120px;    /* Minimum height for content */
+}
+
+/* Footer styling */
+.footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: 50px;
+    background-color: #f8f9fa;
+    padding: 0 20px;
+    z-index: 1000;
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+}
+
+.footer-links {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.copyright {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.feedback-link {
+    color: #0066cc;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.feedback-link:hover {
+    text-decoration: underline;
+}
+
+.confidential {
+    color: #ff0000;
+    font-weight: bold;
+    margin: 0;
+    font-size: 1.1rem;
+}

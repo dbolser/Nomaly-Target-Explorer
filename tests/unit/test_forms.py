@@ -8,6 +8,10 @@ class LoginForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired()])
 
 def test_login_form_validation(app):
+    # Add secret key configuration for CSRF
+    app.config['SECRET_KEY'] = 'test-secret-key'
+    app.config['WTF_CSRF_SECRET_KEY'] = 'test-csrf-secret-key'  # Optional but can be used for specific CSRF secret
+
     with app.test_request_context():
         form = LoginForm()
         assert not form.validate()

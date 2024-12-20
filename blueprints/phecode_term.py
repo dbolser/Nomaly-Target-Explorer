@@ -76,59 +76,65 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
         "Gene",
         "AA_Change",
         "HMM_Score",
-        "TDL",
-        "TBIO",
         "Classification",
         "Drug_Program_Indication",
-        "GWAS_P",
-        "GWAS_OR",
-        "GWAS_F_A",
-        "GWAS_F_U",
-        "GWAS_RSID",
+        "TDL",
+        "TBIO",
         "vs00",
         "vs01",
         "vs11",
         "hmoz_alt",
         "hmoz_ref",
         "htrz",
+        "GWAS_P",
+        "GWAS_OR",
+        "GWAS_RSID",
     ]
 
     default_columns = [
         "Variant",
         "Gene",
-        "Classification",
         "AA_Change",
         "HMM_Score",
-        "GWAS_P",
-        "GWAS_OR",
-        "GWAS_RSID",
+        "Classification",
         "vs00",
         "vs01",
         "vs11",
+        "GWAS_P",
+        "GWAS_OR",
+        "GWAS_RSID",
     ]
 
-    numeric_columns = ["HMM_Score", "GWAS_P", "GWAS_OR", "vs00", "vs01", "vs11"]
+    numeric_columns = ["HMM_Score", "vs00", "vs01", "vs11", "GWAS_P", "GWAS_OR"]
 
     try:
         # Get flush parameter from POST body or URL query parameter
-        flush = request.args.get("flush", "false").lower() == "true"  # Handle URL parameter
+        flush = (
+            request.args.get("flush", "false").lower() == "true"
+        )  # Handle URL parameter
         if request.is_json:
-            flush = request.get_json().get("flush", flush)  # POST body overrides URL parameter if present
+            flush = request.get_json().get(
+                "flush", flush
+            )  # POST body overrides URL parameter if present
         logger.info(f"Flush parameter received: {flush}")
 
         # First check cache
         cached_data = load_cached_results(phecode, term, flush)
-        
+
         if cached_data is not None and "data" in cached_data:
             logger.info(f"Using cached data for phecode {phecode}, term {term}")
-            return jsonify({
-                "data": cached_data["data"],
-                "columns": columns,
-                "defaultColumns": default_columns,
-                "numColumns": numeric_columns,
-            })
-        
-        logger.warning(f"Cache miss or flush requested for phecode {phecode}, term {term}")
+            return jsonify(
+                {
+                    "data": cached_data["data"],
+                    "columns": columns,
+                    "defaultColumns": default_columns,
+                    "numColumns": numeric_columns,
+                }
+            )
+
+        logger.warning(
+            f"Cache miss or flush requested for phecode {phecode}, term {term}"
+        )
 
         # If no cache, get variants from DB
         print(f"Fetching variants for term: {term}")

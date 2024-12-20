@@ -125,16 +125,6 @@ def test_single_variant_mask(mock_genotype_file):
     assert mask[0]  # First variant should match
 
 
-@pytest.mark.skip(reason="This test is not working as expected")
-def test_cleanup(mock_genotype_file):
-    """Test proper cleanup of HDF5 file."""
-    geno = GenotypeHDF5(mock_genotype_file)
-    assert not geno.f.closed
-    del geno
-    # Note: We can't directly test if the file is closed after deletion
-    # because the object no longer exists
-
-
 def test_large_dataset_handling(mock_genotype_file):
     """Test handling of larger datasets."""
     with h5py.File(mock_genotype_file, "w") as f:
