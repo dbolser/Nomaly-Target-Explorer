@@ -422,3 +422,78 @@ def test_variant_id_formats(client):
         html = response.data.decode("utf-8")
         assert "<strong>Chromosome:</strong> 17" in html
         assert "<strong>Position:</strong> 80117714" in html
+
+
+def test_phecode_gwas_pvalues(client):
+    """Test that GWAS P-values are present in phecode page for a specific case."""
+    phecode = "561"
+
+    # First check the page with GWAS enabled
+    response = client.get(f"/phecode/{phecode}?gwas=1")
+    assert response.status_code == 200
+    html = response.data.decode("utf-8")
+    assert (
+        '<button id="runTaskButton" class="btn btn-primary">GWAS Task</button>' in html
+    )
+
+    # Now simulate clicking the GWAS button by calling the run-task endpoint
+    response = client.post(f"/run-task/{phecode}")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+
+    # Verify GWAS completed successfully
+    assert data["status"] == "completed"
+    assert "associations" in data
+    assert len(data["associations"]) > 0
+
+    # Check P-values in GWAS results
+    for assoc in data["associations"]:
+        assert "P" in assoc
+        assert assoc["P"] is not None
+        p_value = float(assoc["P"])
+        assert p_value >= 0
+        assert p_value <= 1  # P-values should be between 0 and 1
+
+    # Also check the nomaly stats which should include GWAS data
+    response = client.post(f"/nomaly-stats/{phecode}")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+
+    # Verify we have data
+    assert "data" in data
+    assert len(data["data"]) > 0
+
+    # Check that P-values are present and not empty
+    for record in data["data"]:
+        if "mwu_pvalue" in record:  # This is a term with stats
+            assert "metric1_pvalue" in record
+            assert record["metric1_pvalue"] is not None
+            assert record["metric1_pvalue"] != ""
+            # Convert to float to ensure it's a valid number
+
+
+def test_phecode_term_gwas_pvalues(client):
+    """Test that GWAS P-values are present in phecode term page for a specific case."""
+    phecode = "561"
+    term = "HP:0000789"
+
+    # Get the variant detail data
+    response = client.get(f"/phecode/{phecode}/term/{term}/tableVariantDetail")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+
+    # Verify we have data
+    assert "data" in data
+    assert len(data["data"]) > 0
+
+    # Check that GWAS P-values are present and not empty in at least one record
+    has_pvalue = False
+    for record in data["data"]:
+        if record.get("GWAS_P") and record["GWAS_P"] != "":
+            has_pvalue = True
+            # Convert to float to ensure it's a valid number
+            p_value = float(record["GWAS_P"])
+            assert p_value >= 0
+            assert p_value <= 1  # P-values should be between 0 and 1
+
+    assert has_pvalue, "No GWAS P-values found in any records"
