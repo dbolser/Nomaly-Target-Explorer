@@ -211,10 +211,8 @@ def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
     graph_html = make_qqplot_html(plot_df)
     plot_df = show_datatable_nomaly_stats(plot_df, phecode)
 
-    # Add links with appropriate version
-    base_url = "/phecode2" if version == 2 else "/phecode"
     plot_df["term"] = plot_df["term"].map(
-        lambda x: f'<a href="{base_url}/{phecode}/term/{x}">{x}</a>'
+        lambda x: f'<a href="/phecode/{phecode}/term/{x}">{x}</a>'
     )
 
     pval_nondirect = ["mwu_pvalue", "mcc_pvalue", "yjs_pvalue", "lrp_pvalue"]
