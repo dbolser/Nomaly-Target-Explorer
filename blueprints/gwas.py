@@ -92,30 +92,47 @@ def run_gwas(phecode: str) -> pd.DataFrame:
     return assoc
 
 
-def format_gwas_results(assoc_df: pd.DataFrame) -> list:
-    """Format GWAS results for JSON response."""
+def format_gwas_results(
+    assoc_df: pd.DataFrame, significance_threshold: float = 0.05
+) -> list:
+    """Format GWAS results for JSON response.
+
+    This function handles all formatting of GWAS data including:
+    - Converting numeric columns to proper types
+    - Handling missing values
+    - Formatting RSID links
+    - Renaming columns for display
+    """
     if assoc_df.empty:
         return []
 
-    # Filter significant results
-    sig_results = assoc_df[assoc_df["P"] < 0.05].copy()
+    # Make a copy to avoid modifying the original
+    formatted_df = assoc_df.copy()
+
+    # Ensure numeric columns are float type
+    numeric_cols = ["P", "OR", "F_A", "F_U"]
+    for col in numeric_cols:
+        formatted_df[col] = pd.to_numeric(formatted_df[col], errors="coerce")
 
     # Format for display
-    sig_results = sig_results.rename(
-        columns={"CHR_BP_A1_A2": "Variant", "gene_id": "Gene"}
+    formatted_df = formatted_df.rename(
+        columns={
+            "CHR_BP_A1_A2": "Variant",
+            "gene_id": "Gene",
+        }
     )
 
     # Handle RSID links
-    sig_results["RSID"] = sig_results["RSID"].apply(
+    formatted_df["RSID"] = formatted_df["RSID"].apply(
         lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/{x}">{x}</a>'
         if pd.notna(x)
         else None
     )
 
     # Convert numeric columns to float and replace NaN with None
-    numeric_cols = ["F_A", "F_U", "OR", "P"]
     for col in numeric_cols:
-        # First convert to float, then replace NaN with None
-        sig_results[col] = sig_results[col].astype(float).replace({np.nan: None})
+        formatted_df[col] = formatted_df[col].astype(float).replace({np.nan: None})
+
+    sig_results = formatted_df[formatted_df["P"] < significance_threshold].copy()
 
     return sig_results.to_dict(orient="records")
