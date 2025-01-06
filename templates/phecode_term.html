@@ -90,42 +90,56 @@
     const phecode = "{{ data.phecode }}";
     const term = "{{ data.term }}";
 
+    // Function to format numbers in scientific notation
+    function formatScientific(value) {
+        if (!value || value === '') return '';
+        return parseFloat(value).toExponential(2);
+    }
+
+    // Function to format decimal numbers
+    function formatDecimal(value, decimals = 2) {
+        if (!value || value === '') return '';
+        return parseFloat(value).toFixed(decimals);
+    }
+
     // Function to initialize the DataTable with consistent formatting
     function renderDataTable(data, columns, defaultColumns, numColumns) {
         if ($.fn.DataTable.isDataTable('#resultsTable')) {
             $('#resultsTable').DataTable().destroy();
         }
 
-        // Find the index of GWAS_P column
-        const gwasIndex = columns.indexOf('GWAS_P');
-        
-        // No need to map/format the data as it's already in the correct format from backend
-        const columnDefinitions = columns.map(col => ({
-            data: col,
-            title: col.replace(/_/g, ' '),
-            visible: defaultColumns.includes(col)
-        }));
+        // Column definitions with specific formatting
+        const columnDefinitions = columns.map(col => {
+            const def = {
+                data: col,
+                title: col.replace(/_/g, ' '),
+                visible: defaultColumns.includes(col)
+            };
 
-        // Find the GWAS P column index
-        const gwasPIndex = columns.findIndex(col => col === 'GWAS_P');
-
-        $('#resultsTable').DataTable({
-            data: data,
-            columns: columnDefinitions,
-            order: [[gwasPIndex, 'asc']],  // Default sort by GWAS P
-            responsive: true,
-            autoWidth: false,
-            dom: 'Bfrtip',
-            buttons: [
-                {
-                    extend: 'colvis',
-                    text: 'Select Columns',
-                    columns: ':not(:first-child)'
-                }
-            ],
-            columnDefs: [{
-                targets: 0,  // Variant column
-                render: function (data, type, row) {
+            // Add specific formatting for different column types
+            if (col === 'GWAS_P') {
+                def.render = (data, type) => {
+                    if (type === 'display' || type === 'filter') {
+                        return data ? formatScientific(data) : '';
+                    }
+                    return data;
+                };
+            } else if (col === 'GWAS_OR') {
+                def.render = (data, type) => {
+                    if (type === 'display' || type === 'filter') {
+                        return data ? formatDecimal(data, 2) : '';
+                    }
+                    return data;
+                };
+            } else if (col === 'GWAS_F_A' || col === 'GWAS_F_U') {
+                def.render = (data, type) => {
+                    if (type === 'display' || type === 'filter') {
+                        return data ? formatDecimal(data, 5) : '';
+                    }
+                    return data;
+                };
+            } else if (col === 'Variant') {
+                def.render = (data, type, row) => {
                     if (type === 'display') {
                         return variantUtils.createLink(data);
                     }
@@ -137,15 +151,60 @@
                             'ZZZ' + chr) + '_' + parts[1].padStart(10, '0');
                     }
                     return data;
+                };
+            }
+
+            return def;
+        });
+
+        // Find column indices for sorting
+        const gwasPIndex = columns.findIndex(col => col === 'GWAS_P');
+        const hmmScoreIndex = columns.findIndex(col => col === 'HMM_Score');
+
+        // Custom sorting function for P-values
+        $.fn.dataTable.ext.type.order['p-value-pre'] = function (data) {
+            if (data === null || data === '' || isNaN(data)) {
+                return 1e99;
+            }
+            return parseFloat(data);
+        };
+
+        $('#resultsTable').DataTable({
+            data: data,
+            columns: columnDefinitions,
+            columnDefs: [{
+                targets: gwasPIndex,
+                type: 'p-value'
+            }],
+            order: [
+                [gwasPIndex, 'asc'],
+                [hmmScoreIndex, 'desc']
+            ],
+            responsive: true,
+            autoWidth: false,
+            pageLength: 25,
+            dom: 'lBfrtip',
+            buttons: [
+                {
+                    extend: 'colvis',
+                    text: 'Select Columns',
+                    columns: ':not(:first-child)'
+                },
+                'copy', 'csv', 'excel'
+            ],
+            initComplete: function () {
+                // Update the note to reflect both sorting criteria
+                if (gwasPIndex !== -1 && hmmScoreIndex !== -1) {
+                    const note = $('<div class="alert alert-info mt-2">Table is sorted by GWAS P-value first, then by HMM Score.</div>');
+                    $('#resultsTable_wrapper').prepend(note);
                 }
-            }]
+            }
         });
     }
 
     // Function to load Variant Detail Table
     function loadVariantDetailTable() {
         const encodedTerm = encodeURIComponent(term);
-        // Get URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const flush = urlParams.get('flush') === 'true';
         const url = `/phecode/${phecode}/term/${encodedTerm}/tableVariantDetail?flush=${flush}`;
@@ -158,30 +217,27 @@
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                flush: flush  // Pass through the flush parameter from URL
+                flush: flush
             })
         })
             .then(response => {
                 console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 return response.json();
             })
             .then(resultData => {
                 console.log('Received data:', resultData);
-                console.log('Data array:', resultData.data);
-                console.log('Columns:', resultData.columns);
-                console.log('Default columns:', resultData.defaultColumns);
-                console.log('Numeric columns:', resultData.numColumns);
-                
-                // Check first row of data
-                if (resultData.data && resultData.data.length > 0) {
-                    console.log('First row:', resultData.data[0]);
+                if (resultData.error) {
+                    throw new Error(resultData.error);
                 }
-                
                 renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
             })
             .catch(error => {
                 console.error('Error loading Variant Detail Table:', error);
-                alert('Failed to load table data: ' + error.message);
+                const errorMessage = `<div class="alert alert-danger">Failed to load table data: ${error.message}</div>`;
+                $('#tableContainer').prepend(errorMessage);
             });
     }
 

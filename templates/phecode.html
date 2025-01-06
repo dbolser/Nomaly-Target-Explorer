@@ -106,10 +106,25 @@
 
     // Function to initialize the DataTable
     function renderDataTable(resultData, columns, defaultColumns, numColumns) {
-        console.log('Rendering DataTable');
+        console.log('Available columns:', columns); // Debug log
+
         if ($.fn.DataTable.isDataTable('#resultsTable')) {
             $('#resultsTable').DataTable().destroy();
         }
+
+        // Find column indices for sorting
+        const minRankIndex = columns.findIndex(col => col === 'minrank'); // Changed from 'minrank'
+        const mwuPIndex = columns.findIndex(col => col === 'mwu_pvalue');
+
+        console.log('Found indices:', { minRankIndex, mwuPIndex }); // Debug log
+
+        // Custom sorting function for P-values
+        $.fn.dataTable.ext.type.order['p-value-pre'] = function (data) {
+            if (data === null || data === '' || isNaN(data)) {
+                return 1e99;
+            }
+            return parseFloat(data);
+        };
 
         $('#resultsTable').DataTable({
             data: resultData.data,
@@ -118,8 +133,12 @@
                 data: col,
                 visible: defaultColumns.includes(col),
                 className: col.includes('pvalue') ? 'dt-right' : '',
+                type: col === 'MWU P-value' ? 'p-value' : null
             })),
-            order: [[0, 'asc']],
+            order: [
+                [minRankIndex, 'asc'],
+                [mwuPIndex, 'asc']
+            ],
             responsive: true,
             autoWidth: true,
             pageLength: 25,
@@ -259,34 +278,34 @@
                             return data || '';
                         }
                     },
-                    { 
+                    {
                         data: 'Gene',
-                        render: function(data) { return data || ''; }
+                        render: function (data) { return data || ''; }
                     },
-                    { 
+                    {
                         data: 'RSID',
-                        render: function(data) { return data || ''; }
+                        render: function (data) { return data || ''; }
                     },
-                    { 
+                    {
                         data: 'F_A',
-                        render: function(data) { return data || ''; }
+                        render: function (data) { return data || ''; }
                     },
-                    { 
+                    {
                         data: 'F_U',
-                        render: function(data) { return data || ''; }
+                        render: function (data) { return data || ''; }
                     },
-                    { 
+                    {
                         data: 'OR',
-                        render: function(data) { return data || ''; }
+                        render: function (data) { return data || ''; }
                     },
-                    { 
+                    {
                         data: 'P',
-                        render: function(data) { return data || ''; }
+                        render: function (data) { return data || ''; }
                     }
                 ],
                 order: [[6, 'asc']],
                 pageLength: 25,
-                dom: 'Bfrtip',
+                dom: 'lBfrtip',
                 buttons: ['copy', 'csv', 'excel']
             });
             console.log('Table initialized successfully');  // Debug log
