@@ -137,8 +137,8 @@ def add_gene_info_to_DataTable(plot_df, phecode):
     term_gene_df = get_term_genes(plot_df["term"].tolist())
 
     # Get GWAS results for gene filtering
-    results = run_gwas(phecode)
-    sig_variants = format_gwas_results(results)
+    gwas_data = run_gwas(phecode)
+    sig_variants = format_gwas_results(gwas_data)
     genefilter = set(v["Gene"] for v in sig_variants)
 
     # Filter and format gene information
