@@ -20,20 +20,18 @@ from config import Config
 # icd10_cases_h5 = UKBB_PHENO_DIR + "ukbbrun_icd10_2024-09-07_any.h5"
 phenotypes_h5 = Config.PHENOTYPES_H5
 
-RESOURCE_DATA_DIR = "/data/general/Data/"
-pharos_path = RESOURCE_DATA_DIR + "pharos_api_query.out"
-pp_path = RESOURCE_DATA_DIR + "pp_by_gene.tsv"
+RESOURCE_DATA_DIR = Config.RESOURCE_DATA_DIR
+pharos_path = RESOURCE_DATA_DIR / "pharos_api_query.out"
+pp_path = RESOURCE_DATA_DIR / "pp_by_gene.tsv"
+
 pharos = pd.read_csv(pharos_path, sep="\t", encoding="ISO-8859-1").rename(
     columns={"#symbol": "gene"}
 )
+
 pp = pd.read_csv(pp_path, sep="\t", index_col=0).rename(
     columns={"Description": "drug_program_indication"}
 )
 pp["gene"] = pp.index
-
-# ------------------------------------------------------------------------------#
-# Nomaly stats pre-calculated
-# ------------------------------------------------------------------------------#
 
 
 class StatsHDF5:
@@ -123,11 +121,6 @@ class StatsHDF5:
             for i in range(len(self.third_dim))
         }
         return statsdict
-
-
-# ------------------------------------------------------------------------------#
-# Genotypes
-# ------------------------------------------------------------------------------#
 
 
 class GenotypeHDF5:
@@ -304,11 +297,6 @@ class GenotypeHDF5:
             raise
 
 
-# ------------------------------------------------------------------------------#
-# icd10 = 'E831'
-# ------------------------------------------------------------------------------#
-
-
 class ICD10HDF5:
     def __init__(self, hdf5_file):
         self.hdf5_file = hdf5_file
@@ -334,11 +322,6 @@ class ICD10HDF5:
 
         cases = cases.astype(int)
         return cases
-
-
-# ------------------------------------------------------------------------------#
-# Nomaly ScoreHDF5
-# ------------------------------------------------------------------------------#
 
 
 class ScoreHDF5:
@@ -429,11 +412,11 @@ class PhenotypesHDF5:
 nomaly_genotype = GenotypeHDF5(Config.GENOTYPES_H5)
 
 nomaly_stats = StatsHDF5(Config.STATS_H5)
-# nomaly_scores = ScoreHDF5(Config.SCORES_H5)
-
 nomaly_stats_v2 = StatsHDF5(Config.STATS_H5_V2)
-# nomaly_scores_v2 = ScoreHDF5(Config.SCORES_H5_V2)
 
+# NOT USED!
+# nomaly_scores = ScoreHDF5(Config.SCORES_H5)
+# nomaly_scores_v2 = ScoreHDF5(Config.SCORES_H5_V2)
 
 # icd10_cases = ICD10HDF5(icd10_cases_h5)
 
