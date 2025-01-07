@@ -23,17 +23,22 @@ def test_variant_api(client):
 
 def test_nomaly_api(client):
     """Test the Nomaly-related endpoints."""
-    test_phecode = "250.2"
+    test_phecodes = ["250.2", "401.1", "296.2", "038", "008"]
 
-    # Test getting Nomaly results
+    for test_phecode in test_phecodes:
+        # Test getting Nomaly results
+        response = client.get(f"/phecode/{test_phecode}")
+        if response.status_code != 200:
+            print(f"Unexpected response: {response.status_code}")
+            print(
+                f"Response data: {response.data}"
+            )  # This will help debug the error message
+        assert response.status_code == 200
+        # Add specific assertions based on expected response structure
+
+    test_phecode = "banana"
     response = client.get(f"/phecode/{test_phecode}")
-    if response.status_code != 200:
-        print(f"Unexpected response: {response.status_code}")
-        print(
-            f"Response data: {response.data}"
-        )  # This will help debug the error message
-    assert response.status_code == 200
-    # Add specific assertions based on expected response structure
+    assert response.status_code == 404
 
 
 # Plotting isn't called like this!
