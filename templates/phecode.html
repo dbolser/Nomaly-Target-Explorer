@@ -213,32 +213,23 @@
                 })
                     .then(response => response.json())
                     .then(data => {
-                        if (data.status === "Task started") {
-                            resultDiv.innerHTML = "Task started. Please wait...";
-                            console.log('Task started, polling for results');
-
-                            const checkResult = setInterval(() => {
-                                fetch(`/task-result/${phecode}`)
-                                    .then(response => response.json())
-                                    .then(resultData => {
-                                        if (resultData.result.includes("Failed")) {
-                                            resultDiv.innerHTML = `Failed: ${resultData.result}`;
-                                            clearInterval(checkResult);
-                                        } else if (!resultData.result.includes("Processing...")) {
-                                            resultDiv.innerHTML = `Result: ${resultData.result}`;
-                                            clearInterval(checkResult);
-                                            populateTable(resultData.associations);
-                                        }
-                                    })
-                                    .catch(err => {
-                                        console.error('Error fetching task result:', err);
-                                    });
-                            }, 1000);
+                        console.log('Received response:', data);  // Debug log
+                        if (data.status === "completed") {
+                            resultDiv.innerHTML = `Result: ${data.result}`;
+                            if (data.associations && data.associations.length > 0) {
+                                console.log(`Found ${data.associations.length} associations`);  // Debug log
+                                populateTable(data.associations);
+                            } else {
+                                console.log('No associations found in data');  // Debug log
+                                resultDiv.innerHTML += '<br>No significant associations found.';
+                            }
+                        } else {
+                            resultDiv.innerHTML = `Failed: ${data.result}`;
                         }
                     })
                     .catch(error => {
-                        console.error('Error starting task:', error);
-                        resultDiv.innerHTML = `Error: ${error.message}`;
+                        console.error('Error:', error);
+                        document.getElementById('taskResult').innerHTML = `Error: ${error.message}`;
                     });
             });
         }
@@ -246,34 +237,60 @@
 
     // Function to populate the GWAS table
     function populateTable(data) {
-        console.log('Populating GWAS table');
+        console.log('Populating GWAS table with data:', data);  // Debug log
         $('#GWAStableContainer').show();
 
-        if (!$.fn.DataTable.isDataTable('#variantTable')) {
+        if ($.fn.DataTable.isDataTable('#variantTable')) {
+            $('#variantTable').DataTable().destroy();  // Clean up existing table
+        }
+
+        try {
             $('#variantTable').DataTable({
                 data: data,
                 columns: [
                     {
                         data: 'Variant',
                         render: function (data, type, row) {
-                            if (type === 'display') {
+                            if (type === 'display' && data) {
                                 const formattedVariant = data.replace(':', '_').replace('/', '_');
                                 return `<a href="/variant/${formattedVariant}" target="_blank">${data}</a>`;
                             }
-                            return data;
+                            return data || '';
                         }
                     },
-                    { data: 'Gene', searchable: true },
-                    { data: 'RSID' },
-                    { data: 'F_A' },
-                    { data: 'F_U' },
-                    { data: 'OR', orderable: true },
-                    { data: 'P', orderable: true }
+                    { 
+                        data: 'Gene',
+                        render: function(data) { return data || ''; }
+                    },
+                    { 
+                        data: 'RSID',
+                        render: function(data) { return data || ''; }
+                    },
+                    { 
+                        data: 'F_A',
+                        render: function(data) { return data || ''; }
+                    },
+                    { 
+                        data: 'F_U',
+                        render: function(data) { return data || ''; }
+                    },
+                    { 
+                        data: 'OR',
+                        render: function(data) { return data || ''; }
+                    },
+                    { 
+                        data: 'P',
+                        render: function(data) { return data || ''; }
+                    }
                 ],
                 order: [[6, 'asc']],
                 pageLength: 25,
-
+                dom: 'Bfrtip',
+                buttons: ['copy', 'csv', 'excel']
             });
+            console.log('Table initialized successfully');  // Debug log
+        } catch (error) {
+            console.error('Error initializing table:', error);  // Error log
         }
     }
 </script>

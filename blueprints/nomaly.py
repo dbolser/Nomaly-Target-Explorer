@@ -16,9 +16,9 @@ import plotly.express as px
 
 from config import Config
 
-UKBB_PHENO_DIR = "/data/general/UKBB/Phenotypes/"
-icd10_cases_h5 = UKBB_PHENO_DIR + "ukbbrun_icd10_2024-09-07_any.h5"
-phenotypes_h5 = UKBB_PHENO_DIR + "phecode_cases_excludes.h5"
+# UKBB_PHENO_DIR = "/data/general/UKBB/Phenotypes/"
+# icd10_cases_h5 = UKBB_PHENO_DIR + "ukbbrun_icd10_2024-09-07_any.h5"
+phenotypes_h5 = Config.PHENOTYPES_H5
 
 RESOURCE_DATA_DIR = "/data/general/Data/"
 pharos_path = RESOURCE_DATA_DIR + "pharos_api_query.out"
@@ -426,31 +426,18 @@ class PhenotypesHDF5:
 # Initiate classes
 # ------------------------------------------------------------------------------#
 
-nomaly_genotype_h5 = Config.GENOTYPES_H5
+nomaly_genotype = GenotypeHDF5(Config.GENOTYPES_H5)
 
-NOMALY_RESULTS_DIR = "/data/general/UKBB/Run-v1/DatabaseInputs/"
+nomaly_stats = StatsHDF5(Config.STATS_H5)
+# nomaly_scores = ScoreHDF5(Config.SCORES_H5)
 
-nomaly_stats_h5 = NOMALY_RESULTS_DIR + "stats.h5"
-# nomaly_genotype_h5 = NOMALY_RESULTS_DIR + "genotypes.h5"
-nomaly_scores_h5 = NOMALY_RESULTS_DIR + "float16_scores.h5"
+nomaly_stats_v2 = StatsHDF5(Config.STATS_H5_V2)
+# nomaly_scores_v2 = ScoreHDF5(Config.SCORES_H5_V2)
 
-nomaly_stats = StatsHDF5(nomaly_stats_h5)
-nomaly_genotype = GenotypeHDF5(nomaly_genotype_h5)
-nomaly_scores = ScoreHDF5(nomaly_scores_h5)
 
-NOMALY_RESULTS_DIR_V2 = "/data/general/UKBB/Run-v2/DatabaseInputs/"
-nomaly_stats_h5_v2 = NOMALY_RESULTS_DIR_V2 + "stats.h5"
-nomaly_genotype_h5_v2 = nomaly_genotype_h5
-nomaly_scores_h5_v2 = NOMALY_RESULTS_DIR_V2 + "float16_scores.h5"
+# icd10_cases = ICD10HDF5(icd10_cases_h5)
 
-nomaly_stats_v2 = StatsHDF5(nomaly_stats_h5_v2)
-nomaly_genotype_v2 = nomaly_genotype
-nomaly_scores_v2 = ScoreHDF5(nomaly_scores_h5_v2)
 
-# Don't think we need this?
-# nomaly_phenotypes = PhenotypesHDF5(phenotypes_h5)
-
-icd10_cases = ICD10HDF5(icd10_cases_h5)
 # ------------------------------------------------------------------------------#
 # plotting functions
 # ------------------------------------------------------------------------------#
@@ -520,10 +507,3 @@ def make_qqplot(plot_df):
     )
 
     return fig
-
-
-# ------------------------------------------------------------------------------#
-# Add termnames, term2genes
-# ------------------------------------------------------------------------------#
-
-# from db import get_db_connection

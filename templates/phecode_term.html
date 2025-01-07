@@ -96,6 +96,10 @@
             $('#resultsTable').DataTable().destroy();
         }
 
+        // Find the index of GWAS_P column
+        const gwasIndex = columns.indexOf('GWAS_P');
+        
+        // No need to map/format the data as it's already in the correct format from backend
         const columnDefinitions = columns.map(col => ({
             data: col,
             title: col.replace(/_/g, ' '),
@@ -163,6 +167,16 @@
             })
             .then(resultData => {
                 console.log('Received data:', resultData);
+                console.log('Data array:', resultData.data);
+                console.log('Columns:', resultData.columns);
+                console.log('Default columns:', resultData.defaultColumns);
+                console.log('Numeric columns:', resultData.numColumns);
+                
+                // Check first row of data
+                if (resultData.data && resultData.data.length > 0) {
+                    console.log('First row:', resultData.data[0]);
+                }
+                
                 renderDataTable(resultData.data, resultData.columns, resultData.defaultColumns, resultData.numColumns);
             })
             .catch(error => {
