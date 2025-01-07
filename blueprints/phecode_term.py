@@ -279,9 +279,11 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
 
 def main():
     phecode = "561"
+    phecode = "564.1"
 
     term = "MP:0004957"
     term = "HP:0000789"
+    term = "KW:0544"
 
     gwas_data = run_gwas(phecode)
     term_data = get_term_variants(term)
