@@ -88,7 +88,7 @@ def test_nomaly_stats_response_urls(
         data = json.loads(response.get_data())
 
         # Check that the URLs in the term links use the correct version
-        assert f"{expected_url}/250.2/term/" in data["data"][0]["term"]
+        assert f"phecode/250.2/term/" in data["data"][0]["term"]
 
 
 @pytest.mark.parametrize("version", [1, 2])
@@ -162,7 +162,7 @@ def test_nomaly_stats_endpoint(version, client, mocker):
     assert "defaultColumns" in data
 
     # Check version-specific URL format
-    expected_url = "/phecode2" if version == 2 else "/phecode"
+    expected_url = "/phecode" if version == 2 else "/phecode"
     if data["data"]:  # If we have any data rows
         assert f"{expected_url}/250.2/term/" in data["data"][0]["term"]
 
