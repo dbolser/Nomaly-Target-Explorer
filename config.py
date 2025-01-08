@@ -45,12 +45,12 @@ class Config:
     # Nomaly results directories and files (V1)
     NOMALY_RESULTS_DIR = Path("/data/general/UKBB/Run-v1/DatabaseInputs")
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats.h5"
-    STATS_H5 = NOMALY_RESULTS_DIR / "stats-EUR.h5"
+    STATS_H5 = NOMALY_RESULTS_DIR / "stats-fixed-EUR.h5"
 
     # Nomaly results directories and files (V2)
     NOMALY_RESULTS_DIR_V2 = Path("/data/general/UKBB/Run-v2/DatabaseInputs")
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats.h5"
-    STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-EUR.h5"
+    STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-fixed-EUR.h5"
 
     RESOURCE_DATA_DIR = Path("/data/general/Data/")
 
