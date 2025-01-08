@@ -5,12 +5,15 @@ import pandas as pd
 import logging
 import numpy as np
 
-# Keep the global constants
-GWAS_PHENO_DIR = "/data/clu/ukbb/by_pheno/"
-UKBB_PHENO_DIR = "/data/general/UKBB/Phenotypes/"
-source_plink_genome = "/data/clu/ukbb/genotypes_nomaly"
-plink_binary = "/data/clu/ukbb/plink"
+from config import Config
 
+# Keep the global constants
+GWAS_PHENO_DIR = Config.GWAS_PHENO_DIR
+UKBB_PHENO_DIR = Config.UKBB_PHENO_DIR
+
+SOURCE_PLINK_GENOME = Config.SOURCE_PLINK_GENOME
+PLINK_BINARY = Config.PLINK_BINARY
+NOMALY_VARIANTS_PATH = Config.NOMALY_VARIANTS_PATH
 logger = logging.getLogger(__name__)
 
 
@@ -18,9 +21,9 @@ def run_gwas(phecode: str) -> pd.DataFrame:
     """Run GWAS for a phecode if not already done and return results."""
 
     output_prefix = f"phecode_{phecode}"
-    output_path = f"{GWAS_PHENO_DIR}{output_prefix}"
-    assoc_path = f"{output_path}.assoc"
-    nomaly_path = f"{assoc_path}_nomaly.tsv"
+    output_path = GWAS_PHENO_DIR / output_prefix
+    assoc_path = output_path / f"{output_path}.assoc"
+    nomaly_path = output_path / f"{assoc_path}_nomaly.tsv"
 
     # Return cached results if they exist
     if os.path.exists(nomaly_path):
@@ -30,13 +33,13 @@ def run_gwas(phecode: str) -> pd.DataFrame:
     # Load case information
     logger.info(f"Running new GWAS for {phecode}")
     with open(
-        f"{UKBB_PHENO_DIR}phecode_cases_excludes/phecode_{phecode}.pkl", "rb"
+        UKBB_PHENO_DIR / "phecode_cases_excludes" / f"phecode_{phecode}.pkl", "rb"
     ) as f:
         cases = pickle.load(f)
 
     # Create FAM file if needed
     if not os.path.exists(f"{output_path}.fam"):
-        fam = pd.read_csv(f"{source_plink_genome}.fam", header=None, sep=r"\s+")
+        fam = pd.read_csv(f"{SOURCE_PLINK_GENOME}.fam", header=None, sep=r"\s+")
         fam.columns = ["FID", "IID", "Father", "Mother", "sex", "phenotype"]
 
         # Set phenotypes (1=control, 2=case, -9=missing)
@@ -57,7 +60,7 @@ def run_gwas(phecode: str) -> pd.DataFrame:
 
     # Run PLINK if needed
     if not os.path.exists(assoc_path):
-        cmd = f"{plink_binary} --bed {source_plink_genome}.bed --bim {source_plink_genome}.bim --fam {output_path}.fam --assoc --out {output_path} --silent"
+        cmd = f"{PLINK_BINARY} --allow-no-sex --bed {SOURCE_PLINK_GENOME}.bed --bim {SOURCE_PLINK_GENOME}.bim --fam {output_path}.fam --assoc --out {output_path} --silent"
         subprocess.run(cmd, shell=True, check=True)
 
     # Process results
@@ -68,7 +71,7 @@ def run_gwas(phecode: str) -> pd.DataFrame:
     )
 
     # Add variant annotations
-    nomaly_variants = pd.read_csv("/data/clu/ukbb/nomaly_variants.tsv", sep="\t")
+    nomaly_variants = pd.read_csv(NOMALY_VARIANTS_PATH, sep="\t")
     assoc = assoc.merge(
         nomaly_variants[["CHR_BP_A1_A2", "gene_id", "nomaly_variant", "RSID"]],
         on="CHR_BP_A1_A2",

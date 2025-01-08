@@ -4,19 +4,21 @@ import logging
 import json
 from datetime import datetime
 
+from config import Config
+
 logger = logging.getLogger(__name__)
 
-CACHE_DIR = "/data/clu/ukbb/by_phecode_term/"
+PHECODE_TERM_DIR = Config.PHECODE_TERM_DIR
 
 
 def ensure_cache_dir():
     """Ensure cache directory exists"""
-    os.makedirs(CACHE_DIR, exist_ok=True)
+    os.makedirs(PHECODE_TERM_DIR, exist_ok=True)
 
 
 def get_cache_path(phecode: str, term: str) -> str:
     """Get path for cached results"""
-    return os.path.join(CACHE_DIR, f"phecode_{phecode}_term_{term}.json")
+    return os.path.join(PHECODE_TERM_DIR, f"phecode_{phecode}_term_{term}.json")
 
 
 def delete_cache(phecode: str, term: str) -> bool:
@@ -41,7 +43,7 @@ def load_cached_results(phecode: str, term: str, flush: bool = False) -> Dict | 
 
     cache_path = get_cache_path(phecode, term)
     logger.info(f"Checking cache at: {cache_path}")
-    
+
     if os.path.exists(cache_path):
         try:
             with open(cache_path, "r") as f:
@@ -53,7 +55,7 @@ def load_cached_results(phecode: str, term: str, flush: bool = False) -> Dict | 
             # If there's an error reading the cache, delete it
             delete_cache(phecode, term)
             return None
-    
+
     logger.info(f"No cache file found at {cache_path}")
     return None
 
