@@ -1,31 +1,28 @@
 import pytest
 from app import app as flask_app
 from db import get_db_connection
-# from blueprints.gwas import GWASTaskManager, GWASTaskStatus
 
 
 @pytest.fixture
 def app():
+    """Basic Flask app configured for testing."""
     flask_app.config["TESTING"] = True
-    flask_app.config["LOGIN_DISABLED"] = True  # If using Flask-Login
+    flask_app.config["WTF_CSRF_ENABLED"] = False  # Disable CSRF for testing
     return flask_app
 
 
 @pytest.fixture
 def client(app):
+    """Basic test client without authentication."""
     return app.test_client()
 
 
 @pytest.fixture
-def auth_client(client, test_user):
-    """Client with authentication."""
-    client.post("/login", data={"username": "test_admin", "password": "test_password"})
-    return client
-
-
-@pytest.fixture
-def test_user(app):
-    """Create a test admin user with full permissions."""
+def test_admin():
+    """Create a test admin user.
+    This fixture manages the test user lifecycle (create/cleanup).
+    """
+    # Set up
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -36,33 +33,25 @@ def test_user(app):
     """)
     user_id = cursor.lastrowid
 
-    # Create root page entry
-    cursor.execute("""
-        INSERT IGNORE INTO pages (path, description)
-        VALUES ('/*', 'Root access for testing')
-    """)
-    page_id = cursor.lastrowid or 1
-
     # Grant admin permissions
     cursor.execute(
         """
-        INSERT INTO user_permissions (user_id, page_id, wildcard_path)
-        VALUES (%s, %s, '/*')
-    """,
-        (user_id, page_id),
+        INSERT INTO user_permissions (user_id, allowed_paths)
+        VALUES (%s, '*')
+        """,
+        (user_id,),
     )
 
     conn.commit()
     cursor.close()
     conn.close()
 
-    yield
+    yield {"id": user_id, "username": "test_admin", "password": "test_password"}
 
-    # Cleanup after tests
+    # Cleanup
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM user_permissions WHERE user_id = %s", (user_id,))
-    #cursor.execute("DELETE FROM pages WHERE id = %s", (page_id,))
     cursor.execute("DELETE FROM users2 WHERE id = %s", (user_id,))
     conn.commit()
     cursor.close()
@@ -70,8 +59,24 @@ def test_user(app):
 
 
 @pytest.fixture
-def limited_user(app):
-    """Create a test user with limited permissions (e.g., only phecode access)."""
+def auth_client(client, test_admin):
+    """Client with admin authentication by performing a login."""
+    # Perform login via POST request
+    response = client.post(
+        "/login",
+        data={"username": test_admin["username"], "password": test_admin["password"]},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"welcome" in response.data.lower()
+    return client
+
+
+@pytest.fixture
+def test_limited_user():
+    """Create a test user with limited permissions.
+    This fixture manages the test user lifecycle (create/cleanup).
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -82,27 +87,31 @@ def limited_user(app):
     """)
     user_id = cursor.lastrowid
 
-    # Create phecode page entry
-    cursor.execute("""
-        INSERT INTO pages (path, description)
-        VALUES ('/phecode/*', 'Phecode access for testing')
-    """)
-    page_id = cursor.lastrowid
-
     # Grant limited permissions
     cursor.execute(
         """
-        INSERT INTO user_permissions (user_id, page_id, wildcard_path)
-        VALUES (%s, %s, '/phecode/*')
-    """,
-        (user_id, page_id),
+        INSERT INTO user_permissions (user_id, allowed_paths)
+        VALUES (%s, '250.2,649.1,561')
+        """,
+        (user_id,),
     )
 
     conn.commit()
     cursor.close()
     conn.close()
 
-    yield user_id  # You can use the user_id in tests if needed
+    yield {
+        "id": user_id,
+        "username": "test_limited",
+        "password": "test_password",
+        "allowed_paths": ["250.2", "649.1", "561"],
+    }
 
-    # Cleanup after tests
-    # ... similar cleanup code ...
+    # Cleanup
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM user_permissions WHERE user_id = %s", (user_id,))
+    cursor.execute("DELETE FROM users2 WHERE id = %s", (user_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()

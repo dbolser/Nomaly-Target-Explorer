@@ -1,13 +1,13 @@
 import json
-from flask import url_for
 import time
 
 # The client is created in conftest.py
+# from conftest import client, auth_client
 
 
 def test_index_route_unauthenticated(client):
     """Test the index route redirects to login when not authenticated."""
-    response = client.get("/")
+    response = client.get("/anything")
     assert response.status_code == 302  # Redirect to login
     assert "/login" in response.location
 
@@ -16,10 +16,10 @@ def test_index_route_authenticated(auth_client):
     """Test the index route when authenticated."""
     response = auth_client.get("/")
     assert response.status_code == 200
-    assert b"index" in response.data.lower()
+    assert b"welcome" in response.data.lower()
 
 
-def test_login_route(client):
+def test_login_route(client, test_admin):
     """Test login functionality."""
     # Test GET request
     response = client.get("/login")
@@ -28,10 +28,23 @@ def test_login_route(client):
 
     # Test POST request with valid credentials
     response = client.post(
-        "/login", data={"username": "test_admin", "password": "test_password"}
+        "/login",
+        data={"username": test_admin["username"], "password": test_admin["password"]},
     )
-    assert response.status_code == 302  # Redirect to index
-    assert "/" == response.location
+    assert response.status_code == 302  # Should be a redirect
+    assert response.location == "/"  # Should redirect to index
+
+    response = client.get("/logout")
+    assert response.status_code == 302  # Should be a redirect
+    assert response.location == "/"  # Should redirect to index
+
+    # Test POST request with invalid credentials
+    response = client.post(
+        "/login",
+        data={"username": test_admin["username"], "password": "wr0nG_pa55woRd"},
+    )
+    assert response.status_code == 200  # Should stay on login page
+    assert b"incorrect username or password" in response.data.lower()
 
 
 def test_search_route(auth_client):
@@ -116,12 +129,12 @@ def test_page1_search_results(auth_client):
     assert "phecode_group" in first_result
 
 
-def test_phecode_term_structure(client):
+def test_phecode_term_structure(auth_client):
     """Test the structure and content of a specific phecode term page."""
     phecode = "649.1"
     term = "GO:0035235"
 
-    response = client.get(f"/phecode/{phecode}/term/{term}")
+    response = auth_client.get(f"/phecode/{phecode}/term/{term}")
     assert response.status_code == 200
 
     html = response.data.decode("utf-8")
@@ -151,12 +164,12 @@ def test_phecode_term_structure(client):
     assert f'const term = "{term}";' in html
 
 
-def test_phecode_term_variant_detail(client):
+def test_phecode_term_variant_detail(auth_client):
     """Test the JSON response from the variant detail endpoint."""
     phecode = "649.1"
     term = "GO:0035235"
 
-    response = client.get(f"/phecode/{phecode}/term/{term}/tableVariantDetail")
+    response = auth_client.get(f"/phecode/{phecode}/term/{term}/tableVariantDetail")
     assert response.status_code == 200
 
     data = json.loads(response.data)
@@ -203,11 +216,11 @@ def test_phecode_term_variant_detail(client):
         assert float(first_record["GWAS_P"]) >= 0
 
 
-def test_phecode_page_structure(client):
+def test_phecode_page_structure(auth_client):
     """Test the structure and content of a specific phecode page."""
     phecode = "649.1"
 
-    response = client.get(f"/phecode/{phecode}")
+    response = auth_client.get(f"/phecode/{phecode}")
     assert response.status_code == 200
 
     html = response.data.decode("utf-8")
@@ -230,11 +243,11 @@ def test_phecode_page_structure(client):
     assert 'const runbatch = "Run v1";' in html
 
 
-def test_phecode_page_with_gwas(client):
+def test_phecode_page_with_gwas(auth_client):
     """Test the phecode page with GWAS functionality enabled."""
     phecode = "649.1"
 
-    response = client.get(f"/phecode/{phecode}?gwas=1")
+    response = auth_client.get(f"/phecode/{phecode}?gwas=1")
     assert response.status_code == 200
 
     html = response.data.decode("utf-8")
@@ -289,13 +302,13 @@ def test_phecode_page_with_gwas(client):
 #             assert "OR" in first_assoc
 
 
-def test_phecode_nomaly_stats(client):
+def test_phecode_nomaly_stats(auth_client):
     """Test the Nomaly stats endpoint."""
     phecode = "649.1"
 
     # Test both v1 and v2 endpoints
     for version in ["nomaly-stats", "nomaly-stats2"]:
-        response = client.post(f"/{version}/{phecode}")
+        response = auth_client.post(f"/{version}/{phecode}")
         assert response.status_code == 200
 
         data = json.loads(response.data)
