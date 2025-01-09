@@ -5,8 +5,6 @@ from blueprints.gwas import run_gwas, format_gwas_results
 from blueprints.nomaly import nomaly_stats, nomaly_stats_v2, make_qqplot
 import plotly.io as pio
 
-from auth import requires_permission
-
 logger = logging.getLogger(__name__)
 phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
 

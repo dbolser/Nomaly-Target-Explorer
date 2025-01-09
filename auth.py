@@ -35,7 +35,7 @@ def check_page_permission(user_id, path):
     allowed_paths = allowed_paths.split(",")
 
     # Check basic routes first
-    if path in ["/page1", "/diseasesearch", "//12_51360722_C_T"]:
+    if path in ["/page1", "/diseasesearch"]:
         print("Allowed basic routes")
         return True
     elif (
@@ -48,7 +48,13 @@ def check_page_permission(user_id, path):
         return True
 
     # For phecode routes, extract the phecode number
-    for route in ["/phecode/", "/nomaly-stats/", "/run-task/"]:
+    for route in [
+        "/phecode/",
+        "/nomaly-stats/",
+        "/phecode2/",
+        "/nomaly-stats2/",
+        "/run-task/",
+    ]:
         if path.startswith(route):
             phecode = (
                 path[len(route) :].split("/")[0].split(".")[0]
@@ -57,21 +63,3 @@ def check_page_permission(user_id, path):
                 return True
 
     return False
-
-
-def requires_permission(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if "loggedin" not in session:
-            return redirect(url_for("login"))
-
-        user_id = session.get("id")
-        path = request.path
-
-        if not check_page_permission(user_id, path):
-            # Redirect to user's homepage or show access denied
-            return redirect(url_for("index"))
-
-        return f(*args, **kwargs)
-
-    return decorated_function
