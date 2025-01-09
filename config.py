@@ -27,8 +27,8 @@ class Config:
     MYSQL_DB = os.getenv("MYSQL_DB")
 
     # Tools directories
-    # SOURCE_PLINK_GENOME = "/data/clu/ukbb/genotypes_nomaly"
-    SOURCE_PLINK_GENOME = "/data/clu/ukbb/genotypes_nomaly_eur"
+    SOURCE_PLINK_GENOME = "/data/clu/ukbb/genotypes_nomaly"
+    # SOURCE_PLINK_GENOME = "/data/clu/ukbb/genotypes_nomaly_eur"
     PLINK_BINARY = "/data/clu/ukbb/plink"
 
     # Important mapping file
@@ -55,14 +55,14 @@ class Config:
 
     RESOURCE_DATA_DIR = Path("/data/general/Data/")
 
-    # Caching directories
-    PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
+    # Caching directoriesd
     GWAS_PHENO_DIR = Path("/data/clu/ukbb/by_pheno")
+    PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
     PHECODE_TERM_DIR = Path("/data/clu/ukbb/by_phecode_term")
 
     # Caching directories
-    # PHEWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/eur_phewas")
     # GWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/eur_gwas")
+    # PHEWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/eur_phewas")
     # PHECODE_TERM_DIR = Path("/data/personal/danbolser/ukbb/by_phecode_term")
 
 
