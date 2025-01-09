@@ -66,7 +66,7 @@ def login():
 
         cursor = None
         try:
-            cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+            cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)  # type: ignore
             if cursor is None:
                 raise DatabaseConnectionError("Could not establish database connection")
 
@@ -87,9 +87,10 @@ def login():
             app.logger.error(f"Database error: {str(e)}")
             flash("A database error occurred. Please try again later.")
         finally:
-            if "cursor" in locals():
+            if cursor:
                 cursor.close()
 
+    # GET request or failed POST request
     return render_template("login.html")
 
 
@@ -124,7 +125,7 @@ app.register_blueprint(variant_bp)
 def require_login():
     # Public routes that don't require authentication
     public_routes = ["login", "logout", "static"]
-    public_paths = ["/favicon.ico"]
+    public_paths = ["/", "/favicon.ico"]  # Root path should be public
 
     # Check if accessing public route or path
     if request.endpoint in public_routes or request.path in public_paths:
