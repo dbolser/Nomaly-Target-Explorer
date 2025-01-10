@@ -10,8 +10,8 @@
     {% endif %}
     {% endwith %}
 
-    {% if authenticated %}
-    <h1>Welcome, {{ username }}!</h1>
+    {% if current_user.is_authenticated %}
+    <h1>Welcome, {{ current_user.username }}!</h1>
     <div class="row mt-4">
         <div class="col-md-6">
             <div class="card">

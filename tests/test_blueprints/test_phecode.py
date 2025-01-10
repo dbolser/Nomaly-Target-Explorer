@@ -5,12 +5,6 @@ from blueprints.phecode import get_stats_handler, prepare_nomaly_stats_response
 import pandas as pd
 
 
-@pytest.fixture
-def client_no_auth(client):
-    """Client without authentication."""
-    return client
-
-
 def test_get_stats_handler_v1():
     """Test that get_stats_handler returns v1 stats by default."""
     from blueprints.nomaly import nomaly_stats

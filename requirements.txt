@@ -1,8 +1,9 @@
 # Flask and Extensions
-Flask==3.0.0
-Flask-MySQLdb==2.0.0
-Flask-Session==0.5.0
-Flask-WTF==1.2.1
+Flask
+Flask-MySQLdb
+Flask-Session
+Flask-WTF
+Flask-Login
 
 # Database
 mysql-connector-python==8.2.0
