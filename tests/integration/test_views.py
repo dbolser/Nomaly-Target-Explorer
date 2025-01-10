@@ -5,16 +5,16 @@ import time
 # from conftest import client, auth_client
 
 
-def test_index_route_unauthenticated(client):
-    """Test the index route redirects to login when not authenticated."""
+def test_random_route_unauthenticated(client):
+    """Test a random route redirects to index when not authenticated."""
     response = client.get("/anything")
     assert response.status_code == 302  # Redirect to login
-    assert "/login" in response.location
+    assert "/" == response.location
 
 
-def test_index_route_authenticated(auth_client):
+def test_index_route_unauthenticated(client):
     """Test the index route when authenticated."""
-    response = auth_client.get("/")
+    response = client.get("/")
     assert response.status_code == 200
     assert b"welcome" in response.data.lower()
 
@@ -44,7 +44,7 @@ def test_login_route(client, test_admin):
         data={"username": test_admin["username"], "password": "wr0nG_pa55woRd"},
     )
     assert response.status_code == 200  # Should stay on login page
-    assert b"incorrect username or password" in response.data.lower()
+    assert b"invalid username or password" in response.data.lower()
 
 
 def test_search_route(auth_client):

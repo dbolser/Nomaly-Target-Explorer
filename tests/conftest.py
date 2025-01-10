@@ -1,36 +1,48 @@
 import pytest
 from app import app as flask_app
 from db import get_db_connection
+from flask_login import login_user
+from werkzeug.security import generate_password_hash
 
 
 @pytest.fixture
 def app():
-    """Basic Flask app configured for testing."""
+    """Configure Flask app for testing."""
     flask_app.config["TESTING"] = True
     flask_app.config["WTF_CSRF_ENABLED"] = False  # Disable CSRF for testing
+    flask_app.config["LOGIN_DISABLED"] = False  # Ensure login is required
     return flask_app
 
 
 @pytest.fixture
 def client(app):
-    """Basic test client without authentication."""
+    """Provide a test client."""
     return app.test_client()
 
 
 @pytest.fixture
+def runner(app):
+    """Provide a test runner."""
+    return app.test_cli_runner()
+
+
+@pytest.fixture
 def test_admin():
-    """Create a test admin user.
-    This fixture manages the test user lifecycle (create/cleanup).
-    """
-    # Set up
+    """Create a test admin user with full permissions."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Create test user
-    cursor.execute("""
+    # Hash the password
+    hashed_password = generate_password_hash("test_password")
+
+    # Create test admin user
+    cursor.execute(
+        """
         INSERT INTO users2 (username, password, email, is_active)
-        VALUES ('test_admin', 'test_password', 'test@example.com', TRUE)
-    """)
+        VALUES ('test_admin', %s, 'test_admin@example.com', TRUE)
+    """,
+        (hashed_password,),
+    )
     user_id = cursor.lastrowid
 
     # Grant admin permissions
@@ -38,7 +50,7 @@ def test_admin():
         """
         INSERT INTO user_permissions (user_id, allowed_paths)
         VALUES (%s, '*')
-        """,
+    """,
         (user_id,),
     )
 
@@ -60,11 +72,11 @@ def test_admin():
 
 @pytest.fixture
 def auth_client(client, test_admin):
-    """Client with admin authentication by performing a login."""
-    # Perform login via POST request
+    """Authenticate the client as the test admin user."""
+    # Perform login
     response = client.post(
         "/login",
-        data={"username": test_admin["username"], "password": test_admin["password"]},
+        data={"username": test_admin["username"], "password": "test_password"},
         follow_redirects=True,
     )
     assert response.status_code == 200
@@ -74,17 +86,21 @@ def auth_client(client, test_admin):
 
 @pytest.fixture
 def test_limited_user():
-    """Create a test user with limited permissions.
-    This fixture manages the test user lifecycle (create/cleanup).
-    """
+    """Create a test user with limited permissions."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # Hash the password
+    hashed_password = generate_password_hash("test_password")
+
     # Create test user
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO users2 (username, password, email, is_active)
-        VALUES ('test_limited', 'test_password', 'limited@example.com', TRUE)
-    """)
+        VALUES ('test_limited', %s, 'test_limited@example.com', TRUE)
+    """,
+        (hashed_password,),
+    )
     user_id = cursor.lastrowid
 
     # Grant limited permissions
@@ -92,7 +108,7 @@ def test_limited_user():
         """
         INSERT INTO user_permissions (user_id, allowed_paths)
         VALUES (%s, '250.2,649.1,561')
-        """,
+    """,
         (user_id,),
     )
 
