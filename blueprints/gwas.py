@@ -20,25 +20,25 @@ logger = logging.getLogger(__name__)
 def run_gwas(phecode: str) -> pd.DataFrame:
     """Run GWAS for a phecode if not already done and return results."""
 
-    output_prefix = f"phecode_{phecode}"
-    output_path = GWAS_PHENO_DIR / output_prefix
-    assoc_path = output_path / f"{output_path}.assoc"
-    nomaly_path = output_path / f"{assoc_path}_nomaly.tsv"
+    output_suffix = f"{GWAS_PHENO_DIR}/phecode_{phecode}"
+    assoc_file = GWAS_PHENO_DIR / f"{output_suffix}.assoc"
+    nomaly_file = GWAS_PHENO_DIR / f"{output_suffix}.assoc_nomaly.tsv"
+    fam_file = GWAS_PHENO_DIR / f"{output_suffix}.fam"
 
     # Return cached results if they exist
-    if os.path.exists(nomaly_path):
+    if nomaly_file.exists():
         logger.info(f"Loading cached GWAS results for {phecode}")
-        return pd.read_csv(nomaly_path, sep="\t")
-
-    # Load case information
-    logger.info(f"Running new GWAS for {phecode}")
-    with open(
-        UKBB_PHENO_DIR / "phecode_cases_excludes" / f"phecode_{phecode}.pkl", "rb"
-    ) as f:
-        cases = pickle.load(f)
+        return pd.read_csv(nomaly_file, sep="\t")
 
     # Create FAM file if needed
-    if not os.path.exists(f"{output_path}.fam"):
+    if not fam_file.exists():
+        # Load case information
+        logger.info(f"Running new GWAS for {phecode}")
+        with open(
+            UKBB_PHENO_DIR / "phecode_cases_excludes" / f"phecode_{phecode}.pkl", "rb"
+        ) as f:
+            cases = pickle.load(f)
+
         fam = pd.read_csv(f"{SOURCE_PLINK_GENOME}.fam", header=None, sep=r"\s+")
         fam.columns = ["FID", "IID", "Father", "Mother", "sex", "phenotype"]
 
@@ -56,15 +56,43 @@ def run_gwas(phecode: str) -> pd.DataFrame:
         if cases["exclude"]:
             fam.loc[fam["IID"].isin(cases["exclude"]), "phenotype"] = -9
 
-        fam.to_csv(f"{output_path}.fam", sep=" ", header=False, index=False)
+        fam.to_csv(fam_file, sep=" ", header=False, index=False)
 
     # Run PLINK if needed
-    if not os.path.exists(assoc_path):
-        cmd = f"{PLINK_BINARY} --allow-no-sex --bed {SOURCE_PLINK_GENOME}.bed --bim {SOURCE_PLINK_GENOME}.bim --fam {output_path}.fam --assoc --out {output_path} --silent"
-        subprocess.run(cmd, shell=True, check=True)
+    cmd = f"{PLINK_BINARY} --allow-no-sex --bed {SOURCE_PLINK_GENOME}.bed --bim {SOURCE_PLINK_GENOME}.bim --fam {fam_file} --assoc --out {output_suffix}"
+
+    try:
+        process = subprocess.Popen(
+            cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
+        )
+
+        # Print output in real-time
+        if process.stdout:
+            while True:
+                output = process.stdout.readline()
+                if output == "" and process.poll() is not None:
+                    break
+                if output:
+                    logger.info(output.strip())
+
+        # Check for any errors
+        if process.returncode != 0 and process.stderr:
+            stderr_output = process.stderr.read()
+            logger.error(f"PLINK process failed: {stderr_output}")
+            raise subprocess.CalledProcessError(process.returncode, cmd)
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"PLINK command failed with error: {str(e)}")
+        raise
 
     # Process results
-    assoc = pd.read_csv(assoc_path, sep=r"\s+", dtype={"CHR": str})
+    assoc = pd.read_csv(f"{output_suffix}.assoc", sep=r"\s+", dtype={"CHR": str})
     assoc["CHR"] = assoc["CHR"].replace({"23": "X", "24": "Y", "25": "XY", "26": "MT"})
     assoc["CHR_BP_A1_A2"] = assoc.apply(
         lambda x: f"{x.CHR}:{x.BP}_{x.A1}/{x.A2}", axis=1
@@ -90,7 +118,7 @@ def run_gwas(phecode: str) -> pd.DataFrame:
         "P",
     ]
     assoc = assoc[result_cols].sort_values("P")
-    assoc.to_csv(nomaly_path, sep="\t", index=False)
+    assoc.to_csv(nomaly_file, sep="\t", index=False)
 
     return assoc
 
@@ -98,44 +126,27 @@ def run_gwas(phecode: str) -> pd.DataFrame:
 def format_gwas_results(
     assoc_df: pd.DataFrame, significance_threshold: float = 0.05
 ) -> list:
-    """Format GWAS results for JSON response.
-
-    This function handles all formatting of GWAS data including:
-    - Converting numeric columns to proper types
-    - Handling missing values
-    - Formatting RSID links
-    - Renaming columns for display
-    """
+    """Format GWAS results for JSON response."""
     if assoc_df.empty:
         return []
 
-    # Make a copy to avoid modifying the original
-    formatted_df = assoc_df.copy()
+    # Filter significant results first
+    sig_results = assoc_df[assoc_df["P"] < significance_threshold].copy()
 
-    # Ensure numeric columns are float type
-    numeric_cols = ["P", "OR", "F_A", "F_U"]
-    for col in numeric_cols:
-        formatted_df[col] = pd.to_numeric(formatted_df[col], errors="coerce")
-
-    # Format for display
-    formatted_df = formatted_df.rename(
-        columns={
-            "CHR_BP_A1_A2": "Variant",
-            "gene_id": "Gene",
-        }
+    # Basic column renaming
+    sig_results = sig_results.rename(
+        columns={"CHR_BP_A1_A2": "Variant", "gene_id": "Gene"}
     )
 
-    # Handle RSID links
-    formatted_df["RSID"] = formatted_df["RSID"].apply(
+    # Format RSID as HTML link
+    sig_results["RSID"] = sig_results["RSID"].apply(
         lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/{x}">{x}</a>'
         if pd.notna(x)
         else None
     )
 
-    # Convert numeric columns to float and replace NaN with None
-    for col in numeric_cols:
-        formatted_df[col] = formatted_df[col].astype(float).replace({np.nan: None})
+    # Replace NaN with None
+    sig_results = sig_results.replace({np.nan: None})
 
-    sig_results = formatted_df[formatted_df["P"] < significance_threshold].copy()
-
-    return sig_results.to_dict(orient="records")
+    # Convert to records, explicitly replacing NaN with None
+    return sig_results.where(pd.notna(sig_results), None).to_dict(orient="records")
