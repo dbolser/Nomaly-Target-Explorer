@@ -1,6 +1,5 @@
 from flask import Blueprint, render_template, jsonify, request
 import threading
-import pandas as pd
 import traceback
 import re
 

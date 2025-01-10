@@ -1,5 +1,4 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from flask_login import login_required
 from db import get_db_connection
 from auth import admin_required
 
