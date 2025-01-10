@@ -1,62 +1,71 @@
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask_login import login_required
 from db import get_db_connection
-import MySQLdb
+from auth import admin_required
 
 admin_bp = Blueprint("admin", __name__)
 
 
-@admin_bp.route("/admin/users", methods=["GET"])
+@admin_bp.route("/admin/users")
+@admin_required
 def manage_users():
     conn = get_db_connection()
-    cursor = conn.cursor(MySQLdb.cursors.DictCursor)  # type: ignore
+    cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("SELECT * FROM users")
+    # Get all users
+    cursor.execute("""
+        SELECT u.id, u.username, u.email, u.is_active, up.allowed_paths
+        FROM users2 u
+        LEFT JOIN user_permissions up ON u.id = up.user_id
+    """)
     users = cursor.fetchall()
 
-    cursor.execute("SELECT * FROM pages")
-    pages = cursor.fetchall()
+    # Get all available phecodes (you might want to store these in a separate table)
+    cursor.execute("""
+        SELECT DISTINCT phecode, description 
+        FROM phecode_definition
+        ORDER BY phecode
+    """)
+    available_phecodes = cursor.fetchall()
 
     cursor.close()
     conn.close()
 
-    return render_template("admin/users.html", users=users, pages=pages)
+    return render_template(
+        "admin/users.html", users=users, available_phecodes=available_phecodes
+    )
 
 
 @admin_bp.route("/admin/permissions", methods=["POST"])
+@admin_required
 def update_permissions():
     user_id = request.form.get("user_id")
-    page_ids = request.form.getlist("pages")
-    wildcards = request.form.get("wildcards", "").split("\n")
+    phecodes = request.form.getlist("phecodes")
+
+    # Join phecodes with commas for storage
+    allowed_paths = ",".join(phecodes)
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Clear existing permissions
-    cursor.execute("DELETE FROM user_permissions WHERE user_id = %s", (user_id,))
-
-    # Add new page permissions
-    for page_id in page_ids:
+    try:
+        # Update or insert permissions
         cursor.execute(
             """
-            INSERT INTO user_permissions (user_id, page_id)
+            INSERT INTO user_permissions (user_id, allowed_paths)
             VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE allowed_paths = VALUES(allowed_paths)
         """,
-            (user_id, page_id),
+            (user_id, allowed_paths),
         )
 
-    # Add wildcard permissions
-    for wildcard in wildcards:
-        if wildcard.strip():
-            cursor.execute(
-                """
-                INSERT INTO user_permissions (user_id, wildcard_path)
-                VALUES (%s, %s)
-            """,
-                (user_id, wildcard.strip()),
-            )
-
-    conn.commit()
-    cursor.close()
-    conn.close()
+        conn.commit()
+        flash("Permissions updated successfully!", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Error updating permissions: {str(e)}", "error")
+    finally:
+        cursor.close()
+        conn.close()
 
     return redirect(url_for("admin.manage_users"))

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>User Management</h2>
+
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Allowed Phecodes</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        {% if user.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-danger">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.allowed_paths %}
+                        {{ user.allowed_paths }}
+                        {% else %}
+                        <em>No permissions set</em>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
+                            data-bs-target="#permissionsModal{{ user.id }}">
+                            Edit Permissions
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- Permissions Modal -->
+                <div class="modal fade" id="permissionsModal{{ user.id }}" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Edit Permissions for {{ user.username }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form action="{{ url_for('admin.update_permissions') }}" method="POST">
+                                <div class="modal-body">
+                                    <input type="hidden" name="user_id" value="{{ user.id }}">
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Select Allowed Phecodes:</label>
+                                        <div class="phecode-selection" style="max-height: 300px; overflow-y: auto;">
+                                            {% for phecode in available_phecodes %}
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="phecodes"
+                                                    value="{{ phecode.phecode }}"
+                                                    id="phecode{{ user.id }}_{{ phecode.phecode }}" {% if
+                                                    phecode.phecode in (user.allowed_paths or '' ).split(',')
+                                                    %}checked{% endif %}>
+                                                <label class="form-check-label"
+                                                    for="phecode{{ user.id }}_{{ phecode.phecode }}">
+                                                    {{ phecode.phecode }} - {{ phecode.description }}
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary"
+                                        data-bs-dismiss="modal">Close</button>
+                                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
