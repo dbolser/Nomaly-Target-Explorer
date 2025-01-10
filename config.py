@@ -56,14 +56,14 @@ class Config:
     RESOURCE_DATA_DIR = Path("/data/general/Data/")
 
     # Caching directories
-    # PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
-    # GWAS_PHENO_DIR = Path("/data/clu/ukbb/by_pheno")
-    # PHECODE_TERM_DIR = Path("/data/clu/ukbb/by_phecode_term")
+    PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
+    GWAS_PHENO_DIR = Path("/data/clu/ukbb/by_pheno")
+    PHECODE_TERM_DIR = Path("/data/clu/ukbb/by_phecode_term")
 
     # Caching directories
-    PHEWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/eur_phewas")
-    GWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/eur_gwas")
-    PHECODE_TERM_DIR = Path("/data/personal/danbolser/ukbb/by_phecode_term")
+    # PHEWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/eur_phewas")
+    # GWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/eur_gwas")
+    # PHECODE_TERM_DIR = Path("/data/personal/danbolser/ukbb/by_phecode_term")
 
 
 class DevelopmentConfig(Config):
