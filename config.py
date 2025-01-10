@@ -17,7 +17,7 @@ class Config:
 
     # Session settings
     SESSION_TYPE = "filesystem"
-    SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
+    SECRET_KEY = os.environ.get("SECRET_KEY", "your-default-secret-key")
 
     # Database settings
     MYSQL_HOST = os.getenv("MYSQL_HOST")
@@ -72,20 +72,20 @@ class DevelopmentConfig(Config):
     DEBUG = True
 
 
-class ProductionConfig(Config):
-    """Production configuration"""
-
-    pass
-
-
 class TestingConfig(Config):
     """Testing configuration"""
 
     TESTING = True
-    DEBUG = True
+    WTF_CSRF_ENABLED = False  # Disable CSRF for testing
 
 
-# Map environment names to config objects
+class ProductionConfig(Config):
+    """Production configuration"""
+
+    TESTING = False
+    WTF_CSRF_ENABLED = True  # Enable CSRF protection in non-testing environments
+
+
 config = {
     "development": DevelopmentConfig,
     "production": ProductionConfig,
