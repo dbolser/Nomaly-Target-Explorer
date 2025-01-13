@@ -27,16 +27,8 @@
                         <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="/">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'page1' %}active{% endif %}" href="/page1">Page
-                            1</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'page2' %}active{% endif %}" href="/page2">Page
-                            2</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'page3' %}active{% endif %}" href="/page3">Page
-                            3</a>
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('search.') %}active{% endif %}"
+                            href="{{ url_for('search.show') }}">Search</a>
                     </li>
                     <!-- New dropdown for PheCode related pages -->
                     <li class="nav-item">
