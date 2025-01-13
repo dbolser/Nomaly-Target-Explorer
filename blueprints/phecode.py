@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, url_for
 import logging
 from db import get_phecode_info, get_term_domains, get_term_names, get_term_genes
 from blueprints.gwas import run_gwas, format_gwas_results
@@ -212,7 +212,7 @@ def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
     plot_df = show_datatable_nomaly_stats(plot_df, phecode)
 
     plot_df["term"] = plot_df["term"].map(
-        lambda x: f'<a href="/phecode/{phecode}/term/{x}">{x}</a>'
+        lambda x: f'<a href="{url_for("phecode_term.show_phecode_term", phecode=phecode, term=x)}" target="_blank">{x}</a>'
     )
 
     pval_nondirect = ["mwu_pvalue", "mcc_pvalue", "yjs_pvalue", "lrp_pvalue"]
