@@ -77,9 +77,9 @@ def test_phecode_route(auth_client):
     assert bytes(test_phecode, "utf-8") in response.data
 
 
-def test_page1_structure(auth_client):
+def test_disease_sets1_structure(auth_client):
     """Test the structure and content of the page1 route."""
-    response = auth_client.get("/page1")
+    response = auth_client.get("/disease-sets/set1")
     assert response.status_code == 200
 
     # Convert response data to string for easier testing
@@ -90,10 +90,37 @@ def test_page1_structure(auth_client):
 
     # Test category headings (H2s)
     assert '<h2 class="mt-5 mb-4 ps-2">Skin Conditions</h2>' in html
-    assert '<h2 class="mt-5 mb-4 ps-2">Women&#39;s Health</h2>' in html
 
     # Test result sections (H3s)
     assert 'Results for "Hidradenitis"' in html
+
+    # Test description text under each search
+    assert "Any Phecode or ICD10 descriptions that contains the word" in html
+
+    # Test dynamic content loading
+    assert "results-list-1" in html  # First results list
+    assert "results-list-2" in html  # Second results list
+
+    # Test JavaScript initialization
+    assert "searchData(" in html
+    assert "async function searchData(query, listIndex)" in html
+
+
+def test_disease_sets2_structure(auth_client):
+    """Test the structure and content of the page1 route."""
+    response = auth_client.get("/disease-sets/set2")
+    assert response.status_code == 200
+
+    # Convert response data to string for easier testing
+    html = response.data.decode("utf-8")
+
+    # Test main heading
+    assert '<h1 class="text-center">Selected diseases</h1>' in html
+
+    # Test category headings (H2s)
+    assert '<h2 class="mt-5 mb-4 ps-2">Women&#39;s Health</h2>' in html
+
+    # Test result sections (H3s)
     assert 'Results for "Polycystic Ovarian"' in html
 
     # Test description text under each search

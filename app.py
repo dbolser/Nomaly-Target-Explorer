@@ -27,10 +27,10 @@ from db import get_db_connection
 from werkzeug.security import check_password_hash
 
 # Import blueprints after creating the app
-from blueprints.main import main_bp
+from blueprints.search import search_bp
 from blueprints.phecode import phecode_bp
 from blueprints.phecode_term import phecode_term_bp
-from blueprints.page1 import disease_select
+from blueprints.disease_sets import disease_sets_bp
 from blueprints.variant import variant_bp
 from blueprints.admin import admin_bp
 
@@ -57,8 +57,8 @@ mysql = MySQL(app)
 
 # Register Blueprints
 app.register_blueprint(phecode_bp)
-app.register_blueprint(main_bp)
-app.register_blueprint(disease_select)
+app.register_blueprint(search_bp)
+app.register_blueprint(disease_sets_bp)
 app.register_blueprint(variant_bp)
 app.register_blueprint(phecode_term_bp)
 app.register_blueprint(admin_bp)

@@ -1,18 +1,18 @@
-from flask import request, jsonify, Blueprint
+from flask import request, jsonify, Blueprint, render_template
 from db import get_db_connection
 import pandas as pd
 
-main_bp = Blueprint("main", __name__)
-
-# # Route to serve the HTML page
-# @main_bp.route('/', methods=['GET', 'POST'])
-# def index():
-#     return render_template('index.html')
+search_bp = Blueprint("search", __name__)
 
 
-# API route for search functionality in index.html
-@main_bp.route("/diseasesearch")
-def search():
+@search_bp.route("/search")
+def show():
+    """Disease search page."""
+    return render_template("search.html")
+
+
+@search_bp.route("/diseasesearch")
+def search_disease():
     query = request.args.get("query", "").lower()
 
     results = []
