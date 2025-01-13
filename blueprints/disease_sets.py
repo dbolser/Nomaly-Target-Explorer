@@ -1,27 +1,22 @@
-from flask import render_template, Blueprint
+from flask import render_template, Blueprint, abort
 
-disease_select = Blueprint("disease", __name__, template_folder="../templates")
+disease_sets_bp = Blueprint("disease_sets", __name__, template_folder="../templates")
 
-
-@disease_select.route("/page1")
-def render_page1():
-    search_categories = {
+CATEGORY_SETS = {
+    "set1": {
         "Skin Conditions": [
             "Hidradenitis",
             "Rosacea",
             "Ehlers",
         ],
+    },
+    "set2": {
         "Women's Health": [
             "Polycystic Ovarian",
             "Endometriosis",
         ],
-    }
-    return render_template("page1.html", search_categories=search_categories)
-
-
-@disease_select.route("/page-diabetes")
-def render_diabetes():
-    search_categories = {
+    },
+    "set3": {
         "Diabetes Primary Conditions": [
             "Diabetes",
             "Type 1 diabetes",
@@ -32,13 +27,8 @@ def render_diabetes():
             "Nephropathy",
             "Neuropathy",
         ],
-    }
-    return render_template("page1.html", search_categories=search_categories)
-
-
-@disease_select.route("/page-dementia")
-def render_dementia():
-    search_categories = {
+    },
+    "set4": {
         "Dementia Cognitive Disorders": [
             "Dementia",
             "Alzheimer",
@@ -48,5 +38,12 @@ def render_dementia():
             "Depression",
             "Anxiety",
         ],
-    }
-    return render_template("page1.html", search_categories=search_categories)
+    },
+}
+
+
+@disease_sets_bp.route("/disease-sets/<set_id>")
+def show_set(set_id):
+    if set_id not in CATEGORY_SETS:
+        abort(404)
+    return render_template("disease_sets.html", search_categories=CATEGORY_SETS[set_id])
