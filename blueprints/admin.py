@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from db import get_db_connection
 from auth import admin_required
+from werkzeug.security import generate_password_hash
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -63,6 +64,51 @@ def update_permissions():
     except Exception as e:
         conn.rollback()
         flash(f"Error updating permissions: {str(e)}", "error")
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(url_for("admin.manage_users"))
+
+
+@admin_bp.route("/admin/users/add", methods=["POST"])
+@admin_required
+def add_user():
+    username = request.form.get("username")
+    email = request.form.get("email")
+    password = request.form.get("password")
+
+    if not all([username, email, password]):
+        flash("All fields are required", "error")
+        return redirect(url_for("admin.manage_users"))
+
+    assert password is not None
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Check if username already exists
+        cursor.execute("SELECT id FROM users2 WHERE username = %s", (username,))
+        if cursor.fetchone():
+            flash("Username already exists", "error")
+            return redirect(url_for("admin.manage_users"))
+
+        # Insert new user
+        cursor.execute(
+            """
+            INSERT INTO users2 (username, email, password, is_active)
+            VALUES (%s, %s, %s, TRUE)
+            """,
+            (username, email, generate_password_hash(password)),
+        )
+        conn.commit()
+        flash(f"User {username} created successfully!", "success")
+
+    except Exception as e:
+        conn.rollback()
+        flash(f"Error creating user: {str(e)}", "error")
+
     finally:
         cursor.close()
         conn.close()
