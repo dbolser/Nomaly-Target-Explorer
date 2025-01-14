@@ -1,5 +1,6 @@
 from werkzeug.security import generate_password_hash
 from db import get_db_connection
+from getpass import getpass
 
 
 def update_password(username, new_password):
@@ -27,5 +28,5 @@ def update_password(username, new_password):
 
 if __name__ == "__main__":
     username = input("Enter username: ")
-    new_password = input("Enter new password: ")
+    new_password = getpass("Enter new password: ")
     update_password(username, new_password)
