@@ -227,7 +227,7 @@ def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
         "qqplot": graph_html,
         "affected": diseasestats["num_rp"].values[0],
         "control": diseasestats["num_rn"].values[0],
-        "data": plot_df.replace("nan", 1).to_dict(orient="records"),
+        "data": plot_df.replace("nan", "1.00e+00").to_dict(orient="records"),
         "columns": base_columns + columns_pval,
         "columnNames": [
             column_display_names[col]["display"] for col in base_columns + columns_pval
