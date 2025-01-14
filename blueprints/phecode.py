@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, url_for
 import logging
 from db import get_phecode_info, get_term_domains, get_term_names, get_term_genes
 from blueprints.gwas import run_gwas, format_gwas_results
@@ -58,7 +58,7 @@ def read_disease_stats_from_nomaly_statsHDF5(stats_handler, phecode):
             f"Failed to get Nomaly stats for Phecode {phecode}, exception was {e}",
             exc_info=True,
         )
-        return None, None
+        raise
 
     # rename columns
     for col in diseasestats.columns:
@@ -212,7 +212,7 @@ def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
     plot_df = show_datatable_nomaly_stats(plot_df, phecode)
 
     plot_df["term"] = plot_df["term"].map(
-        lambda x: f'<a href="/phecode/{phecode}/term/{x}">{x}</a>'
+        lambda x: f'<a href="{url_for("phecode_term.show_phecode_term", phecode=phecode, term=x)}" target="_blank">{x}</a>'
     )
 
     pval_nondirect = ["mwu_pvalue", "mcc_pvalue", "yjs_pvalue", "lrp_pvalue"]
@@ -227,7 +227,7 @@ def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
         "qqplot": graph_html,
         "affected": diseasestats["num_rp"].values[0],
         "control": diseasestats["num_rn"].values[0],
-        "data": plot_df.to_dict(orient="records"),
+        "data": plot_df.replace("nan", "1.00e+00").to_dict(orient="records"),
         "columns": base_columns + columns_pval,
         "columnNames": [
             column_display_names[col]["display"] for col in base_columns + columns_pval
@@ -245,18 +245,26 @@ def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
 @phecode_bp.route("/nomaly-stats/<string:phecode>", methods=["POST"])
 def get_nomaly_stats(phecode):
     """Get nomaly stats for v1."""
-    stats_handler = get_stats_handler(version=1)
-    diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
-        stats_handler, phecode
-    )
-    return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1)
+    try:
+        stats_handler = get_stats_handler(version=1)
+        diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
+            stats_handler, phecode
+        )
+        return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1)
+    except Exception as e:
+        logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
+        return jsonify({"error": "Failed to get Nomaly stats"}), 500
 
 
 @phecode_bp.route("/nomaly-stats2/<string:phecode>", methods=["POST"])
 def get_nomaly_stats2(phecode):
     """Get nomaly stats for v2."""
-    stats_handler = get_stats_handler(version=2)
-    diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
-        stats_handler, phecode
-    )
-    return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=2)
+    try:
+        stats_handler = get_stats_handler(version=2)
+        diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
+            stats_handler, phecode
+        )
+        return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=2)
+    except Exception as e:
+        logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
+        return jsonify({"error": "Failed to get Nomaly stats"}), 500

@@ -1,30 +1,28 @@
-from flask import render_template, request, jsonify, Blueprint
-from flask import session, redirect, url_for
+from flask import request, jsonify, Blueprint, render_template
 from db import get_db_connection
 import pandas as pd
 
-main_bp = Blueprint('main', __name__)
-
-# # Route to serve the HTML page
-# @main_bp.route('/', methods=['GET', 'POST'])
-# def index():
-#     return render_template('index.html')
+search_bp = Blueprint("search", __name__)
 
 
-# API route for search functionality in index.html
-@main_bp.route('/diseasesearch')
-def search():
-    query = request.args.get('query', '').lower()
+@search_bp.route("/search")
+def show():
+    """Disease search page."""
+    return render_template("search.html")
+
+
+@search_bp.route("/diseasesearch")
+def search_disease():
+    query = request.args.get("query", "").lower()
 
     results = []
-    
+
     # Filter based on the query
     if query:
-
         # if query length is less than 3, return empty results
         if len(query) < 3:
             return results
-        
+
         conn = get_db_connection()
         cur = conn.cursor()
 
@@ -48,7 +46,7 @@ def search():
             return []
 
         # Step 2: Retrieve detailed information for the matching Phecodes
-        placeholders = ', '.join(['%s'] * len(phecodes))
+        placeholders = ", ".join(["%s"] * len(phecodes))
         details_query = f"""
         SELECT p.phecode, p.description, p.sex, p.phecode_group, p.phecode_exclude,
                 p.affected, p.excluded, icd10.icd10, icd10.meaning, icd10.icd10_count
@@ -70,15 +68,32 @@ def search():
         filtered_df = pd.DataFrame(results, columns=columns)
 
         # Add icd10_count to meaning
-        filtered_df['meaning'] = filtered_df['meaning'] + ' | ' + filtered_df['icd10_count'].astype(str)
+        filtered_df["meaning"] = (
+            filtered_df["meaning"] + " | " + filtered_df["icd10_count"].astype(str)
+        )
 
         # Group by 'description' and aggregate meanings into a list
-        grouped = filtered_df.groupby(['description', 'phecode', 'sex', 'affected', 'excluded', 'phecode_exclude', 'phecode_group'
-        ]).agg({
-            'meaning': lambda x: list(x)  # Group meanings into a list
-        }).reset_index()
+        grouped = (
+            filtered_df.groupby(
+                [
+                    "description",
+                    "phecode",
+                    "sex",
+                    "affected",
+                    "excluded",
+                    "phecode_exclude",
+                    "phecode_group",
+                ]
+            )
+            .agg(
+                {
+                    "meaning": lambda x: list(x)  # Group meanings into a list
+                }
+            )
+            .reset_index()
+        )
 
         # Convert results to a list of dictionaries
-        results = grouped.to_dict(orient='records')
+        results = grouped.to_dict(orient="records")
 
     return jsonify(results)

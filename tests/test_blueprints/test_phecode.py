@@ -1,9 +1,8 @@
 import pytest
-from flask import url_for, json, current_app
+from flask import json
 from unittest.mock import patch, Mock
 from blueprints.phecode import get_stats_handler, prepare_nomaly_stats_response
 import pandas as pd
-import numpy as np
 
 
 def test_get_stats_handler_v1():
@@ -56,7 +55,7 @@ def mock_stats_data():
 
 @pytest.mark.parametrize("version,expected_url", [(1, "/phecode"), (2, "/phecode2")])
 def test_nomaly_stats_response_urls(
-    version, expected_url, mock_stats_data, client, mocker
+    version, expected_url, mock_stats_data, auth_client, mocker
 ):
     """Test that the response contains correct URLs based on version."""
     diseasestats, plot_df = mock_stats_data
@@ -72,7 +71,7 @@ def test_nomaly_stats_response_urls(
         "blueprints.phecode.get_term_domains", return_value={"CC:TERM:123": ["Domain1"]}
     )
 
-    with client.application.app_context():
+    with auth_client.application.app_context():
         # Get the response
         result = prepare_nomaly_stats_response(
             diseasestats, plot_df, "250.2", version=version
@@ -92,9 +91,9 @@ def test_nomaly_stats_response_urls(
 
 
 @pytest.mark.parametrize("version", [1, 2])
-def test_nomaly_stats_endpoint(version, client, mocker):
+def test_nomaly_stats_endpoint(version, auth_client, mocker):
     """Test the nomaly-stats endpoints (both v1 and v2)."""
-    # Create mock data with term as index
+
     mock_diseasestats = pd.DataFrame(
         {
             "num_rp": [100.0],
@@ -146,7 +145,7 @@ def test_nomaly_stats_endpoint(version, client, mocker):
 
     # Make request to the appropriate endpoint
     endpoint = "/nomaly-stats2/250.2" if version == 2 else "/nomaly-stats/250.2"
-    response = client.post(endpoint)
+    response = auth_client.post(endpoint)
 
     # Check response
     assert response.status_code == 200
@@ -167,7 +166,7 @@ def test_nomaly_stats_endpoint(version, client, mocker):
         assert f"{expected_url}/250.2/term/" in data["data"][0]["term"]
 
 
-def test_nomaly_stats_error_handling(client, mocker):
+def test_nomaly_stats_error_handling(auth_client, mocker):
     """Test error handling in nomaly-stats endpoints."""
     # Mock the stats handler to raise an exception
     mock_handler = Mock()
@@ -176,7 +175,7 @@ def test_nomaly_stats_error_handling(client, mocker):
 
     # Test both endpoints
     for endpoint in ["/nomaly-stats/250.2", "/nomaly-stats2/250.2"]:
-        response = client.post(endpoint)
+        response = auth_client.post(endpoint)
 
         # Check response
         assert response.status_code == 500
@@ -185,12 +184,12 @@ def test_nomaly_stats_error_handling(client, mocker):
         assert "Failed to get Nomaly stats" in data["error"]
 
 
-def test_phecode_term_route_works(client):
+def test_phecode_term_route_works(auth_client):
     """Test that the phecode term route works for a known good example."""
-    phecode = "705.3"
+    phecode = "705"
     term = "CC:MESH:C020806"
 
-    response = client.get(f"/phecode/{phecode}/term/{term}")
+    response = auth_client.get(f"/phecode/{phecode}/term/{term}")
 
     # This page should work - if it returns 500, the test will fail
     assert response.status_code == 200

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>User Management</h2>
+
+    <!-- Add User Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>Add New User</h4>
+        </div>
+        <div class="card-body">
+            <form action="{{ url_for('admin.add_user') }}" method="POST">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Add User</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Existing Users Table -->
+    <div class="card">
+        <div class="card-header">
+            <h4>Existing Users</h4>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Permissions</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ "Active" if user.is_active else "Inactive" }}</td>
+                        <td>
+                            <form action="{{ url_for('admin.update_permissions') }}" method="POST">
+                                <input type="hidden" name="user_id" value="{{ user.id }}">
+                                <select name="phecodes" class="form-select" multiple>
+                                    {% for phecode in available_phecodes %}
+                                    <option value="{{ phecode.phecode }}" {% if user.allowed_paths and phecode.phecode
+                                        in user.allowed_paths.split(',') %}selected{% endif %}>
+                                        {{ phecode.phecode }} - {{ phecode.description }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-primary mt-2">Update Permissions</button>
+                            </form>
+                        </td>
+                        <td>
+                            <!-- Add actions like edit/delete here if needed -->
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

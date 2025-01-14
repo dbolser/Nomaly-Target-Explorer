@@ -169,7 +169,32 @@
 
             // Initialize the DataTable using the common function
             initializeDataTable('phewasTable', data, columns, {
-                order: [[4, 'asc']]  // Order by P (Significance) column
+                order: [[4, 'asc']],  // Order by P (Significance) column
+                buttons: [
+                    {
+                        extend: 'colvis',
+                        text: 'Select Columns',
+                        columns: ':not(:first-child)'
+                    },
+                    {
+                        extend: 'copy',
+                        text: 'Copy'
+                    },
+                    {
+                        extend: 'csv',
+                        text: 'TSV',
+                        fieldSeparator: '\t',
+                        extension: '.tsv',
+                        filename: function () {
+                            const variant = "{{ data.variant_id }}".replace(':', '_').replace('/', '_');
+                            return `variant_phewas_${variant}`;
+                        }
+                    },
+                    {
+                        extend: 'excel',
+                        text: 'Excel'
+                    }
+                ]
             });
         }
     });

@@ -189,7 +189,7 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
                 alleles[-1], alleles[-2] = alleles[-2], alleles[-1]
                 genotype_variant_id = ":".join(alleles)
                 if genotype_variant_id not in genotype_counts.index:
-                    print(f"Variant {variant_id} not found in genotype counts")
+                    logger.warning(f"Variant {variant_id} not found in genotype counts")
                     continue
 
             try:
@@ -250,8 +250,7 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
                             }
                         )
 
-                logger.info(f"Final record GWAS fields: {record}")
-                print(f"Final record GWAS fields: {record}", flush=True)
+                logger.debug(f"Final record GWAS fields: {record}")
                 data_records.append(record)
             except (ValueError, TypeError) as e:
                 logger.error(f"Error processing variant {variant_id}: {e}")
@@ -259,7 +258,7 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
 
         # Cache and return results
         save_results(phecode, term, data_records)
-        print(f"\nFinal number of records: {len(data_records)}")
+        logger.info(f"\nFinal number of records: {len(data_records)}")
 
         result = {
             "data": data_records,
@@ -272,8 +271,8 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
 
     except Exception as e:
         error_msg = f"Error processing phecode {phecode}, term {term}: {str(e)}"
-        print(error_msg)
-        print(traceback.format_exc())
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
         return jsonify({"error": error_msg}), 500
 
 

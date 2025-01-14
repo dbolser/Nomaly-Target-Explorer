@@ -108,15 +108,18 @@
     function renderDataTable(resultData, columns, defaultColumns, numColumns) {
         console.log('Available columns:', columns); // Debug log
 
-        if ($.fn.DataTable.isDataTable('#resultsTable')) {
-            $('#resultsTable').DataTable().destroy();
-        }
+        // Create column definitions that match DataTables format
+        const columnDefs = columns.map((col, index) => ({
+            title: `<span title="${resultData.columnTooltips[index]}">${resultData.columnNames[index]}</span>`,
+            data: col,
+            name: col,
+            visible: defaultColumns.includes(col),
+            className: col.includes('pvalue') ? 'dt-right' : ''
+        }));
 
         // Find column indices for sorting
-        const minRankIndex = columns.findIndex(col => col === 'minrank'); // Changed from 'minrank'
+        const minRankIndex = columns.findIndex(col => col === 'minrank');
         const mwuPIndex = columns.findIndex(col => col === 'mwu_pvalue');
-
-        console.log('Found indices:', { minRankIndex, mwuPIndex }); // Debug log
 
         // Custom sorting function for P-values
         $.fn.dataTable.ext.type.order['p-value-pre'] = function (data) {
@@ -126,15 +129,10 @@
             return parseFloat(data);
         };
 
+        // Initialize DataTable with the correct options
         $('#resultsTable').DataTable({
             data: resultData.data,
-            columns: columns.map((col, index) => ({
-                title: `<span title="${resultData.columnTooltips[index]}">${resultData.columnNames[index]}</span>`,
-                data: col,
-                visible: defaultColumns.includes(col),
-                className: col.includes('pvalue') ? 'dt-right' : '',
-                type: col === 'MWU P-value' ? 'p-value' : null
-            })),
+            columns: columnDefs,
             order: [
                 [minRankIndex, 'asc'],
                 [mwuPIndex, 'asc']
@@ -142,12 +140,29 @@
             responsive: true,
             autoWidth: true,
             pageLength: 25,
-            dom: 'lBfrtip',
+            dom: 'Bfrtip',
             buttons: [
                 {
                     extend: 'colvis',
                     text: 'Select Columns',
                     columns: ':not(:first-child)'
+                },
+                {
+                    extend: 'copy',
+                    text: 'Copy'
+                },
+                {
+                    extend: 'csv',
+                    text: 'TSV',
+                    fieldSeparator: '\t',
+                    extension: '.tsv',
+                    filename: function () {
+                        return `phecode_stats_${phecode}`;
+                    }
+                },
+                {
+                    extend: 'excel',
+                    text: 'Excel'
                 }
             ]
         });
@@ -305,8 +320,31 @@
                 ],
                 order: [[6, 'asc']],
                 pageLength: 25,
-                dom: 'lBfrtip',
-                buttons: ['copy', 'csv', 'excel']
+                dom: 'Bfrtip',
+                buttons: [
+                    {
+                        extend: 'colvis',
+                        text: 'Select Columns',
+                        columns: ':not(:first-child)'
+                    },
+                    {
+                        extend: 'copy',
+                        text: 'Copy'
+                    },
+                    {
+                        extend: 'csv',
+                        text: 'TSV',
+                        fieldSeparator: '\t',
+                        extension: '.tsv',
+                        filename: function () {
+                            return `phecode_gwas_${phecode}`;
+                        }
+                    },
+                    {
+                        extend: 'excel',
+                        text: 'Excel'
+                    }
+                ]
             });
             console.log('Table initialized successfully');  // Debug log
         } catch (error) {

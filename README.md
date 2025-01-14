@@ -64,6 +64,53 @@ flask run
 
 ## Notes on the input data
 
+# Nomaly Disease Browser (UKBB edition)
+
+
+## Installation
+
+```
+git clone https://github.com/danbolser/nomaly-disease-browser.git
+cd nomaly-disease-browser
+pip install -r requirements.txt
+```
+
+
+## Configuration
+
+Edit the .env file with your database credentials (see .env.example)
+
+Look at (config.py)[config.py] for data configuration.
+
+
+## Authentication
+
+See (schema.sql)[schema.sql] for database schema and auth.py for authentication implementation details.
+
+```sql
+-- Create admin user
+INSERT INTO users2 (username, password, email, is_active)
+VALUES ('admin', 'temporary_password', 'admin@example.com', TRUE);
+
+-- Get the admin user's ID
+SET @admin_id = LAST_INSERT_ID();
+
+-- Grant admin full access
+INSERT INTO user_permissions (user_id, allowed_paths)
+VALUES (@admin_id, '*');
+
+-- Create a limited user with specific phecode access
+INSERT INTO users2 (username, password, email, is_active)
+VALUES ('phecode_user', 'temp_password', 'phecode@example.com', TRUE);
+
+-- Grant access to specific phecodes
+INSERT INTO user_permissions (user_id, allowed_paths)
+VALUES (LAST_INSERT_ID(), '705,695,756,256,615');
+```
+
+
+
+## Data information:
 
 genotypes.hdf5
 * 488377 * 83011, 2.2GB
