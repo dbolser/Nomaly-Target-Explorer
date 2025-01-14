@@ -259,8 +259,12 @@ def get_nomaly_stats(phecode):
 @phecode_bp.route("/nomaly-stats2/<string:phecode>", methods=["POST"])
 def get_nomaly_stats2(phecode):
     """Get nomaly stats for v2."""
-    stats_handler = get_stats_handler(version=2)
-    diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
-        stats_handler, phecode
-    )
-    return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=2)
+    try:
+        stats_handler = get_stats_handler(version=2)
+        diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
+            stats_handler, phecode
+        )
+        return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=2)
+    except Exception as e:
+        logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
+        return jsonify({"error": "Failed to get Nomaly stats"}), 500
