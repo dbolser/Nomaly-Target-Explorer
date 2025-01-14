@@ -65,8 +65,6 @@ class StatsHDF5:
     def get_stats_by_disease(self, disease, statstype=None):
         try:
             if disease not in self.columns:
-                disease = disease + ".0"
-                if disease not in self.columns:
                     raise ValueError(f"Disease {disease} not found in dataset")
 
             mask_column = self.columns == disease
