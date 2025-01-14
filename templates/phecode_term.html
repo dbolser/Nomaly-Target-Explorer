@@ -190,7 +190,23 @@
                     text: 'Select Columns',
                     columns: ':not(:first-child)'
                 },
-                'copy', 'csv', 'excel'
+                {
+                    extend: 'copy',
+                    text: 'Copy'
+                },
+                {
+                    extend: 'csv',
+                    text: 'TSV',
+                    fieldSeparator: '\t',
+                    extension: '.tsv',
+                    filename: function () {
+                        return `phecode_term_${phecode}_${term}`;
+                    }
+                },
+                {
+                    extend: 'excel',
+                    text: 'Excel'
+                }
             ],
             initComplete: function () {
                 // Update the note to reflect both sorting criteria
