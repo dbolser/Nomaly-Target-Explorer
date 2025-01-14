@@ -58,7 +58,7 @@ def read_disease_stats_from_nomaly_statsHDF5(stats_handler, phecode):
             f"Failed to get Nomaly stats for Phecode {phecode}, exception was {e}",
             exc_info=True,
         )
-        return None, None
+        raise
 
     # rename columns
     for col in diseasestats.columns:
@@ -245,11 +245,15 @@ def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
 @phecode_bp.route("/nomaly-stats/<string:phecode>", methods=["POST"])
 def get_nomaly_stats(phecode):
     """Get nomaly stats for v1."""
-    stats_handler = get_stats_handler(version=1)
-    diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
-        stats_handler, phecode
-    )
-    return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1)
+    try:
+        stats_handler = get_stats_handler(version=1)
+        diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
+            stats_handler, phecode
+        )
+        return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1)
+    except Exception as e:
+        logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
+        return jsonify({"error": "Failed to get Nomaly stats"}), 500
 
 
 @phecode_bp.route("/nomaly-stats2/<string:phecode>", methods=["POST"])
