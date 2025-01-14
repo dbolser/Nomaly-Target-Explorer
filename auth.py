@@ -17,7 +17,7 @@ def check_page_permission(current_user, path):
     """Check if user has permission to access the page."""
 
     # Define public endpoints that don't require authentication
-    public_paths = ["/", "/login", "/static", "/favicon.ico"]
+    public_paths = ["/", "/login", "/static", "/search", "/favicon.ico"]
 
     # Skip authentication for public routes
     if path in public_paths or path.startswith("/static/"):
