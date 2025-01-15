@@ -177,7 +177,7 @@ top_variants = term_variant_prioritisation(sorted_eids, variant_scores, term)
 top_gene_set = top_variants[['gene','variant_id', 'hmm_score']].drop_duplicates().groupby('gene').sum().sort_values(by='hmm_score', ascending=False)
 top_gene_set = top_gene_set.assign(variant_num = top_variants.groupby('gene').size())
 
-# # 
+# # top_variants
 #            variant_id           gene           aa  hmm_score
 # 40   10_102830743_G/A        CYP17A1        R496C    8.15141
 # 43   10_102830905_A/G        CYP17A1        C442R    7.48391
@@ -190,3 +190,20 @@ top_gene_set = top_gene_set.assign(variant_num = top_variants.groupby('gene').si
 # 275   19_40880242_C/T         CYP2A7        A166T    0.01040
 # 204   15_74752237_A/G         CYP1A2        I386V    0.00139
 # 358   20_49524089_C/T          PTGIS        R275Q    0.00000
+
+# # top_gene_set
+#                                                 variant_id   hmm_score  variant_num
+# gene
+# CYP17A1  10_102830743_G/A10_102830905_A/G10_102830742_C...  106.030020           39
+# CYP24A1  20_54158136_G/A20_54158136_G/A20_54158136_G/A2...   36.453299           17
+# CYP4B1   1_46817100_C/T1_46817100_C/T1_46815212_C/T1_46...   35.867411           12
+# CYP27A1  2_218814186_C/T2_218814408_C/T2_218814701_C/T2...   29.151700           11
+# CYP2B6   19_41012339_C/T19_41012339_C/T19_41012316_T/C1...   24.603921           18
+# ...                                                    ...         ...          ...
+# CYP27C1                     2_127199410_T/C2_127203450_A/G    0.595420            2
+# CYP51A1                       7_92117086_G/A7_92117086_G/A    0.511540            2
+# PNPLA2                          11_823586_C/G11_823729_C/T    0.390940            2
+# PNPLA1                                      6_36295394_G/A    0.350730            1
+# MCAT                                       22_43133308_G/C    0.164270            1
+
+# [72 rows x 3 columns]
