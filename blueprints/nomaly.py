@@ -294,6 +294,43 @@ class GenotypeHDF5:
             print(f"Error in _single_variant_mask: {str(e)}")
             raise
 
+    def query_variantID_genotypes(self, variant: str) -> tuple[np.ndarray, np.ndarray] | None:
+        """
+        Get genotype data for a variant.
+
+        Args:
+            variant (str): Variant ID in format "CHR:POS:REF:ALT"
+
+        Returns:
+            tuple: (sorted_eids, sorted_genotypes) or None if error
+        """
+        try:
+            # Get genotype data
+            genotype_eids = self.individual
+            genotypes = self.query_variants(variant)
+            if genotypes is None or len(genotypes) == 0:
+                print(f"No genotype data found for variant {variant}")
+                return None
+
+            # Get first row of genotypes (for single variant)
+            genotypes = genotypes[0]
+            if len(genotypes) != len(genotype_eids):
+                print(
+                    f"Mismatch between genotypes ({len(genotypes)}) and IDs ({len(genotype_eids)})"
+                )
+                return None
+
+            # Sort the data
+            sorted_indices = np.argsort(genotype_eids)
+            sorted_genotype_eids = genotype_eids[sorted_indices]
+            sorted_genotypes = genotypes[sorted_indices]
+
+            return sorted_genotype_eids, sorted_genotypes
+
+        except Exception as e:
+            print(f"Error in get_genotype_data for variant {variant}: {str(e)}")
+            return None
+
 
 class ICD10HDF5:
     def __init__(self, hdf5_file):
