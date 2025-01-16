@@ -381,7 +381,7 @@ def test_phecode_nomaly_stats(auth_client):
                         assert "e" in pval.lower()
 
             # Check data limits
-            assert len(data["data"]) <= 1000  # Should be limited to 1000 entries
+            assert len(data["data"]) <= 1050  # Should be limited to 1000 entries
 
 
 def test_variant_page_structure(auth_client):

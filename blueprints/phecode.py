@@ -1,9 +1,13 @@
 from flask import Blueprint, render_template, request, jsonify, url_for
-import logging
+
 from db import get_phecode_info, get_term_domains, get_term_names, get_term_genes
 from blueprints.gwas import run_gwas, format_gwas_results
 from blueprints.nomaly import nomaly_stats, nomaly_stats_v2, make_qqplot
+
+import pandas as pd
 import plotly.io as pio
+
+import logging
 
 logger = logging.getLogger(__name__)
 phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
@@ -105,32 +109,42 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
     plot_df.sort_values("minrank", inplace=True)
 
     # limit to top 1000
-    plot_df = plot_df.iloc[:1000]
+    plot_df_filtered = plot_df.iloc[:1000]
+
+    # But add the top 50 from lrn_protective_pvalue
+    plot_df_filtered = pd.concat(
+        [
+            plot_df_filtered,
+            plot_df.sort_values("lrn_protective_pvalue", ascending=True)[:50],
+        ]
+    )
 
     # get term names and domains
-    term_name_dict = get_term_names(plot_df["term"].tolist())
-    term_domain_dict = get_term_domains(plot_df["term"].tolist())
+    term_name_dict = get_term_names(plot_df_filtered["term"].tolist())
+    term_domain_dict = get_term_domains(plot_df_filtered["term"].tolist())
 
-    plot_df = plot_df.assign(
-        name=plot_df["term"].map(lambda x: term_name_dict.get(x, "-"))
+    plot_df_filtered = plot_df_filtered.assign(
+        name=plot_df_filtered["term"].map(lambda x: term_name_dict.get(x, "-"))
     )
-    plot_df["domain"] = plot_df["term"].map(
+
+    # TODO: what is this doing?
+    plot_df_filtered["domain"] = plot_df_filtered["term"].map(
         lambda x: ", ".join(term_domain_dict[x])
         if len(term_domain_dict[x]) < 10
         else [f"{len(term_domain_dict[x])} domains"]
     )
 
     if addgene:
-        plot_df = add_gene_info_to_DataTable(plot_df, phecode)
+        plot_df_filtered = add_gene_info_to_DataTable(plot_df_filtered, phecode)
 
     # Round all P-values to scientific notation
     pval_columns = pval_nondirect + pval_pos + pval_neg
     for col in pval_columns:
-        plot_df[col] = plot_df[col].apply(
+        plot_df_filtered[col] = plot_df_filtered[col].apply(
             lambda x: f"{float(x):0.2e}" if x != "None" else x
         )
 
-    return plot_df.fillna("None")
+    return plot_df_filtered.fillna("None")
 
 
 def add_gene_info_to_DataTable(plot_df, phecode):
