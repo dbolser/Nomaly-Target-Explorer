@@ -119,6 +119,9 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
         ]
     )
 
+    # Remove duplicate terms
+    plot_df_filtered = plot_df_filtered.drop_duplicates(subset="term")
+
     # get term names and domains
     term_name_dict = get_term_names(plot_df_filtered["term"].tolist())
     term_domain_dict = get_term_domains(plot_df_filtered["term"].tolist())
