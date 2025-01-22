@@ -16,6 +16,8 @@ import plotly.express as px
 
 from config import Config
 
+from line_profiler import profile
+
 # UKBB_PHENO_DIR = "/data/general/UKBB/Phenotypes/"
 # icd10_cases_h5 = UKBB_PHENO_DIR + "ukbbrun_icd10_2024-09-07_any.h5"
 phenotypes_h5 = Config.PHENOTYPES_H5
@@ -223,6 +225,7 @@ class GenotypeHDF5:
 
         return df
 
+    @profile
     def query_variants(self, variant: str) -> np.ndarray | None:
         """
         Query genotypes for a variant, trying flipped alleles if original not found.
@@ -261,6 +264,7 @@ class GenotypeHDF5:
             print(f"Error in query_variants: {str(e)}")
             return None
 
+    @profile
     def _query_variants_internal(self, variant: str) -> np.ndarray | None:
         """Internal method to query a single variant."""
         try:
@@ -287,6 +291,7 @@ class GenotypeHDF5:
             print(f"Error in _query_variants_internal: {str(e)}")
             return None
 
+    @profile
     def _single_variant_mask(self, varsel: str) -> np.ndarray | None:
         """Create mask for single variant."""
         try:
@@ -298,6 +303,7 @@ class GenotypeHDF5:
             print(f"Error in _single_variant_mask: {str(e)}")
             raise
 
+    @profile
     def query_variantID_genotypes(
         self, variant: str
     ) -> tuple[np.ndarray, np.ndarray] | None:

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pickle
 
-from nomaly import nomaly_genotype
+from blueprints.nomaly import nomaly_genotype
 
 from db import get_term_variants
 

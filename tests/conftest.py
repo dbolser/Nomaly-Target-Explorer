@@ -1,8 +1,14 @@
+import os
+import sys
 import pytest
 from app import app as flask_app
 from db import get_db_connection
-from flask_login import login_user
+#from flask_login import login_user
 from werkzeug.security import generate_password_hash
+
+# Add the project root directory to the Python path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 
 @pytest.fixture
