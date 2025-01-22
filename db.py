@@ -313,11 +313,7 @@ def get_term_variants(term: str) -> pd.DataFrame:
                 GROUP BY
                     term,
                     variant_id,
-                    gene,
-                    wild,
-                    mutant
-                HAVING
-                    ABS(wild - mutant) = MAX(ABS(wild - mutant));
+                    gene
                 """
                 print(f"\nExecuting query for term: {term}")
                 print(f"Query: {query}")
