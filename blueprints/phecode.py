@@ -127,12 +127,16 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
         name=plot_df_filtered["term"].map(lambda x: term_name_dict.get(x, "-"))
     )
 
-    # TODO: what is this doing?
-    plot_df_filtered["domain"] = plot_df_filtered["term"].map(
-        lambda x: ", ".join(term_domain_dict[x])
-        if len(term_domain_dict[x]) < 10
-        else [f"{len(term_domain_dict[x])} domains"]
-    )
+    # Create the domain column...
+
+    def map_term_to_domain(term):
+        domains = term_domain_dict[term]
+        if len(domains) < 10:
+            return ", ".join(domains)
+        else:
+            return f"{len(domains)} domains"
+
+    plot_df_filtered["domain"] = plot_df_filtered["term"].map(map_term_to_domain)
 
     if addgene:
         plot_df_filtered = add_gene_info_to_DataTable(plot_df_filtered, phecode)

@@ -43,12 +43,14 @@ class StatsHDF5:
             self.f = h5py.File(hdf5_file, "r")
 
             # Load the data matrix and index information
-            self.data_matrix = self.f["data"]
-            self.rows = self.f["rows_term"][...].astype(str)  # Load term data
-            self.columns = self.f["columns_phecode"][...].astype(
+            self.data_matrix: h5py.Dataset = self.f["data"]
+            self.rows: np.ndarray = self.f["rows_term"][...].astype(
+                str
+            )  # Load term data
+            self.columns: np.ndarray = self.f["columns_phecode"][...].astype(
                 str
             )  # Load phecode data
-            self.third_dim = self.f["3rddim_statstype"][...].astype(
+            self.third_dim: np.ndarray = self.f["3rddim_statstype"][...].astype(
                 str
             )  # Load statstype data
 
@@ -139,9 +141,9 @@ class GenotypeHDF5:
                     )
 
             # Load the genotype matrix and index information
-            self.genotype_matrix = self.f["genotype_matrix"]
+            self.genotype_matrix: h5py.Dataset = self.f["genotype_matrix"]
             self.individual: np.array = self.f["fam"][...].astype(int)
-            self.variants = self.f["bim"][...].astype(str)
+            self.variants: np.array = self.f["bim"][...].astype(str)
 
         except Exception as e:
             print(f"Error initializing GenotypeHDF5: {str(e)}")
@@ -210,8 +212,10 @@ class GenotypeHDF5:
         Returns a DataFrame with variants as index and count types as columns.
         """
         counts = self.f["counts"]
+        assert isinstance(counts, h5py.Dataset)
 
         # Create a dictionary of numpy arrays
+        # TODO: Check if we can use counts.dtype.names here
         count_arrays = {key: counts[key][...] for key in counts.keys()}
 
         # Convert to DataFrame in one go
@@ -283,7 +287,7 @@ class GenotypeHDF5:
             print(f"Error in _query_variants_internal: {str(e)}")
             return None
 
-    def _single_variant_mask(self, varsel: str) -> np.ndarray:
+    def _single_variant_mask(self, varsel: str) -> np.ndarray | None:
         """Create mask for single variant."""
         try:
             mask = self.variants == varsel
@@ -294,7 +298,9 @@ class GenotypeHDF5:
             print(f"Error in _single_variant_mask: {str(e)}")
             raise
 
-    def query_variantID_genotypes(self, variant: str) -> tuple[np.ndarray, np.ndarray] | None:
+    def query_variantID_genotypes(
+        self, variant: str
+    ) -> tuple[np.ndarray, np.ndarray] | None:
         """
         Get genotype data for a variant.
 
@@ -338,9 +344,9 @@ class ICD10HDF5:
         self.f = h5py.File(hdf5_file, "r")
 
         # Load the data matrix and index information
-        self.phenotype_data = self.f["phenotype_data"]
-        self.row_indices = self.f["row_indices"][...]  # Load row data
-        self.col_indices = self.f["col_indices"][...]  # Load column data
+        self.phenotype_data: np.ndarray = self.f["phenotype_data"]
+        self.row_indices: np.ndarray = self.f["row_indices"][...]  # Load row data
+        self.col_indices: np.ndarray = self.f["col_indices"][...]  # Load column data
 
     def get_cases_for_icd10(self, icd10):
         # get data for col indice E831
@@ -365,9 +371,9 @@ class ScoreHDF5:
         self.f = h5py.File(hdf5_file, "r")
 
         # Load the data matrix and index information
-        self.data_matrix = self.f["scores"]
-        self.rows = self.f["eid"][...]  # Load row data
-        self.columns = self.f["term"][...]  # Load column data
+        self.data_matrix: np.ndarray = self.f["scores"]
+        self.rows: np.ndarray = self.f["eid"][...]  # Load row data
+        self.columns: np.ndarray = self.f["term"][...]  # Load column data
 
     def get_score_by_eid(self, eid):
         mask_row = self.rows.astype(str) == eid
@@ -389,8 +395,8 @@ class PhenotypesHDF5:
         self._population_eids_cache = {}  # Cache for filtered eids
 
         # Load the data matrix and index information as numpy arrays
-        self.phenotype_data = self.f["phenotype_data"][...][...]
-        self.eids = self.f["eids"][...]  # Load row data
+        self.phenotype_data: np.ndarray = self.f["phenotype_data"][...][...]
+        self.eids: np.ndarray = self.f["eids"][...]  # Load row data
         self.phecodes = self.f["phecodes"][...]  # Load column data
         self.populations = self.f["populations"][...]  # Load population data
 
