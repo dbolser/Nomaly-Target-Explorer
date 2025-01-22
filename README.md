@@ -72,16 +72,27 @@ flask run
 ```
 git clone https://github.com/danbolser/nomaly-disease-browser.git
 cd nomaly-disease-browser
+```
+
+## Setup
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+And don't forget...
+
+```bash
+cp .env.example .env
+```
 
 ## Configuration
 
 Edit the .env file with your database credentials (see .env.example)
 
 Look at (config.py)[config.py] for data configuration.
-
 
 ## Authentication
 
@@ -109,8 +120,17 @@ VALUES (LAST_INSERT_ID(), '705,695,756,256,615');
 ```
 
 
+## Running the app
 
-## Data information:
+```bash
+export FLASK_APP=app.py
+export FLASK_ENV=development
+flask run
+```
+
+
+## Notes on the input data
+
 
 genotypes.hdf5
 * 488377 * 83011, 2.2GB
