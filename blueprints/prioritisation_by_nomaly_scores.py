@@ -4,7 +4,29 @@ per disease and term.
 Genes are prioritised by the sum of Nomaly scores of their variants.
 """
 
-from line_profiler import profile
+from flask import Blueprint, render_template
+
+prioritisation_bp = Blueprint("prioritisation", __name__)
+
+
+@prioritisation_bp.route("/variant_scores/<disease_code>/<term>")
+def show_variant_scores(disease_code: str, term: str):
+    top_variants, top_gene_set = get_top_variants(disease_code, term)
+    return render_template(
+        "variant_scores.html",
+        disease_code=disease_code,
+        term=term,
+        top_variants=top_variants,
+        top_gene_set=top_gene_set,
+    )
+
+
+# Turn line profiling on or off
+if False:
+    from line_profiler import profile
+else:
+    profile = lambda x: x  # noqa: E731
+
 
 import numpy as np
 import pandas as pd
@@ -198,7 +220,7 @@ def term_variant_prioritisation(sorted_eids, variant_scores, term):
 
 
 @profile
-def get_top_variants(disease_code, term) -> tuple[pd.DataFrame, pd.DataFrame]:
+def get_top_variants(disease_code: str, term: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Get the top variants for the disease and term.
     """

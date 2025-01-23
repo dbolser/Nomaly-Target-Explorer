@@ -33,6 +33,7 @@ from blueprints.phecode_term import phecode_term_bp
 from blueprints.disease_sets import disease_sets_bp
 from blueprints.variant import variant_bp
 from blueprints.admin import admin_bp
+from blueprints.prioritisation_by_nomaly_scores import prioritisation_bp
 
 
 app = Flask(__name__)
@@ -62,6 +63,7 @@ app.register_blueprint(disease_sets_bp)
 app.register_blueprint(variant_bp)
 app.register_blueprint(phecode_term_bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(prioritisation_bp)
 
 
 # User Class
