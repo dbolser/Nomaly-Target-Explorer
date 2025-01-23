@@ -4,11 +4,44 @@
 <div class="container mt-4">
     <h2>Top Variants for Disease {{ disease_code }} and Term {{ term }}</h2>
 
-    <h3 class="mt-4">Top Gene Set</h3>
-    {{ top_gene_set.to_html(classes="table table-striped") | safe }}
+    <div id="loading-box" class="alert alert-info">
+        <h4>Processing...</h4>
+        <pre id="log-output" style="max-height: 200px; overflow-y: auto;"></pre>
+    </div>
 
-    <h3 class="mt-4">Top Variants</h3>
-    {{ top_variants.to_html(classes="table table-striped", index=False) | safe }}
+    <div id="results" style="display: none;">
+        <h3 class="mt-4">Top Gene Set</h3>
+        {{ top_gene_set.to_html(classes="table table-striped") | safe }}
 
+        <h3 class="mt-4">Top Variants</h3>
+        {{ top_variants.to_html(classes="table table-striped", index=False) | safe }}
+    </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const logOutput = document.getElementById('log-output');
+        const loadingBox = document.getElementById('loading-box');
+        const results = document.getElementById('results');
+
+        // Connect to SSE endpoint
+        const source = new EventSource("{{ url_for('prioritisation.stream_progress', disease_code=disease_code, term=term) }}");
+
+        source.onmessage = function (event) {
+            if (event.data === "DONE") {
+                source.close();
+                loadingBox.style.display = 'none';
+                results.style.display = 'block';
+            } else {
+                logOutput.textContent += event.data + '\n';
+                logOutput.scrollTop = logOutput.scrollHeight;
+            }
+        };
+
+        source.onerror = function (event) {
+            console.error('SSE error:', event);
+            source.close();
+        };
+    });
+</script>
 {% endblock %}

@@ -6,10 +6,14 @@ Genes are prioritised by the sum of Nomaly scores of their variants.
 
 import logging
 import pickle
+import sys
+from io import StringIO
+from queue import Queue
+from threading import Thread
 
 import numpy as np
 import pandas as pd
-from flask import Blueprint, render_template
+from flask import Blueprint, Response, render_template, stream_with_context
 
 from blueprints.nomaly import nomaly_genotype
 
@@ -21,6 +25,20 @@ from config import Config
 from db import get_term_variants
 
 logger = logging.getLogger(__name__)
+
+# Create a queue for log messages
+log_queue = Queue()
+
+
+# Custom stream handler to capture print and logging output
+class QueueStreamHandler(StringIO):
+    def write(self, text):
+        if text.strip():  # Only queue non-empty lines
+            log_queue.put(text)
+
+    def flush(self):
+        pass
+
 
 # In memory data
 variant_scores = pd.read_csv(
@@ -34,16 +52,49 @@ variant2gene = pd.read_csv(
 prioritisation_bp = Blueprint("prioritisation", __name__)
 
 
+def process_variants(disease_code: str, term: str):
+    # Redirect stdout to our custom handler
+    old_stdout = sys.stdout
+    sys.stdout = QueueStreamHandler()
+
+    try:
+        top_variants, top_gene_set = get_top_variants(disease_code, term)
+        return top_variants, top_gene_set
+    finally:
+        sys.stdout = old_stdout
+
+
 @prioritisation_bp.route("/variant_scores/<disease_code>/<term>")
 def show_variant_scores(disease_code: str, term: str):
-    top_variants, top_gene_set = get_top_variants(disease_code, term)
     return render_template(
         "variant_scores.html",
         disease_code=disease_code,
         term=term,
-        top_variants=top_variants,
-        top_gene_set=top_gene_set,
+        top_variants=pd.DataFrame(),  # Empty initially
+        top_gene_set=pd.DataFrame(),  # Empty initially
     )
+
+
+@prioritisation_bp.route("/stream_progress/<disease_code>/<term>")
+def stream_progress(disease_code: str, term: str):
+    def generate():
+        def process_thread():
+            top_variants, top_gene_set = process_variants(disease_code, term)
+            # Store results in session or cache here if needed
+            log_queue.put("DONE")
+
+        thread = Thread(target=process_thread)
+        thread.start()
+
+        while True:
+            message = log_queue.get()
+            if message == "DONE":
+                break
+            yield f"data: {message}\n\n"
+
+        yield "data: DONE\n\n"
+
+    return Response(stream_with_context(generate()), mimetype="text/event-stream")
 
 
 def read_cases_for_disease_code(phecode: str) -> dict:
