@@ -53,23 +53,30 @@ prioritisation_bp = Blueprint("prioritisation", __name__)
 
 
 # Store results temporarily (quick and dirty!)
-results_cache = {}
+results_cache: dict[str, dict] = {}
 
 
-def process_variants(disease_code: str, term: str):
+def process_variants(disease_code: str, term: str) -> dict[str, dict]:
     # Redirect stdout to our custom handler
     old_stdout = sys.stdout
     sys.stdout = QueueStreamHandler()
 
+    if results_cache.get(f"{disease_code}_{term}", None) is not None:
+        return results_cache[f"{disease_code}_{term}"]
+
     try:
         top_variants, top_gene_set = get_top_variants(disease_code, term)
+
+        top_variants = top_variants.to_dict(orient="records")
+        top_gene_set = top_gene_set.to_dict(orient="records")
+
         # Store in our temporary cache
         cache_key = f"{disease_code}_{term}"
         results_cache[cache_key] = {
-            "top_variants": top_variants.to_dict(orient="records"),
-            "top_gene_set": top_gene_set.to_dict(orient="records"),
+            "top_variants": top_variants,
+            "top_gene_set": top_gene_set,
         }
-        return top_variants, top_gene_set
+        return results_cache[cache_key]
     finally:
         sys.stdout = old_stdout
 
@@ -89,8 +96,8 @@ def show_variant_scores(disease_code: str, term: str):
 def stream_progress(disease_code: str, term: str):
     def generate():
         def process_thread():
-            top_variants, top_gene_set = process_variants(disease_code, term)
-            # Store results in session or cache here if needed
+            _ = process_variants(disease_code, term)
+            # Store results in session or cache here if needed!
             log_queue.put("DONE")
 
         thread = Thread(target=process_thread)
@@ -311,7 +318,8 @@ def main():
     # term = "UP:UPA00240"
 
     disease_code = "332"
-    term = "CC:MESH:D015766"
+    # term = "CC:MESH:D015766"
+    term = "GO:0030800"
 
     top_variants, top_gene_set = get_top_variants(disease_code, term)
 
