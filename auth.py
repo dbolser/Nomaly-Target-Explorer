@@ -48,6 +48,8 @@ def check_page_permission(current_user, path):
         "/phecode2/",
         "/nomaly-stats2/",
         "/run-task/",
+        "/variant_scores/",
+        "/stream_progress/",
     ]
 
     # Check if the path starts with any of the phecode-specific routes for the
