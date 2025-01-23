@@ -6,7 +6,9 @@
 
     <div id="loading-box" class="alert alert-info">
         <h4>Processing...</h4>
-        <pre id="log-output" style="max-height: 200px; overflow-y: auto;"></pre>
+        <div id="progress-messages" class="mt-2">
+            <pre id="log-output" style="max-height: 200px; overflow-y: auto; background: #f8f9fa; padding: 10px;"></pre>
+        </div>
     </div>
 
     <div id="results" style="display: none;">
@@ -60,29 +62,37 @@
         const source = new EventSource("{{ url_for('prioritisation.stream_progress', disease_code=disease_code, term=term) }}");
 
         source.onmessage = function (event) {
-            const message = JSON.parse(event.data);
+            try {
+                const message = JSON.parse(event.data);
+                console.log('Received message:', message);  // Debug logging
 
-            switch (message.type) {
-                case 'progress':
-                    logOutput.textContent += message.data + '\n';
-                    logOutput.scrollTop = logOutput.scrollHeight;
-                    break;
+                switch (message.type) {
+                    case 'progress':
+                        // Add timestamp to progress messages
+                        const time = new Date().toLocaleTimeString();
+                        logOutput.textContent += `[${time}] ${message.data}\n`;
+                        logOutput.scrollTop = logOutput.scrollHeight;
+                        break;
 
-                case 'results':
-                    createTable(message.data.top_gene_set, geneSetTable);
-                    createTable(message.data.top_variants, variantsTable);
-                    results.style.display = 'block';
-                    break;
+                    case 'results':
+                        createTable(message.data.top_gene_set, geneSetTable);
+                        createTable(message.data.top_variants, variantsTable);
+                        results.style.display = 'block';
+                        break;
 
-                case 'error':
-                    logOutput.textContent += 'Error: ' + message.data + '\n';
-                    logOutput.scrollTop = logOutput.scrollHeight;
-                    break;
+                    case 'error':
+                        logOutput.textContent += `ERROR: ${message.data}\n`;
+                        logOutput.scrollTop = logOutput.scrollHeight;
+                        break;
 
-                case 'done':
-                    source.close();
-                    loadingBox.style.display = 'none';
-                    break;
+                    case 'done':
+                        source.close();
+                        loadingBox.style.display = 'none';
+                        break;
+                }
+            } catch (e) {
+                console.error('Error processing message:', e, event.data);
+                logOutput.textContent += `Error processing message: ${e}\n`;
             }
         };
 
