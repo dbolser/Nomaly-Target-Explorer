@@ -13,7 +13,7 @@ from threading import Thread
 
 import numpy as np
 import pandas as pd
-from flask import Blueprint, Response, render_template, stream_with_context
+from flask import Blueprint, Response, render_template, stream_with_context, jsonify
 
 from blueprints.nomaly import nomaly_genotype
 
@@ -52,6 +52,10 @@ variant2gene = pd.read_csv(
 prioritisation_bp = Blueprint("prioritisation", __name__)
 
 
+# Store results temporarily (quick and dirty!)
+results_cache = {}
+
+
 def process_variants(disease_code: str, term: str):
     # Redirect stdout to our custom handler
     old_stdout = sys.stdout
@@ -59,6 +63,12 @@ def process_variants(disease_code: str, term: str):
 
     try:
         top_variants, top_gene_set = get_top_variants(disease_code, term)
+        # Store in our temporary cache
+        cache_key = f"{disease_code}_{term}"
+        results_cache[cache_key] = {
+            "top_variants": top_variants.to_dict(orient="records"),
+            "top_gene_set": top_gene_set.to_dict(orient="records"),
+        }
         return top_variants, top_gene_set
     finally:
         sys.stdout = old_stdout
@@ -95,6 +105,14 @@ def stream_progress(disease_code: str, term: str):
         yield "data: DONE\n\n"
 
     return Response(stream_with_context(generate()), mimetype="text/event-stream")
+
+
+@prioritisation_bp.route("/variant_scores_data/<disease_code>/<term>")
+def get_variant_scores_data(disease_code: str, term: str):
+    cache_key = f"{disease_code}_{term}"
+    if cache_key in results_cache:
+        return jsonify(results_cache[cache_key])
+    return jsonify({"error": "Results not ready"}), 404
 
 
 def read_cases_for_disease_code(phecode: str) -> dict:
