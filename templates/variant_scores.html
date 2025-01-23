@@ -56,43 +56,40 @@
             container.innerHTML = html;
         }
 
-        function fetchResults() {
-            fetch(`/variant_scores_data/${encodeURIComponent('{{ disease_code }}')}/${encodeURIComponent('{{ term }}')}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        // If results aren't ready, try again in 1 second
-                        setTimeout(fetchResults, 1000);
-                        return;
-                    }
-                    createTable(data.top_gene_set, geneSetTable);
-                    createTable(data.top_variants, variantsTable);
-                    results.style.display = 'block';
-                })
-                .catch(error => {
-                    console.error('Error fetching results:', error);
-                    setTimeout(fetchResults, 1000);
-                });
-        }
-
         // Connect to SSE endpoint
         const source = new EventSource("{{ url_for('prioritisation.stream_progress', disease_code=disease_code, term=term) }}");
 
         source.onmessage = function (event) {
-            if (event.data === "DONE") {
-                source.close();
-                loadingBox.style.display = 'none';
-                // Start polling for results
-                fetchResults();
-            } else {
-                logOutput.textContent += event.data + '\n';
-                logOutput.scrollTop = logOutput.scrollHeight;
+            const message = JSON.parse(event.data);
+
+            switch (message.type) {
+                case 'progress':
+                    logOutput.textContent += message.data + '\n';
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                    break;
+
+                case 'results':
+                    createTable(message.data.top_gene_set, geneSetTable);
+                    createTable(message.data.top_variants, variantsTable);
+                    results.style.display = 'block';
+                    break;
+
+                case 'error':
+                    logOutput.textContent += 'Error: ' + message.data + '\n';
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                    break;
+
+                case 'done':
+                    source.close();
+                    loadingBox.style.display = 'none';
+                    break;
             }
         };
 
         source.onerror = function (event) {
             console.error('SSE error:', event);
             source.close();
+            logOutput.textContent += 'Connection error occurred.\n';
         };
     });
 </script>

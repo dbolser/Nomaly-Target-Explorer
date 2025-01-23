@@ -23,6 +23,7 @@ from flask_login import (
     UserMixin,
     current_user,
 )
+from flask_session import Session
 from db import get_db_connection
 from werkzeug.security import check_password_hash
 
@@ -46,12 +47,12 @@ app.config.from_object(config[config_name])
 logger = setup_logging(app)
 
 # Session
-# Session(app)
+Session(app)
 
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
-# login_manager.login_view = "/login"
+login_manager.login_view = "/login"
 
 # Configure MySQL
 mysql = MySQL(app)

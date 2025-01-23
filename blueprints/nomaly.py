@@ -16,6 +16,7 @@ import plotly.express as px
 
 from config import Config
 
+chr_str = re.compile("chr", re.IGNORECASE)
 
 # UKBB_PHENO_DIR = "/data/general/UKBB/Phenotypes/"
 # icd10_cases_h5 = UKBB_PHENO_DIR + "ukbbrun_icd10_2024-09-07_any.h5"
@@ -198,7 +199,7 @@ class GenotypeHDF5:
                 return None
 
             # Clean chromosome format (e.g., 'chr8' -> '8')
-            chrom = chrom.replace("chr", "")
+            chrom = chr_str.sub("", chrom)
 
             # Standardize to colon format for genotype lookup (why?)
             return f"{chrom}:{pos}:{ref}:{alt}"
