@@ -198,7 +198,7 @@ class GenotypeHDF5:
                 return None
 
             # Clean chromosome format (e.g., 'chr8' -> '8')
-            chrom = chrom.lower().replace("chr", "")
+            chrom = chrom.replace("chr", "")
 
             # Standardize to colon format for genotype lookup (why?)
             return f"{chrom}:{pos}:{ref}:{alt}"
