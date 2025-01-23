@@ -4,7 +4,32 @@ per disease and term.
 Genes are prioritised by the sum of Nomaly scores of their variants.
 """
 
+import logging
+import pickle
+
+import numpy as np
+import pandas as pd
 from flask import Blueprint, render_template
+
+from blueprints.nomaly import nomaly_genotype
+
+# TODO (DB): can db functions be separated from flask functions? I had
+# "RuntimeError: Working outside of application context." when importing db
+# functions in the flask app. In order to use the db functions in the flask app,
+# I manually set the config in the db.py
+from config import Config
+from db import get_term_variants
+
+logger = logging.getLogger(__name__)
+
+# In memory data
+variant_scores = pd.read_csv(
+    "/data/clu/ukbb/variantscores.tsv", sep="\t", index_col="variant_id"
+)
+variant2gene = pd.read_csv(
+    "/data/clu/ukbb/variant2gene.tsv", sep="\t", header=None, index_col=0
+)
+
 
 prioritisation_bp = Blueprint("prioritisation", __name__)
 
@@ -21,42 +46,6 @@ def show_variant_scores(disease_code: str, term: str):
     )
 
 
-# Turn line profiling on or off
-if False:
-    from line_profiler import profile
-else:
-    profile = lambda x: x  # noqa: E731
-
-
-import numpy as np
-import pandas as pd
-import pickle
-
-from blueprints.nomaly import nomaly_genotype
-
-from db import get_term_variants
-
-# TODO (DB): can db functions be separated from flask functions? I had
-# "RuntimeError: Working outside of application context." when importing db
-# functions in the flask app. In order to use the db functions in the flask app,
-# I manually set the config in the db.py
-
-from config import Config
-
-import logging
-
-logger = logging.getLogger(__name__)
-
-# In memory data
-variant_scores = pd.read_csv(
-    "/data/clu/ukbb/variantscores.tsv", sep="\t", index_col="variant_id"
-)
-variant2gene = pd.read_csv(
-    "/data/clu/ukbb/variant2gene.tsv", sep="\t", header=None, index_col=0
-)
-
-
-@profile
 def read_cases_for_disease_code(phecode: str) -> dict:
     """
     Read the case information for the disease code.
@@ -72,7 +61,6 @@ def read_cases_for_disease_code(phecode: str) -> dict:
 
 # get genotypes for selected individuals and variants
 # TODO (DB): add this function to nomaly.py? I think it can be used by others.
-@profile
 def read_nomaly_filtered_genotypes(sorted_eids, short_listed_variants) -> dict:
     """
     Read genotypes for the individuals and the variants.
@@ -124,7 +112,6 @@ def read_nomaly_filtered_genotypes(sorted_eids, short_listed_variants) -> dict:
 
 
 # read variant_scores from db
-@profile
 def individual_variant_prioritisation(row, term_variant_scores):
     """
     return numpy array of variant scores for the selected variants by the sequence of the variants.
@@ -157,7 +144,6 @@ def individual_variant_prioritisation(row, term_variant_scores):
     return top_variants.index
 
 
-@profile
 def term_variant_prioritisation(sorted_eids, variant_scores, term):
     """
     For each term, prioritise the variants for selected individuals.
@@ -219,7 +205,6 @@ def term_variant_prioritisation(sorted_eids, variant_scores, term):
 # ----------------- Main ----------------- #
 
 
-@profile
 def get_top_variants(disease_code: str, term: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Get the top variants for the disease and term.
@@ -250,7 +235,6 @@ def get_top_variants(disease_code: str, term: str) -> tuple[pd.DataFrame, pd.Dat
     return top_variants, top_gene_set
 
 
-@profile
 def main():
     """ahh..."""
 
