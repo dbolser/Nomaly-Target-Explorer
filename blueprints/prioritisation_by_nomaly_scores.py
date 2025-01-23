@@ -10,6 +10,7 @@ import sys
 from io import StringIO
 from queue import Queue
 from threading import Thread
+from uuid import uuid4
 
 import numpy as np
 import pandas as pd
@@ -26,15 +27,21 @@ from db import get_term_variants
 
 logger = logging.getLogger(__name__)
 
-# Create a queue for log messages
-log_queue = Queue()
+# Store queues for each request
+request_queues: dict[str, Queue] = {}
 
 
 # Custom stream handler to capture print and logging output
 class QueueStreamHandler(StringIO):
+    def __init__(self, queue_id: str):
+        super().__init__()
+        self.queue_id = queue_id
+
     def write(self, text):
-        if text.strip():  # Only queue non-empty lines
-            log_queue.put(text)
+        if (
+            text.strip() and self.queue_id in request_queues
+        ):  # Only queue non-empty lines
+            request_queues[self.queue_id].put(text)
 
     def flush(self):
         pass
@@ -56,13 +63,14 @@ prioritisation_bp = Blueprint("prioritisation", __name__)
 results_cache: dict[str, dict] = {}
 
 
-def process_variants(disease_code: str, term: str) -> dict[str, dict]:
+def process_variants(disease_code: str, term: str, queue_id: str) -> dict[str, dict]:
     # Redirect stdout to our custom handler
     old_stdout = sys.stdout
-    sys.stdout = QueueStreamHandler()
+    sys.stdout = QueueStreamHandler(queue_id)
 
-    if results_cache.get(f"{disease_code}_{term}", None) is not None:
-        return results_cache[f"{disease_code}_{term}"]
+    cache_key = f"{disease_code}_{term}"
+    if cache_key in results_cache:
+        return results_cache[cache_key]
 
     try:
         top_variants, top_gene_set = get_top_variants(disease_code, term)
@@ -71,7 +79,6 @@ def process_variants(disease_code: str, term: str) -> dict[str, dict]:
         top_gene_set = top_gene_set.to_dict(orient="records")
 
         # Store in our temporary cache
-        cache_key = f"{disease_code}_{term}"
         results_cache[cache_key] = {
             "top_variants": top_variants,
             "top_gene_set": top_gene_set,
@@ -95,21 +102,34 @@ def show_variant_scores(disease_code: str, term: str):
 @prioritisation_bp.route("/stream_progress/<disease_code>/<term>")
 def stream_progress(disease_code: str, term: str):
     def generate():
+        # Create a unique queue for this request
+        queue_id = str(uuid4())
+        request_queues[queue_id] = Queue()
+
         def process_thread():
-            _ = process_variants(disease_code, term)
-            # Store results in session or cache here if needed!
-            log_queue.put("DONE")
+            try:
+                _ = process_variants(disease_code, term, queue_id)
+                request_queues[queue_id].put("DONE")
+            except Exception as e:
+                logger.error(f"Error processing variants: {e}")
+                request_queues[queue_id].put(f"ERROR: {str(e)}")
+                request_queues[queue_id].put("DONE")
 
         thread = Thread(target=process_thread)
         thread.start()
 
-        while True:
-            message = log_queue.get()
-            if message == "DONE":
-                break
-            yield f"data: {message}\n\n"
+        try:
+            while True:
+                message = request_queues[queue_id].get()
+                if message == "DONE":
+                    break
+                yield f"data: {message}\n\n"
 
-        yield "data: DONE\n\n"
+            yield "data: DONE\n\n"
+        finally:
+            # Clean up the queue
+            if queue_id in request_queues:
+                del request_queues[queue_id]
 
     return Response(stream_with_context(generate()), mimetype="text/event-stream")
 
