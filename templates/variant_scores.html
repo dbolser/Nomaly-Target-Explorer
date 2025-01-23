@@ -4,10 +4,11 @@
 <div class="container mt-4">
     <h2>Top Variants for Disease {{ disease_code }} and Term {{ term }}</h2>
 
+    <h3 class="mt-4">Top Gene Set</h3>
+    {{ top_gene_set.to_html(classes="table table-striped") | safe }}
+
     <h3 class="mt-4">Top Variants</h3>
     {{ top_variants.to_html(classes="table table-striped", index=False) | safe }}
 
-    <h3 class="mt-4">Top Gene Set</h3>
-    {{ top_gene_set.to_html(classes="table table-striped") | safe }}
 </div>
 {% endblock %}

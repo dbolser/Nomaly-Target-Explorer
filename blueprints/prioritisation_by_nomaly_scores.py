@@ -236,9 +236,6 @@ def get_top_variants(disease_code: str, term: str) -> tuple[pd.DataFrame, pd.Dat
     # then as numpy array and sorted
     sorted_eids = np.sort(cases_eids)
 
-    ## for these people, find the top variants for the term
-    term = "UP:UPA00240"
-
     top_variants = term_variant_prioritisation(sorted_eids, variant_scores, term)
 
     top_gene_set = (
@@ -257,8 +254,11 @@ def get_top_variants(disease_code: str, term: str) -> tuple[pd.DataFrame, pd.Dat
 def main():
     """ahh..."""
 
-    disease_code = "571.5"
-    term = "UP:UPA00240"
+    # disease_code = "571.5"
+    # term = "UP:UPA00240"
+
+    disease_code = "332"
+    term = "CC:MESH:D015766"
 
     top_variants, top_gene_set = get_top_variants(disease_code, term)
 
