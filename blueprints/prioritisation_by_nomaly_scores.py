@@ -6,9 +6,6 @@ Genes are prioritised by the sum of Nomaly scores of their variants.
 
 import logging
 import pickle
-import sys
-from io import StringIO
-from uuid import uuid4
 import numpy as np
 import pandas as pd
 from flask import (
@@ -16,12 +13,7 @@ from flask import (
     Response,
     render_template,
     stream_with_context,
-    jsonify,
-    request,
-    session,
-    current_app,
 )
-from flask_login import current_user, login_required
 import json
 
 from blueprints.nomaly import nomaly_genotype
@@ -52,11 +44,6 @@ class StreamLogger:
         messages = self.messages.copy()
         self.messages = []
         return messages
-
-
-def get_user_cache_key(user_id, disease_code, term):
-    """Generate a unique cache key for this user and request."""
-    return f"user_{user_id}_{disease_code}_{term}"
 
 
 def read_cases_for_disease_code(phecode: str) -> dict:
@@ -200,7 +187,6 @@ prioritisation_bp = Blueprint("prioritisation", __name__)
 
 
 @prioritisation_bp.route("/variant_scores/<disease_code>/<term>")
-@login_required
 def show_variant_scores(disease_code: str, term: str):
     """Show the variant scores page."""
     return render_template(
@@ -213,7 +199,6 @@ def show_variant_scores(disease_code: str, term: str):
 
 
 @prioritisation_bp.route("/stream_progress/<disease_code>/<term>")
-@login_required
 def stream_progress(disease_code: str, term: str):
     """Stream progress updates and final results."""
 
