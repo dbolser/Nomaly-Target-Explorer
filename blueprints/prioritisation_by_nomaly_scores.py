@@ -4,9 +4,13 @@ per disease and term.
 Genes are prioritised by the sum of Nomaly scores of their variants.
 """
 
+import json
 import logging
 import pickle
-import os
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from queue import Queue
+
 import numpy as np
 import pandas as pd
 from flask import (
@@ -15,16 +19,9 @@ from flask import (
     render_template,
     stream_with_context,
 )
-import json
 from flask_login import login_required
-from queue import Queue
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
-from pathlib import Path
 
 from blueprints.nomaly_services import services
-from blueprints.nomaly import GenotypeHDF5
-
 from config import Config
 from db import get_term_variants
 
@@ -134,6 +131,9 @@ def individual_variant_prioritisation(row, term_variant_scores):
 def term_variant_prioritisation(sorted_eids, variant_scores, term, stream_logger=None):
     """For each term, prioritise the variants for selected individuals."""
     term_variants = get_term_variants(term).drop(columns=["term"])
+
+    if stream_logger:
+        stream_logger.info(f"Reading genotypes for {len(term_variants)} variants")
 
     sel_genotypes = read_nomaly_filtered_genotypes(
         sorted_eids, term_variants["variant_id"]
@@ -247,14 +247,19 @@ def get_top_variants(
         sorted_eids, variant_scores, term, stream_logger
     )
 
-    top_gene_set = (
-        top_variants[["gene", "variant_id", "hmm_score"]]
-        .drop_duplicates()
-        .groupby("gene")
-        .sum()
-        .sort_values(by="hmm_score", ascending=False)
+    # Create gene set with properly formatted variant lists
+    gene_variants = top_variants.groupby("gene")["variant_id"].agg(list)
+    gene_scores = top_variants.groupby("gene")["hmm_score"].sum()
+    gene_counts = top_variants.groupby("gene").size()
+
+    top_gene_set = pd.DataFrame(
+        {
+            "variant_id": gene_variants.map(lambda x: ", ".join(x)),
+            "hmm_score": gene_scores,
+            "variant_num": gene_counts,
+        }
     )
-    top_gene_set = top_gene_set.assign(variant_num=top_variants.groupby("gene").size())
+    top_gene_set = top_gene_set.sort_values("hmm_score", ascending=False)
 
     # Save to cache
     save_results_to_cache(disease_code, term, top_variants, top_gene_set)
@@ -291,13 +296,20 @@ def stream_progress(disease_code: str, term: str):
                 disease_code, term, stream_logger
             )
 
+            # Format the gene set variant lists with proper comma separation
+            top_gene_set_dict = top_gene_set.reset_index().to_dict(orient="records")
+            for record in top_gene_set_dict:
+                if "variant_id" in record and record["variant_id"]:
+                    variants = str(record["variant_id"]).split(",")
+                    record["variant_id"] = ", ".join(v.strip() for v in variants)
+
             # Send results
             message_queue.put(
                 {
                     "type": "results",
                     "data": {
                         "top_variants": top_variants.to_dict(orient="records"),
-                        "top_gene_set": top_gene_set.to_dict(orient="records"),
+                        "top_gene_set": top_gene_set_dict,
                     },
                 }
             )

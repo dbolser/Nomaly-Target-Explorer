@@ -1,4 +1,24 @@
-{% extends "base.html" %}
+{% extends "data_base.html" %}
+
+{% block extra_css %}
+{{ super() }}
+<style>
+    .variant-cell {
+        max-width: 400px;
+        display: inline-block;
+        word-break: normal;
+    }
+
+    .variant-cell a {
+        display: inline;
+        white-space: nowrap;
+    }
+
+    td .variant-cell {
+        width: 400px;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -13,10 +33,10 @@
 
     <div id="results" style="display: none;">
         <h3 class="mt-4">Top Gene Set</h3>
-        <div id="gene-set-table"></div>
+        <div id="gene-set-tableContainer"></div>
 
         <h3 class="mt-4">Top Variants</h3>
-        <div id="variants-table"></div>
+        <div id="variants-tableContainer"></div>
     </div>
 </div>
 
@@ -25,37 +45,10 @@
         const logOutput = document.getElementById('log-output');
         const loadingBox = document.getElementById('loading-box');
         const results = document.getElementById('results');
-        const geneSetTable = document.getElementById('gene-set-table');
-        const variantsTable = document.getElementById('variants-table');
 
-        function createTable(data, container) {
-            if (!data || data.length === 0) return;
-
-            // Get columns from first row
-            const columns = Object.keys(data[0]);
-
-            // Create table HTML
-            let html = '<table class="table table-striped">';
-
-            // Header
-            html += '<thead><tr>';
-            columns.forEach(col => {
-                html += `<th>${col}</th>`;
-            });
-            html += '</tr></thead>';
-
-            // Body
-            html += '<tbody>';
-            data.forEach(row => {
-                html += '<tr>';
-                columns.forEach(col => {
-                    html += `<td>${row[col]}</td>`;
-                });
-                html += '</tr>';
-            });
-            html += '</tbody></table>';
-
-            container.innerHTML = html;
+        function createVariantLink(variant) {
+            const urlVariant = variant.replace('/', '_');
+            return `<a href="/variant/${urlVariant}">${variant}</a>`;
         }
 
         // Connect to SSE endpoint
@@ -68,15 +61,43 @@
 
                 switch (message.type) {
                     case 'progress':
-                        // Add timestamp to progress messages
                         const time = new Date().toLocaleTimeString();
                         logOutput.textContent += `[${time}] ${message.data}\n`;
                         logOutput.scrollTop = logOutput.scrollHeight;
                         break;
 
                     case 'results':
-                        createTable(message.data.top_gene_set, geneSetTable);
-                        createTable(message.data.top_variants, variantsTable);
+                        // Initialize gene set table
+                        const geneSetColumns = Object.keys(message.data.top_gene_set[0]).map(key => ({
+                            data: key,
+                            title: key.replace(/_/g, ' '),
+                            render: key === 'variant_id' ?
+                                (data, type) => {
+                                    if (type === 'display' && data) {
+                                        const links = data.split(', ').map(createVariantLink).join(', ');
+                                        return `<div class="variant-cell" title="${data}">${links}</div>`;
+                                    }
+                                    return data;
+                                } :
+                                null
+                        }));
+                        initializeDataTable('gene-set-table', message.data.top_gene_set, geneSetColumns);
+
+                        // Initialize variants table
+                        const variantColumns = Object.keys(message.data.top_variants[0]).map(key => ({
+                            data: key,
+                            title: key.replace(/_/g, ' '),
+                            render: key === 'variant_id' ?
+                                (data, type) => {
+                                    if (type === 'display') {
+                                        return `<div class="variant-cell" title="${data}">${createVariantLink(data)}</div>`;
+                                    }
+                                    return data;
+                                } :
+                                null
+                        }));
+                        initializeDataTable('variants-table', message.data.top_variants, variantColumns);
+
                         results.style.display = 'block';
                         break;
 
