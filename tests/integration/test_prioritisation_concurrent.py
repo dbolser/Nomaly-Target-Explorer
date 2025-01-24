@@ -3,7 +3,7 @@
 import pytest
 from flask import url_for
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from db import get_db_connection
 
 
