@@ -126,26 +126,65 @@ class StatsHDF5:
 
 
 class GenotypeHDF5:
+    """Handles access to genotype data stored in HDF5 format.
+
+    This class expects both an HDF5 file and a corresponding .npy file
+    containing the same genotype matrix data. The .npy file is used for
+    memory-mapped access to improve performance.
+
+    Args:
+        hdf5_file (str): Path to the HDF5 file. A corresponding .npy file
+            must exist at {hdf5_file}.npy
+    """
+
     def __init__(self, hdf5_file):
         try:
-            self.hdf5_file = hdf5_file
-            if not os.path.exists(hdf5_file):
-                raise FileNotFoundError(f"Genotype HDF5 file not found: {hdf5_file}")
-
             self.f = h5py.File(hdf5_file, "r")
 
-            # Verify required datasets exist
-            required_datasets = ["genotype_matrix", "fam", "bim"]
-            for dataset in required_datasets:
-                if dataset not in self.f:
-                    raise KeyError(
-                        f"Required dataset '{dataset}' not found in genotype HDF5 file"
-                    )
+            # Jumping through hoops to fix the type checker...
+            genotype_matrix = self.f["genotype_matrix"]
+            individual = self.f["fam"]
+            variants = self.f["bim"]
 
-            # Load the genotype matrix and index information
-            self.genotype_matrix: h5py.Dataset = self.f["genotype_matrix"]
-            self.individual: np.array = self.f["fam"][...].astype(int)
-            self.variants: np.array = self.f["bim"][...].astype(str)
+            assert isinstance(genotype_matrix, h5py.Dataset)
+            assert isinstance(individual, h5py.Dataset)
+            assert isinstance(variants, h5py.Dataset)
+
+            # Sanity checks
+            try:
+                assert genotype_matrix.shape[0] == variants.shape[0]
+                assert genotype_matrix.shape[1] == individual.shape[0]
+            except Exception as e:
+                print(f"Error in sanity checks: {str(e)}")
+                raise
+
+            self.genotype_matrix: h5py.Dataset = genotype_matrix
+            self.individual: np.ndarray = individual[...].astype(int)
+            self.variants: np.ndarray = variants[...].astype(str)
+
+            # Convert variants to plink format
+            # self.plink_format_variants = []
+            # for variant in self.variants:
+            #     # Convert CHR:POS:REF:ALT to CHR:POS_REF/ALT
+            #     chrom, pos, ref, alt = variant.split(":")
+            #     self.plink_format_variants.append(f"{chrom}:{pos}_{ref}/{alt}")
+
+            # # Map plink format variants to nomaly_format_variants
+            # ...
+
+            # Convert genotype matrix to np.memmap (for now we assume the .npy
+            # file already exists)
+            genotype_matrix_np_path = f"{self.f.file.filename}.npy"
+
+            # Load as memmap with explicit dtype and correct format
+            self.genotype_matrix_mm = np.load(
+                genotype_matrix_np_path,
+                mmap_mode="r",
+            )
+
+            # Switch (for testing)
+            self.genotype_matrix_h5 = self.genotype_matrix
+            self.genotype_matrix = self.genotype_matrix_mm
 
         except Exception as e:
             print(f"Error initializing GenotypeHDF5: {str(e)}")
@@ -225,7 +264,7 @@ class GenotypeHDF5:
 
         return df
 
-    def query_variants(self, variant: str) -> np.ndarray | None:
+    def query_variants(self, variant: str) -> np.ndarray:
         """
         Query genotypes for a variant, trying flipped alleles if original not found.
 
@@ -239,7 +278,7 @@ class GenotypeHDF5:
             std_variant = self._standardize_variant_format(variant)
             if std_variant is None:
                 print(f"Variant {variant} could not be standardized!")
-                return None
+                return np.array([])
 
             # Try original variant
             genotypes = self._query_variants_internal(std_variant)
@@ -257,11 +296,11 @@ class GenotypeHDF5:
                 return genotypes
 
             print(f"Variant not found in either orientation: {variant}")
-            return None
+            return np.array([])
 
         except Exception as e:
             print(f"Error in query_variants: {str(e)}")
-            return None
+            return np.array([])
 
     def _query_variants_internal(self, variant: str) -> np.ndarray | None:
         """Internal method to query a single variant."""
@@ -277,7 +316,7 @@ class GenotypeHDF5:
 
             # Query the submatrix
             try:
-                submatrix = self.genotype_matrix[selected_variant_indices, :]
+                submatrix = self.genotype_matrix_mm[selected_variant_indices, :]
                 if submatrix.size == 0:
                     return None
                 return submatrix
@@ -452,10 +491,12 @@ class PhenotypesHDF5:
 # Initiate classes
 # ------------------------------------------------------------------------------#
 
-nomaly_genotype = GenotypeHDF5(Config.GENOTYPES_H5)
+# Trying to not use globals...
 
-nomaly_stats = StatsHDF5(Config.STATS_H5)
-nomaly_stats_v2 = StatsHDF5(Config.STATS_H5_V2)
+# nomaly_genotype = GenotypeHDF5(Config.GENOTYPES_H5)
+
+# nomaly_stats = StatsHDF5(Config.STATS_H5)
+# nomaly_stats_v2 = StatsHDF5(Config.STATS_H5_V2)
 
 # NOT USED!
 # nomaly_scores = ScoreHDF5(Config.SCORES_H5)

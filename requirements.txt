@@ -4,6 +4,7 @@ Flask-MySQLdb
 Flask-Session
 Flask-WTF
 Flask-Login
+Flask-CORS
 
 # Database
 mysql-connector-python==8.2.0

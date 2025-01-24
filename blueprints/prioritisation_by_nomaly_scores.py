@@ -22,7 +22,9 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from pathlib import Path
 
-from blueprints.nomaly import nomaly_genotype
+from blueprints.nomaly_services import services
+from blueprints.nomaly import GenotypeHDF5
+
 from config import Config
 from db import get_term_variants
 
@@ -68,9 +70,12 @@ def read_cases_for_disease_code(phecode: str) -> dict:
 
 def read_nomaly_filtered_genotypes(sorted_eids, short_listed_variants) -> dict:
     """Read genotypes for the individuals and variants."""
+    genotype_service = services.genotype
+    assert genotype_service is not None
+
     # sort the genotype eids
-    sorted_indices = np.argsort(nomaly_genotype.individual)
-    sorted_genotype_eids = nomaly_genotype.individual[sorted_indices]
+    sorted_indices = np.argsort(genotype_service.individual)
+    sorted_genotype_eids = genotype_service.individual[sorted_indices]
 
     # search
     indices = np.searchsorted(sorted_genotype_eids, sorted_eids)
@@ -83,7 +88,7 @@ def read_nomaly_filtered_genotypes(sorted_eids, short_listed_variants) -> dict:
     error_variants = []
 
     for vindex, variant_id in enumerate(short_listed_variants):
-        genotype_result = nomaly_genotype.query_variantID_genotypes(variant_id)
+        genotype_result = genotype_service.query_variantID_genotypes(variant_id)
         if genotype_result is None:
             logger.warning(f"No genotype data found for variant {variant_id}")
             error_variants.append(variant_id)

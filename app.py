@@ -26,6 +26,7 @@ from flask_login import (
 from flask_session import Session
 from db import get_db_connection
 from werkzeug.security import check_password_hash
+from flask_cors import CORS
 
 # Import blueprints after creating the app
 from blueprints.search import search_bp
@@ -36,8 +37,35 @@ from blueprints.variant import variant_bp
 from blueprints.admin import admin_bp
 from blueprints.prioritisation_by_nomaly_scores import prioritisation_bp
 
+from blueprints.nomaly_services import services  # imports the NomalyServices instance
 
-app = Flask(__name__)
+
+def create_app(config=None):
+    """Application factory pattern."""
+    app = Flask(__name__)
+
+    # Configure app
+    if config:
+        app.config.from_object(config)
+
+    # Initialize extensions
+    CORS(app)
+    services.init_app(app)
+
+    # Register blueprints
+    app.register_blueprint(phecode_bp)
+    app.register_blueprint(search_bp)
+    app.register_blueprint(disease_sets_bp)
+    app.register_blueprint(variant_bp)
+    app.register_blueprint(phecode_term_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(prioritisation_bp)
+
+    return app
+
+
+# Create the application instance
+app = create_app()
 
 # Load config based on environment
 config_name = os.getenv("FLASK_ENV", "default")
@@ -55,15 +83,6 @@ login_manager.init_app(app)
 
 # Configure MySQL
 mysql = MySQL(app)
-
-# Register Blueprints
-app.register_blueprint(phecode_bp)
-app.register_blueprint(search_bp)
-app.register_blueprint(disease_sets_bp)
-app.register_blueprint(variant_bp)
-app.register_blueprint(phecode_term_bp)
-app.register_blueprint(admin_bp)
-app.register_blueprint(prioritisation_bp)
 
 
 # User Class

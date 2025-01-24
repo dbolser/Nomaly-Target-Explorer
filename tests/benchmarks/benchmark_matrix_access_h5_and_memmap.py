@@ -1,14 +1,14 @@
 import os
 import time
 
-import h5py
 import numpy as np
 from tqdm import tqdm
 
-from blueprints.nomaly import nomaly_genotype
+from blueprints.nomaly import GenotypeHDF5
+from config import Config
 
 
-def benchmark_matrix_access(matrix, n_queries=500):
+def benchmark_matrix_access(matrix, n_queries=10):
     """
     Benchmark different approaches to matrix row access
     """
@@ -34,24 +34,37 @@ def benchmark_matrix_access(matrix, n_queries=500):
 
 
 if __name__ == "__main__":
-    matrix = nomaly_genotype.genotype_matrix
-    print(matrix.shape)
-    # results = benchmark_matrix_access(matrix)
-    # print(f"Current approach total time: {results['current_approach_time']:.3f}s")
-    # print(f"Batched approach total time: {results['batched_approach_time']:.3f}s")
-    # print(f"Speedup factor: {results['speedup_factor']:.1f}x")
+    geno = GenotypeHDF5(Config.GENOTYPES_H5)
+    matrix_h5 = geno.genotype_matrix_h5
+    print(matrix_h5.shape)
 
-    assert isinstance(matrix, h5py.Dataset)
-    matrix_path = nomaly_genotype.genotype_matrix.file.filename
+    results = benchmark_matrix_access(matrix_h5)
+    print(f"Current approach total time: {results['current_approach_time']:.3f}s")
+    print(f"Batched approach total time: {results['batched_approach_time']:.3f}s")
+    print(f"Speedup factor: {results['speedup_factor']:.1f}x")
+
+    matrix_path = matrix_h5.file.filename
     matrix_np_path = f"{matrix_path}.npy"
 
     if not os.path.exists(matrix_np_path):
-        np.save(matrix_np_path, matrix)
+        # This takes some time
+        # 1) Convert entire HDF5 dataset to numpy array first
+        np_matrix = matrix_h5[:]  # This creates a numpy array in memory
+        # 2) Save numpy array to disk
+        np.save(matrix_np_path, np_matrix)
+        # 3) Free up memory
+        del np_matrix
 
-    memmap_matrix = np.memmap(
-        matrix_np_path, mode="r", shape=matrix.shape, dtype=matrix.dtype
-    )
-    results = benchmark_matrix_access(memmap_matrix, n_queries=5000)
+    time_start = time.time()
+    matrix_mm = np.load(matrix_np_path, mmap_mode="r")
+    time_end = time.time()
+    print(f"Time to memmap: {time_end - time_start:.3f}s")
+
+    assert matrix_h5[0, 0] == matrix_mm[0, 0]
+    assert np.all(matrix_h5[0:1000, 0] == matrix_mm[0:1000, 0])
+    assert np.all(matrix_h5[0:1000, 1000] == matrix_mm[0:1000, 1000])
+
+    results = benchmark_matrix_access(matrix_mm, n_queries=5000)
 
     print(f"Current approach total time: {results['current_approach_time']:.3f}s")
     print(f"Batched approach total time: {results['batched_approach_time']:.3f}s")

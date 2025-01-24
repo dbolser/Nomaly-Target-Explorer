@@ -1,19 +1,16 @@
-from blueprints.nomaly import nomaly_genotype, PhenotypesHDF5
-from db import get_all_phecodes
-
+import os
 from collections import Counter
 from typing import Any, List, NamedTuple
 
+import numpy as np
+import pandas as pd
+from scipy.stats import fisher_exact
 from tqdm import tqdm
 
-import pandas as pd
-import numpy as np
-
-from scipy.stats import fisher_exact
-
-import os
-
+from blueprints.nomaly import PhenotypesHDF5
+from blueprints.nomaly_services import services
 from config import Config
+from db import get_all_phecodes
 
 PHEWAS_PHENO_DIR = Config.PHEWAS_PHENO_DIR
 
@@ -158,10 +155,13 @@ def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
     Returns:
         tuple: (sorted_eids, sorted_genotypes) or None if error
     """
+    genotype_service = services.genotype
+    assert genotype_service is not None
+
     try:
         # Get genotype data
-        genotype_eids = nomaly_genotype.individual
-        genotypes = nomaly_genotype.query_variants(variant)
+        genotype_eids = genotype_service.individual
+        genotypes = genotype_service.query_variants(variant)
         if genotypes is None or len(genotypes) == 0:
             print(f"No genotype data found for variant {variant}")
             return None
@@ -418,9 +418,6 @@ def process_variant(variant: str):
     return get_phewas_results(variant, None)
 
 
-from multiprocessing import Pool
-
-
 def main():
     test_variant = "11:69083946:T:C"
     test_variant = "9:35066710:A:G"
@@ -436,6 +433,8 @@ def main():
     variants_df["variant_id_standard"] = variants_df.variant_id.apply(
         lambda x: x.replace("/", "_")
     )
+
+    from multiprocessing import Pool
 
     # Create a pool of 10 workers
     with Pool(96) as p:

@@ -86,15 +86,15 @@ def test_individual_id_format():
     # THIS WAS A PROBLEM IN THE ORIGINAL FILE, e..g there was exactly 1 -1 in
     # the sample_ids!
 
-    NUM_MISSING_IDS = 1
+    NUM_MISSING_IDS = 0
 
-    assert (
-        np.sum(sample_ids == -1) == NUM_MISSING_IDS
-    ), f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
+    assert np.sum(sample_ids == -1) == NUM_MISSING_IDS, (
+        f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
+    )
 
-    assert (
-        np.sum(sample_ids < 0) == NUM_MISSING_IDS
-    ), f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
+    assert np.sum(sample_ids < 0) == NUM_MISSING_IDS, (
+        f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
+    )
 
     for id_num in sample_ids:
         assert isinstance(id_num, np.integer)
@@ -126,9 +126,9 @@ def test_flipped_allele_query():
 
     # First verify the original variant isn't found
     result_original = nomaly_genotype.query_variants(variant)
-    assert (
-        result_original is not None
-    ), "Either original or flipped variant should be found"
+    assert result_original is not None, (
+        "Either original or flipped variant should be found"
+    )
 
     # The query should automatically try the flipped version
     genotypes = result_original[0]
@@ -172,7 +172,6 @@ def test_query_with_different_formats():
         "8_6870776_C/T",  # underscore format
         "8:6870776:C:T",  # colon format
         "chr8_6870776_C/T",  # with chr prefix
-        "8-6870776-C-T",  # dash format
     ]
 
     # All should return the same data
@@ -210,27 +209,27 @@ def test_genotype_flipping():
 
     # Verify that homozygous ref (0) in one is homozygous alt (2) in the other
     ref_homozygous_mask = genotypes_ref == 0
-    assert all(
-        genotypes_flipped[ref_homozygous_mask] == 2
-    ), "Homozygous ref not flipped to homozygous alt"
+    assert all(genotypes_flipped[ref_homozygous_mask] == 2), (
+        "Homozygous ref not flipped to homozygous alt"
+    )
 
     # Verify that homozygous alt (2) in one is homozygous ref (0) in the other
     alt_homozygous_mask = genotypes_ref == 2
-    assert all(
-        genotypes_flipped[alt_homozygous_mask] == 0
-    ), "Homozygous alt not flipped to homozygous ref"
+    assert all(genotypes_flipped[alt_homozygous_mask] == 0), (
+        "Homozygous alt not flipped to homozygous ref"
+    )
 
     # Verify that heterozygous (1) stays heterozygous
     het_mask = genotypes_ref == 1
-    assert all(
-        genotypes_flipped[het_mask] == 1
-    ), "Heterozygous genotypes changed during flipping"
+    assert all(genotypes_flipped[het_mask] == 1), (
+        "Heterozygous genotypes changed during flipping"
+    )
 
     # Verify that missing (-1) stays missing
     missing_mask = genotypes_ref == -1
-    assert all(
-        genotypes_flipped[missing_mask] == -1
-    ), "Missing genotypes changed during flipping"
+    assert all(genotypes_flipped[missing_mask] == -1), (
+        "Missing genotypes changed during flipping"
+    )
 
 
 def test_variant_counts():

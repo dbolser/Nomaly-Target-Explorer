@@ -1,28 +1,23 @@
-from flask import Blueprint, render_template, jsonify, request
-
-import pandas as pd
+import logging
 import traceback
 
-from blueprints.gwas import run_gwas, format_gwas_results
+import pandas as pd
+from flask import Blueprint, jsonify, render_template, request
 
-from db import (
-    get_term_variants,
-    get_term_domains,
-    get_term_names,
-    get_term_genes,
-    get_phecode_info,
-)
-
-from blueprints.nomaly import pharos, pp
-
-from blueprints.nomaly import nomaly_genotype
-
-from errors import DataNotFoundError
-import logging
+from blueprints.gwas import format_gwas_results, run_gwas
+from blueprints.nomaly import GenotypeHDF5, pharos, pp
+from blueprints.nomaly_services import services
 
 # from blueprints.phewas import get_formatted_phewas_data
-
 from blueprints.phecode_term_helper import load_cached_results, save_results
+from db import (
+    get_phecode_info,
+    get_term_domains,
+    get_term_genes,
+    get_term_names,
+    get_term_variants,
+)
+from errors import DataNotFoundError
 
 
 # Create the blueprint
@@ -70,6 +65,9 @@ def show_phecode_term(phecode, term):
     methods=["GET", "POST"],
 )
 def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = False):
+    genotype_service = services.genotype
+    assert genotype_service is not None
+
     logger.info(
         f"Starting variant detail processing for phecode {phecode}, term {term}"
     )
@@ -175,7 +173,7 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
             logger.info(f"Formatted GWAS columns: {formatted_gwas.columns.tolist()}")
 
         # Load genotype counts
-        genotype_counts = nomaly_genotype.get_variant_counts()
+        genotype_counts = genotype_service.get_variant_counts()
 
         data_records = []
         for _, row in term_df.iterrows():

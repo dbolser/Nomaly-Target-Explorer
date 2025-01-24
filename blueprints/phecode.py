@@ -1,13 +1,13 @@
-from flask import Blueprint, render_template, request, jsonify, url_for
-
-from db import get_phecode_info, get_term_domains, get_term_names, get_term_genes
-from blueprints.gwas import run_gwas, format_gwas_results
-from blueprints.nomaly import nomaly_stats, nomaly_stats_v2, make_qqplot
+import logging
 
 import pandas as pd
 import plotly.io as pio
+from flask import Blueprint, jsonify, render_template, request, url_for
 
-import logging
+from blueprints.gwas import format_gwas_results, run_gwas
+from blueprints.nomaly import make_qqplot
+from blueprints.nomaly_services import services
+from db import get_phecode_info, get_term_domains, get_term_genes, get_term_names
 
 logger = logging.getLogger(__name__)
 phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
@@ -15,7 +15,7 @@ phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
 
 def get_stats_handler(version=1):
     """Get the appropriate stats handler based on version."""
-    return nomaly_stats_v2 if version == 2 else nomaly_stats
+    return services.stats_v2 if version == 2 else services.stats
 
 
 @phecode_bp.route("/phecode/<string:phecode>", methods=["GET"])
