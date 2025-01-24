@@ -59,6 +59,7 @@ class Config:
     GWAS_PHENO_DIR = Path("/data/clu/ukbb/by_pheno")
     PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
     PHECODE_TERM_DIR = Path("/data/clu/ukbb/by_phecode_term")
+    VARIANT_SCORES_DIR = Path("/data/clu/ukbb/variant_scores")
 
     # Caching directories
     # GWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/eur_gwas")
