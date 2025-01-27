@@ -59,7 +59,7 @@ def run_gwas(phecode: str) -> pd.DataFrame:
         fam.to_csv(fam_file, sep=" ", header=False, index=False)
 
     # Run PLINK if needed
-    cmd = f"{PLINK_BINARY} --allow-no-sex --bed {SOURCE_PLINK_GENOME}.bed --bim {SOURCE_PLINK_GENOME}.bim --fam {fam_file} --assoc --out {output_suffix}"
+    cmd = f"{PLINK_BINARY} --bed {SOURCE_PLINK_GENOME}.bed --bim {SOURCE_PLINK_GENOME}.bim --fam {fam_file} --assoc fisher --out {output_suffix}"
 
     try:
         process = subprocess.Popen(
@@ -92,7 +92,7 @@ def run_gwas(phecode: str) -> pd.DataFrame:
         raise
 
     # Process results
-    assoc = pd.read_csv(f"{output_suffix}.assoc", sep=r"\s+", dtype={"CHR": str})
+    assoc = pd.read_csv(f"{output_suffix}.assoc.fisher", sep=r"\s+", dtype={"CHR": str})
     assoc["CHR"] = assoc["CHR"].replace({"23": "X", "24": "Y", "25": "XY", "26": "MT"})
     assoc["CHR_BP_A1_A2"] = assoc.apply(
         lambda x: f"{x.CHR}:{x.BP}_{x.A1}/{x.A2}", axis=1
