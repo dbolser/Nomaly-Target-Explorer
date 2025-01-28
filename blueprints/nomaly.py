@@ -211,7 +211,7 @@ class GenotypeHDF5:
         chrom, pos, ref, alt = variant.split(":")
         return f"{chrom}:{pos}:{alt}:{ref}"
 
-    def _standardize_variant_format(self, variant: str) -> str | None:
+    def _standardize_variant_format(self, variant: str) -> str:
         """
         Convert any variant format to CHR:POS:REF:ALT format.
 
@@ -230,12 +230,10 @@ class GenotypeHDF5:
             chrom, pos, ref, alt = re.split(r"[_/:]", variant)
             # Validate components
             if not chrom or not pos or not ref or not alt:
-                print(f"Missing component in variant: {variant}")
-                return None
+                raise ValueError(f"Missing component in variant: {variant}")
 
             if not pos.isdigit():
-                print(f"Position must be numeric: {pos}")
-                return None
+                raise ValueError(f"Position must be numeric: {pos}")
 
             # Clean chromosome format (e.g., 'chr8' -> '8')
             chrom = chr_str.sub("", chrom)
@@ -244,8 +242,7 @@ class GenotypeHDF5:
             return f"{chrom}:{pos}:{ref}:{alt}"
 
         except Exception as e:
-            print(f"Error standardizing variant format {variant}: {str(e)}")
-            return None
+            raise ValueError(f"Error standardizing variant format {variant}: {str(e)}")
 
     def get_variant_counts(self) -> pd.DataFrame:
         """
@@ -276,9 +273,6 @@ class GenotypeHDF5:
         """
         try:
             std_variant = self._standardize_variant_format(variant)
-            if std_variant is None:
-                print(f"Variant {variant} could not be standardized!")
-                return np.array([])
 
             # Try original variant
             genotypes = self._query_variants_internal(std_variant)
