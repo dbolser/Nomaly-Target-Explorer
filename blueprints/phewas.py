@@ -1,3 +1,4 @@
+import logging
 import os
 from collections import Counter
 from typing import Any, List, NamedTuple
@@ -11,6 +12,9 @@ from blueprints.nomaly import PhenotypesHDF5
 from blueprints.nomaly_services import services
 from config import Config
 from db import get_all_phecodes
+
+logger = logging.getLogger(__name__)
+
 
 PHEWAS_PHENO_DIR = Config.PHEWAS_PHENO_DIR
 
@@ -156,7 +160,8 @@ def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
         tuple: (sorted_eids, sorted_genotypes) or None if error
     """
     genotype_service = services.genotype
-    assert genotype_service is not None
+    if genotype_service is None:
+        raise ValueError("Genotype service is not initialized!")
 
     try:
         # Get genotype data
@@ -206,7 +211,7 @@ def process_phecode(
         for case in [0, 1]:
             count = np.sum((matched_genotypes == genotype) & (matched_cases == case))
             if count > 0:
-                phecode_counts.add(case, int(genotype), count)
+                phecode_counts.add(case, genotype, count)
 
     stats = phecode_counts.get_stats()
     odds_ratio, p_value = stats["fisher_stats"]
@@ -312,8 +317,10 @@ def get_phewas_results(variant: str, phecode: str | None = None) -> pd.DataFrame
                 return df[df["phecode"] == phecode]
             return df
         except Exception as e:
-            print(f"Error reading existing PheWAS file for variant {variant}: {e}")
-            return None
+            logger.error(
+                f"Error reading existing PheWAS file for variant {variant}: {e}"
+            )
+            return pd.DataFrame()
 
     # If no cached results and specific phecode requested, analyze just that phecode
     if phecode is not None:
@@ -344,7 +351,9 @@ def get_phewas_results(variant: str, phecode: str | None = None) -> pd.DataFrame
             return None
 
         except Exception as e:
-            print(f"Error in single-phecode analysis for variant {variant}: {e}")
+            logger.error(
+                f"Error in single-phecode analysis for variant '{variant}': {e}"
+            )
             return None
 
     # No cached results and no specific phecode - run full analysis
@@ -424,23 +433,35 @@ def main():
     test_variant = "19:44908684:C:T"
     test_variant = "8:7055492:C:T"  # Just kill me
     test_variant = "8:6870776:T:C"
+    test_variant = "19:15373898:C:T"
 
     # phecode_level_assoc(test_variant)
 
-    from db import get_all_variants
+    # Some setup to do outside of the app context
+    from nomaly_services import services
+    from nomaly import GenotypeHDF5
 
-    variants_df = get_all_variants()
-    variants_df["variant_id_standard"] = variants_df.variant_id.apply(
-        lambda x: x.replace("/", "_")
-    )
+    global services
+    services.genotype = GenotypeHDF5(Config.GENOTYPES_H5)
 
-    from multiprocessing import Pool
+    get_phewas_results(test_variant, "642.1")
 
-    # Create a pool of 10 workers
-    with Pool(96) as p:
-        # Map get_phewas_results to all variants
-        p.map(process_variant, variants_df.variant_id_standard)
-        print("Done!")
+    DO_FULL_RUN = False
+    if DO_FULL_RUN:
+        from db import get_all_variants
+
+        variants_df = get_all_variants()
+        variants_df["variant_id_standard"] = variants_df.variant_id.apply(
+            lambda x: x.replace("/", "_")
+        )
+
+        from multiprocessing import Pool
+
+        # Create a pool of 10 workers
+        with Pool(96) as p:
+            # Map get_phewas_results to all variants
+            p.map(process_variant, variants_df.variant_id_standard)
+            print("Done!")
 
 
 if __name__ == "__main__":
