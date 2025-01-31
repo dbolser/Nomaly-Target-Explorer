@@ -4,7 +4,7 @@ import traceback
 
 # Using this for speed
 from functools import cached_property
-from os import PathLike
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -415,7 +415,7 @@ class ScoreHDF5:
 class PhenotypesHDF5:
     """Handles access to phenotype data stored in HDF5 format."""
 
-    def __init__(self, hdf5_file: PathLike):
+    def __init__(self, hdf5_file: Path | str):
         # self.hdf5_file = hdf5_file
         self.f = h5py.File(hdf5_file, "r")
 
@@ -467,7 +467,7 @@ class PhenotypesHDF5:
             self._population_eids_cache[population] = self.eids[population_mask]
         return self._population_eids_cache[population]
 
-    def get_cases_for_phecode(self, phecode, population=None):
+    def get_cases_for_phecode(self, phecode, sex=None, population=None):
         try:
             phecode_index = self.phecode_to_index[phecode]
         except KeyError:
