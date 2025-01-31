@@ -1,18 +1,15 @@
 import os
 import re
-
-import h5py
-
-import numpy as np
-import pandas as pd
-
 import traceback
-from flask import current_app
 
 # Using this for speed
 from functools import cached_property
 
+import h5py
+import numpy as np
+import pandas as pd
 import plotly.express as px
+from flask import current_app
 
 from config import Config
 
@@ -20,7 +17,7 @@ chr_str = re.compile("chr", re.IGNORECASE)
 
 # UKBB_PHENO_DIR = "/data/general/UKBB/Phenotypes/"
 # icd10_cases_h5 = UKBB_PHENO_DIR + "ukbbrun_icd10_2024-09-07_any.h5"
-phenotypes_h5 = Config.PHENOTYPES_H5
+# phenotypes_h5 = Config.PHENOTYPES_H5
 
 RESOURCE_DATA_DIR = Config.RESOURCE_DATA_DIR
 pharos_path = RESOURCE_DATA_DIR / "pharos_api_query.out"
@@ -162,16 +159,6 @@ class GenotypeHDF5:
             self.individual: np.ndarray = individual[...].astype(int)
             self.variants: np.ndarray = variants[...].astype(str)
 
-            # Convert variants to plink format
-            # self.plink_format_variants = []
-            # for variant in self.variants:
-            #     # Convert CHR:POS:REF:ALT to CHR:POS_REF/ALT
-            #     chrom, pos, ref, alt = variant.split(":")
-            #     self.plink_format_variants.append(f"{chrom}:{pos}_{ref}/{alt}")
-
-            # # Map plink format variants to nomaly_format_variants
-            # ...
-
             # Convert genotype matrix to np.memmap (for now we assume the .npy
             # file already exists)
             genotype_matrix_np_path = f"{self.f.file.filename}.npy"
@@ -190,6 +177,7 @@ class GenotypeHDF5:
             print(f"Error initializing GenotypeHDF5: {str(e)}")
             raise
 
+    # TODO: Is this needed?
     def __del__(self):
         """Cleanup method to ensure file is closed."""
         try:
@@ -198,6 +186,7 @@ class GenotypeHDF5:
         except Exception as e:
             print(f"Error closing genotype file: {str(e)}")
 
+    # TODO: Refactor away (we now have this data in the HDF5 file)
     def _flip_alleles(self, variant: str) -> str:
         """
         Flip the ref and alt alleles in a variant ID.
@@ -211,6 +200,7 @@ class GenotypeHDF5:
         chrom, pos, ref, alt = variant.split(":")
         return f"{chrom}:{pos}:{alt}:{ref}"
 
+    # TODO: Refactor away (we now have this data in the HDF5 file)
     def _standardize_variant_format(self, variant: str) -> str:
         """
         Convert any variant format to CHR:POS:REF:ALT format.
@@ -422,25 +412,39 @@ class ScoreHDF5:
 
 
 class PhenotypesHDF5:
-    def __init__(self, hdf5_file=phenotypes_h5):
-        self.hdf5_file = hdf5_file
+    """Handles access to phenotype data stored in HDF5 format."""
+
+    def __init__(self, hdf5_file):
+        # self.hdf5_file = hdf5_file
         self.f = h5py.File(hdf5_file, "r")
 
         self._population_mask_cache = {}  # Add cache dictionary
         self._population_eids_cache = {}  # Cache for filtered eids
 
+        # Jumping through hoops to fix the type checker...
+        phenotype_data = self.f["phenotype_data"]
+        eids = self.f["eids"]
+        phecodes = self.f["phecodes"]
+        populations = self.f["populations"]
+
+        assert isinstance(phenotype_data, h5py.Dataset)
+        assert isinstance(eids, h5py.Dataset)
+        assert isinstance(phecodes, h5py.Dataset)
+        assert isinstance(populations, h5py.Dataset)
+
+        # Sanity checks
+        try:
+            assert phenotype_data.shape[0] == eids.shape[0]
+            assert phenotype_data.shape[1] == phecodes.shape[0]
+        except Exception as e:
+            print(f"Error in sanity checks: {str(e)}")
+            raise
+
         # Load the data matrix and index information as numpy arrays
-        self.phenotype_data: np.ndarray = self.f["phenotype_data"][...][...]
-        self.eids: np.ndarray = self.f["eids"][...]  # Load row data
-        self.phecodes = self.f["phecodes"][...]  # Load column data
-        self.populations = self.f["populations"][...]  # Load population data
-
-        # Convert to strings
-        self.phecodes: np.ndarray = self.phecodes.astype(str)
-        self.populations: np.ndarray = self.populations.astype(str)
-
-    def __str__(self):
-        return f"PhenotypesHDF5: {self.hdf5_file}"
+        self.phenotype_data: h5py.Dataset = phenotype_data
+        self.eids: np.ndarray = eids[...].astype(int)
+        self.phecodes: np.ndarray = phecodes[...].astype(str)
+        self.populations: np.ndarray = populations[...].astype(str)
 
     @cached_property
     def phecode_to_index(self):
