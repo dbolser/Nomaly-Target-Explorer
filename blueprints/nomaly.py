@@ -4,6 +4,7 @@ import traceback
 
 # Using this for speed
 from functools import cached_property
+from os import PathLike
 
 import h5py
 import numpy as np
@@ -414,7 +415,7 @@ class ScoreHDF5:
 class PhenotypesHDF5:
     """Handles access to phenotype data stored in HDF5 format."""
 
-    def __init__(self, hdf5_file):
+    def __init__(self, hdf5_file: PathLike):
         # self.hdf5_file = hdf5_file
         self.f = h5py.File(hdf5_file, "r")
 
