@@ -129,6 +129,21 @@ flask run
 ```
 
 
+## Notes on things to improve:
+
+### Suggestions for Refactoring
+
+Based on the test coverage, here are some refactoring opportunities:
+
+- Extract the variant processing logic into a separate service class
+- Implement proper dependency injection for external services
+- Add better error handling and validation
+- Consider using async/await for the streaming functionality
+- Implement proper connection pooling for database operations
+- Add metrics collection for performance monitoring
+
+
+
 ## Notes on the input data
 
 
