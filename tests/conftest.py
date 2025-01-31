@@ -1,15 +1,19 @@
 import os
 import sys
+import tempfile
+from unittest.mock import patch
+
 import pytest
-from app import app as flask_app
-from db import get_db_connection
 
 # from flask_login import login_user
 from werkzeug.security import generate_password_hash
 
+from app import app as flask_app
+from db import get_db_connection
+
 # Add the project root directory to the Python path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)
+# project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# sys.path.insert(0, project_root)
 
 
 @pytest.fixture
@@ -77,6 +81,29 @@ def test_admin():
     conn.close()
 
 
+def cleanup_test_admin_after_test_timeout():
+    """Cleanup the test admin user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        DELETE
+            user_permissions, users2
+        FROM
+            user_permissions 
+        INNER JOIN
+            users2
+        ON
+          user_permissions.user_id = users2.id
+        WHERE
+            username = "test_admin"
+        """
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
 @pytest.fixture
 def auth_client(client, test_admin):
     """Authenticate the client as the test admin user."""
@@ -138,3 +165,21 @@ def test_limited_user():
     conn.commit()
     cursor.close()
     conn.close()
+
+
+@pytest.fixture
+def mock_config(tmp_path):
+    """Create a temporary directory for cache testing"""
+    with patch("config.Config") as mock_config:
+        mock_config.VARIANT_SCORES_DIR = str(tmp_path)
+        yield mock_config
+
+
+def main():
+    # Disaster recovery...
+    cleanup_test_admin_after_test_timeout()
+    exit(0)
+
+
+if __name__ == "__main__":
+    main()

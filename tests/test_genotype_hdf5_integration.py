@@ -4,10 +4,13 @@ from blueprints.nomaly import GenotypeHDF5
 
 from config import Config
 
+import pytest
+
 config = Config()
 nomaly_genotype = GenotypeHDF5(config.GENOTYPES_H5)
 
 NUM_INDIVIDUALS = 488377
+NUM_INDIVIDUALS = 487950  # Removed 427 individuals with negative eids
 NUM_VARIANTS = 83011
 
 
@@ -56,12 +59,31 @@ def test_known_variant_genotype_distribution():
     assert result is not None
 
     genotypes = result[0]
-    expected_ref_homozygous = 9874
-    expected_heterozygous = 108371
-    expected_alt_homozygous = 296223
 
+    expected_missing_______ = 73846
+    expected_ref_homozygous = 9863
+    expected_heterozygous__ = 108276
+    expected_alt_homozygous = 295965
+
+    assert np.sum(genotypes == -1) == expected_missing_______
     assert np.sum(genotypes == 0) == expected_ref_homozygous
-    assert np.sum(genotypes == 1) == expected_heterozygous
+    assert np.sum(genotypes == 1) == expected_heterozygous__
+    assert np.sum(genotypes == 2) == expected_alt_homozygous
+
+    variant = "6:26199089:A:C"
+    result = nomaly_genotype.query_variants(variant)
+    assert result is not None
+
+    genotypes = result[0]
+
+    expected_missing_______ = 354
+    expected_ref_homozygous = 487591
+    expected_heterozygous__ = 5
+    expected_alt_homozygous = 0
+
+    assert np.sum(genotypes == -1) == expected_missing_______
+    assert np.sum(genotypes == 0) == expected_ref_homozygous
+    assert np.sum(genotypes == 1) == expected_heterozygous__
     assert np.sum(genotypes == 2) == expected_alt_homozygous
 
 
@@ -152,17 +174,25 @@ def test_variant_format_standardization():
         ("chr8_6870776_C/T", "8:6870776:C:T"),
         ("Chr8_6870776_C_T", "8:6870776:C:T"),
         ("CHR8:6870776:C:T", "8:6870776:C:T"),
-        # Invalid formats
-        ("invalid_format", None),
-        ("8_6870776", None),  # Missing alleles
-        ("8_pos_C/T", None),  # Invalid position
-        ("", None),  # Empty string
-        ("8_6870776_C", None),  # Missing alt
     ]
 
     for input_variant, expected in test_cases:
         result = geno._standardize_variant_format(input_variant)
         assert result == expected, f"Failed for {input_variant}"
+
+    test_cases = [
+        # Invalid formats
+        "invalid_format",
+        "8_6870776",  # Missing alleles
+        "8_pos_C/T",  # Invalid position
+        "",  # Empty string
+        "8_6870776_C",  # Missing alt
+    ]
+
+    # Test that invalid formats raise ValueError
+    for invalid_variant in test_cases:
+        with pytest.raises(ValueError):
+            geno._standardize_variant_format(invalid_variant)
 
 
 def test_query_with_different_formats():
