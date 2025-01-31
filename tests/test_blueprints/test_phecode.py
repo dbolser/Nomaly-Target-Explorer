@@ -1,24 +1,26 @@
 import pytest
 from flask import json
-from unittest.mock import patch, Mock
-from blueprints.phecode import get_stats_handler, prepare_nomaly_stats_response
+from unittest.mock import Mock
+from blueprints.phecode import prepare_nomaly_stats_response
 import pandas as pd
 
 
 def test_get_stats_handler_v1():
     """Test that get_stats_handler returns v1 stats by default."""
-    from blueprints.nomaly import nomaly_stats
+    from blueprints.phecode import get_stats_handler
+    from blueprints.nomaly_services import services
 
     handler = get_stats_handler(version=1)
-    assert handler == nomaly_stats
+    assert handler == services.stats
 
 
 def test_get_stats_handler_v2():
     """Test that get_stats_handler returns v2 stats when requested."""
-    from blueprints.nomaly import nomaly_stats_v2
+    from blueprints.phecode import get_stats_handler
+    from blueprints.nomaly_services import services
 
     handler = get_stats_handler(version=2)
-    assert handler == nomaly_stats_v2
+    assert handler == services.stats_v2
 
 
 @pytest.fixture
@@ -87,7 +89,7 @@ def test_nomaly_stats_response_urls(
         data = json.loads(response.get_data())
 
         # Check that the URLs in the term links use the correct version
-        assert f"phecode/250.2/term/" in data["data"][0]["term"]
+        assert "phecode/250.2/term/" in data["data"][0]["term"]
 
 
 @pytest.mark.parametrize("version", [1, 2])

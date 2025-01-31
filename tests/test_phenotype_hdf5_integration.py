@@ -12,8 +12,8 @@ KNOWN_PHECODE = "250.2"  # Type 2 diabetes
 EXPECTED_CASE_COUNT = 42973  # Placeholder - update with actual count
 EXPECTED_CONTROL_COUNT = 439119  # Placeholder - update with actual count
 
-FEMALE_SPECIFIC_PHECODE = "620.2"  # Female genital disease
-MALE_SPECIFIC_PHECODE = "600"  # Male genital disease
+FEMALE_SPECIFIC_PHECODE = "635.2"
+MALE_SPECIFIC_PHECODE = "601.1"
 
 
 def test_production_file_exists():
@@ -46,6 +46,7 @@ def test_known_phecode_query():
     )
 
 
+# TODO: Add tests for sex-specific phecodes
 def test_sex_specific_phecodes():
     """Test sex-specific phecodes have appropriate distributions."""
     # Female-specific phecode
