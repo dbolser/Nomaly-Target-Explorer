@@ -8,9 +8,11 @@ import pandas as pd
 from scipy.stats import fisher_exact
 from tqdm import tqdm
 
-from blueprints.nomaly_services import services
+from blueprints.nomaly_services import services as nomaly_services
 from config import Config
-from db import get_all_phecodes
+from data_services.interfaces.phenotype import PhenotypeService
+from db import get_all_phecodes, get_all_variants
+from services import services
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +160,7 @@ def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
     Returns:
         tuple: (sorted_eids, sorted_genotypes) or None if error
     """
-    genotype_service = services.genotype
+    genotype_service = nomaly_services.genotype
     if genotype_service is None:
         raise ValueError("Genotype service is not initialized!")
 
@@ -191,10 +193,15 @@ def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
 
 
 def process_phecode(
-    phecode, sorted_genotype_eids, sorted_genotypes, phenotype_data, all_phecodes
-):
+    phecode: str,
+    sorted_genotype_eids: np.ndarray,
+    sorted_genotypes: np.ndarray,
+    phenotype_service: PhenotypeService,  # Type hint the interface
+    all_phecodes: pd.DataFrame,
+) -> dict | None:
+    """Process a single phecode."""
     try:
-        eids, cases = phenotype_data.get_cases_for_phecode(phecode)
+        eids, cases = phenotype_service.get_cases_for_phecode(phecode)
     except ValueError:
         print(f"Phecode {phecode} not found in the data matrix")
         return None
@@ -332,7 +339,7 @@ def get_phewas_results(
             # Get genotype data
             genotype_result = get_genotype_data(variant)
             if genotype_result is None:
-                return None
+                return pd.DataFrame()
 
             sorted_genotype_eids, sorted_genotypes = genotype_result
             all_phecodes = get_all_phecodes()
@@ -428,45 +435,34 @@ def process_variant(variant: str):
     return get_phewas_results(variant, None)
 
 
-def main():
-    test_variant = "11:69083946:T:C"
-    test_variant = "9:35066710:A:G"
-    test_variant = "19:44908684:C:T"
-    test_variant = "8:7055492:C:T"  # Just kill me
-    test_variant = "8:6870776:T:C"
-    test_variant = "19:15373898:C:T"
+def run_full_analysis():
+    """Run PheWAS analysis on all variants."""
+    from multiprocessing import Pool
 
-    # phecode_level_assoc(test_variant)
-
-    # Some setup to do outside of the app context
-    from nomaly_services import services
-    from nomaly import GenotypeHDF5, PhenotypesHDF5
-
-    # global services
-    services.genotype = GenotypeHDF5(Config.GENOTYPES_H5)
-    services.phenotype = PhenotypesHDF5(Config.PHENOTYPES_H5)
-
-    x = get_phewas_results(
-        test_variant,
-        "642.1",
+    variants_df = get_all_variants()
+    variants_df["variant_id_standard"] = variants_df.variant_id.apply(
+        lambda x: x.replace("/", "_")
     )
-    print(x)
-    DO_FULL_RUN = False
-    if DO_FULL_RUN:
-        from db import get_all_variants
 
-        variants_df = get_all_variants()
-        variants_df["variant_id_standard"] = variants_df.variant_id.apply(
-            lambda x: x.replace("/", "_")
-        )
+    with Pool(96) as p:
+        p.map(process_variant, variants_df.variant_id_standard)
 
-        from multiprocessing import Pool
 
-        # Create a pool of 10 workers
-        with Pool(96) as p:
-            # Map get_phewas_results to all variants
-            p.map(process_variant, variants_df.variant_id_standard)
-            print("Done!")
+def main():
+    """Debug entry point for blueprint development."""
+    from app import create_app
+
+    app = create_app("development")
+    with app.app_context():
+        # Quick test of single variant/phecode
+        test_variant = "19:15373898:C:T"
+        results = get_phewas_results(test_variant, "642.1")
+        print(results)
+
+        # Optionally run full analysis
+        DO_FULL_RUN = False
+        if DO_FULL_RUN:
+            run_full_analysis()
 
 
 if __name__ == "__main__":
