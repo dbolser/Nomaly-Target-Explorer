@@ -1,12 +1,13 @@
 import os
 
-from blueprints.nomaly import GenotypeHDF5, StatsHDF5
+from blueprints.nomaly import GenotypeHDF5, PhenotypesHDF5, StatsHDF5
 from config import Config
 
 
 class NomalyServices:
     def __init__(self):
         self.genotype = None
+        self.phenotype = None
         self.stats = None
         self.stats_v2 = None
 
@@ -16,6 +17,7 @@ class NomalyServices:
             return
 
         self.genotype = GenotypeHDF5(Config.GENOTYPES_H5)
+        self.phenotype = PhenotypesHDF5(Config.PHENOTYPES_H5)
         self.stats = StatsHDF5(Config.STATS_H5)
         self.stats_v2 = StatsHDF5(Config.STATS_H5_V2)
         self._initialized = True

@@ -8,7 +8,6 @@ import pandas as pd
 from scipy.stats import fisher_exact
 from tqdm import tqdm
 
-from blueprints.nomaly import PhenotypesHDF5
 from blueprints.nomaly_services import services
 from config import Config
 from db import get_all_phecodes
@@ -260,7 +259,7 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
     sorted_genotype_eids, sorted_genotypes = genotype_result
 
     all_phecodes = get_all_phecodes()
-    phenotype_data = PhenotypesHDF5()
+    phenotype_data = services.phenotype
     data_to_return = []
 
     for phecode in tqdm(
@@ -293,7 +292,9 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
     return results_df
 
 
-def get_phewas_results(variant: str, phecode: str | None = None) -> pd.DataFrame | None:
+def get_phewas_results(
+    variant: str, phecode: str | None = None, flush_cache: bool = False
+) -> pd.DataFrame:
     """
     Get PheWAS results for a variant, either from cache or by running analysis.
     If phecode is provided and no cached results exist, only analyze that specific phecode.
@@ -335,7 +336,7 @@ def get_phewas_results(variant: str, phecode: str | None = None) -> pd.DataFrame
 
             sorted_genotype_eids, sorted_genotypes = genotype_result
             all_phecodes = get_all_phecodes()
-            phenotype_data = PhenotypesHDF5()
+            phenotype_data = services.phenotype
 
             # Process just the requested phecode
             result = process_phecode(
@@ -348,24 +349,24 @@ def get_phewas_results(variant: str, phecode: str | None = None) -> pd.DataFrame
 
             if result:
                 return pd.DataFrame([result])
-            return None
+            return pd.DataFrame()
 
         except Exception as e:
             logger.error(
                 f"Error in single-phecode analysis for variant '{variant}': {e}"
             )
-            return None
+            return pd.DataFrame()
 
     # No cached results and no specific phecode - run full analysis
     try:
         results_df = phecode_level_assoc(variant)
         if results_df is None or results_df.empty:
             print(f"PheWAS analysis returned no results for variant {variant}")
-            return None
+            return pd.DataFrame()
         return results_df
     except Exception as e:
         print(f"Error running PheWAS for variant {variant}: {e}")
-        return None
+        return pd.DataFrame()
 
 
 def format_phewas_row_for_display(row: pd.Series) -> dict:
@@ -439,13 +440,17 @@ def main():
 
     # Some setup to do outside of the app context
     from nomaly_services import services
-    from nomaly import GenotypeHDF5
+    from nomaly import GenotypeHDF5, PhenotypesHDF5
 
-    global services
+    # global services
     services.genotype = GenotypeHDF5(Config.GENOTYPES_H5)
+    services.phenotype = PhenotypesHDF5(Config.PHENOTYPES_H5)
 
-    get_phewas_results(test_variant, "642.1")
-
+    x = get_phewas_results(
+        test_variant,
+        "642.1",
+    )
+    print(x)
     DO_FULL_RUN = False
     if DO_FULL_RUN:
         from db import get_all_variants
