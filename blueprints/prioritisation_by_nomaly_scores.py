@@ -211,7 +211,10 @@ def save_results_to_cache(
         # Convert to the same format we send to the client
         data = {
             "top_variants": top_variants.to_dict(orient="records"),
-            "top_gene_set": top_gene_set.reset_index().to_dict(orient="records"),
+            # Reset index and rename the index column to 'gene'
+            "top_gene_set": top_gene_set.reset_index()
+            .rename(columns={"index": "gene"})
+            .to_dict(orient="records"),
         }
 
         # Save as JSON
@@ -222,15 +225,16 @@ def save_results_to_cache(
 
 
 def get_top_variants(
-    disease_code: str, term: str, stream_logger=None
+    disease_code: str, term: str, stream_logger=None, no_cache: bool = False
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Get the top variants for the disease and term."""
-    # Try to load from cache first
-    cached_results = load_cached_results(disease_code, term)
-    if cached_results is not None:
-        if stream_logger:
-            stream_logger.info("Loaded results from cache")
-        return cached_results
+    # Try to load from cache first (unless no_cache is True)
+    if not no_cache:
+        cached_results = load_cached_results(disease_code, term)
+        if cached_results:
+            if stream_logger:
+                stream_logger.info("Loaded results from cache")
+            return cached_results
 
     if stream_logger:
         stream_logger.info("Computing results (not found in cache)")

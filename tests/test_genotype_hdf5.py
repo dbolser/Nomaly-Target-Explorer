@@ -27,6 +27,10 @@ def mock_genotype_file():
                 "fam", data=np.array([1001, 1002, 1003, 1004])
             )  # Individual IDs
             f.create_dataset(
+                "sex",
+                data=np.array(["M", "F", "M", "F"], dtype=np.string_),
+            )
+            f.create_dataset(
                 "bim",
                 data=np.array(
                     [
@@ -35,6 +39,16 @@ def mock_genotype_file():
                     ]
                 ),
             )
+            f.create_dataset(
+                "nomaly_variant_id",
+                data=np.array(
+                    [
+                        b"1:100:A:T",  # First variant
+                        b"2:200:C:G",  # Second variant
+                    ]
+                ),
+            )
+
         yield tmp.name
 
 
@@ -148,7 +162,13 @@ def test_large_dataset_handling():
             genotype_data = np.random.randint(0, 3, (1000, 1000), dtype=np.int8)
             f.create_dataset("genotype_matrix", data=genotype_data)
             f.create_dataset("fam", data=np.arange(1000))
+            f.create_dataset(
+                "sex", data=np.random.choice(["M", "F"], 1000).astype(np.string_)
+            )
             f.create_dataset("bim", data=[f"{i}:100:A:T".encode() for i in range(1000)])
+            f.create_dataset(
+                "nomaly_variant_id", data=[f"{i}:100:A:T".encode() for i in range(1000)]
+            )
 
         # Create the corresponding .npy file
         np.save(f"{tmp.name}.npy", genotype_data)
@@ -173,7 +193,9 @@ def test_error_handling_corrupted_data():
                 "genotype_matrix", data=np.array([[0, 1]], dtype=np.int8)
             )  # 1x2 matrix
             f.create_dataset("fam", data=np.array([1001, 1002, 1003]))  # 3 individuals
+            f.create_dataset("sex", data=np.array(["M", "F", "M"]).astype(np.string_))
             f.create_dataset("bim", data=np.array([b"1:100:A:T"]))  # 1 variant
+            f.create_dataset("nomaly_variant_id", data=np.array([b"1:100:A:T"]))
 
         with pytest.raises(AssertionError) as excinfo:
             _ = GenotypeHDF5(tmp.name)

@@ -11,6 +11,11 @@ class HDF5PhenotypeService(PhenotypeService):
         self._hdf = PhenotypesHDF5(hdf5_file)  # Existing implementation
 
     def get_cases_for_phecode(
-        self, phecode: str, sex: str | None = None, population: str | None = None
+        self,
+        phecode: str,
+        biological_sex: str | None = None,
+        population: str | None = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        return self._hdf.get_cases_for_phecode(phecode, population)
+        return self._hdf.get_cases_for_phecode(
+            phecode, biological_sex=biological_sex, population=population
+        )

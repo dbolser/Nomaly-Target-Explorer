@@ -1,8 +1,5 @@
 """Test authentication functionality."""
 
-import pytest
-from flask import url_for, session
-
 
 def test_login_success(client, test_admin):
     """Test successful login."""

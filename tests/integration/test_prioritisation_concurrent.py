@@ -4,13 +4,10 @@ import pytest
 from flask import url_for
 import json
 from concurrent.futures import ThreadPoolExecutor
-from db import get_db_connection
 from pathlib import Path
 
-# I just want to be explicit about where these are defined
-from tests.conftest import app, mock_config, auth_client
 
-
+# TODO: I don't think this is working as expected...
 @pytest.fixture(autouse=True)
 def clear_cache(mock_config):
     """Clear the cache directory before each test."""
@@ -22,7 +19,6 @@ def clear_cache(mock_config):
     yield
 
 
-@pytest.mark.usefixtures("app")
 def test_stream_isolation(auth_client):
     """Test that concurrent requests maintain proper data isolation."""
     client = auth_client
@@ -66,7 +62,6 @@ def test_stream_isolation(auth_client):
         )
 
 
-@pytest.mark.usefixtures("app")
 def test_error_handling(auth_client):
     """Test error handling for invalid requests."""
     client = auth_client

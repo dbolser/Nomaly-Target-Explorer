@@ -6,7 +6,10 @@ import numpy as np
 class PhenotypeService(ABC):
     @abstractmethod
     def get_cases_for_phecode(
-        self, phecode: str, sex: str | None = None, population: str | None = None
+        self,
+        phecode: str,
+        biological_sex: str | None = None,
+        population: str | None = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Get cases and controls for a phecode.
 

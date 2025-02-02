@@ -2,8 +2,6 @@ import os
 import re
 import traceback
 
-# Using this for speed
-from functools import cached_property
 from pathlib import Path
 
 import h5py
@@ -140,37 +138,62 @@ class GenotypeHDF5:
             self.f = h5py.File(hdf5_file, "r")
 
             # Jumping through hoops to fix the type checker...
+            # TODO: Fix the naming of the fields!
             genotype_matrix = self.f["genotype_matrix"]
             individual = self.f["fam"]
+            biological_sex = self.f["sex"]
             variants = self.f["bim"]
+            nomaly_variant_id = self.f["nomaly_variant_id"]
 
             assert isinstance(genotype_matrix, h5py.Dataset)
             assert isinstance(individual, h5py.Dataset)
+            assert isinstance(biological_sex, h5py.Dataset)
             assert isinstance(variants, h5py.Dataset)
+            assert isinstance(nomaly_variant_id, h5py.Dataset)
 
+            # TODO: Move these to integration tests
             # Sanity checks
             try:
                 assert genotype_matrix.shape[0] == variants.shape[0]
                 assert genotype_matrix.shape[1] == individual.shape[0]
+                assert biological_sex.shape[0] == individual.shape[0]
+                assert nomaly_variant_id.shape[0] == variants.shape[0]
             except Exception as e:
                 print(f"Error in sanity checks: {str(e)}")
                 raise
 
             self.genotype_matrix: h5py.Dataset = genotype_matrix
             self.individual: np.ndarray = individual[...].astype(int)
+            self.biological_sex: np.ndarray = biological_sex[...].astype(str)
             self.variants: np.ndarray = variants[...].astype(str)
+            self.nomaly_variant_id: np.ndarray = nomaly_variant_id[...].astype(str)
 
-            # Convert genotype matrix to np.memmap (for now we assume the .npy
-            # file already exists)
+            # TODO: Convert genotype matrix to np.memmap here? (Below we assume
+            # the corresponding .npy file already exists.)
             genotype_matrix_np_path = f"{self.f.file.filename}.npy"
 
-            # Load as memmap with explicit dtype and correct format
+            # Load as memmap
             self.genotype_matrix_mm = np.load(
                 genotype_matrix_np_path,
                 mmap_mode="r",
             )
 
-            # Switch (for testing)
+            # TODO: Move these to integration tests
+            # Sanity checks
+            try:
+                assert self.genotype_matrix_mm.shape == self.genotype_matrix.shape
+                assert self.genotype_matrix_mm.dtype == self.genotype_matrix.dtype
+                assert np.all(
+                    self.genotype_matrix[0:10, :] == self.genotype_matrix_mm[0:10, :]
+                )
+                assert np.all(
+                    self.genotype_matrix[:, 0:10] == self.genotype_matrix_mm[:, 0:10]
+                )
+            except Exception as e:
+                print(f"Error in sanity checks: {str(e)}")
+                raise
+
+            # Switch to mm (for testing)
             self.genotype_matrix_h5 = self.genotype_matrix
             self.genotype_matrix = self.genotype_matrix_mm
 
@@ -416,27 +439,35 @@ class PhenotypesHDF5:
     """Handles access to phenotype data stored in HDF5 format."""
 
     def __init__(self, hdf5_file: Path | str):
-        # self.hdf5_file = hdf5_file
         self.f = h5py.File(hdf5_file, "r")
 
-        self._population_mask_cache = {}  # Add cache dictionary
-        self._population_eids_cache = {}  # Cache for filtered eids
-
         # Jumping through hoops to fix the type checker...
+        # TODO: Fix the naming of the fields
         phenotype_data = self.f["phenotype_data"]
         eids = self.f["eids"]
         phecodes = self.f["phecodes"]
         populations = self.f["populations"]
-
-        assert isinstance(phenotype_data, h5py.Dataset)
-        assert isinstance(eids, h5py.Dataset)
-        assert isinstance(phecodes, h5py.Dataset)
-        assert isinstance(populations, h5py.Dataset)
+        affected_sex = self.f["phecode_sex"]
+        biological_sex = self.f["affected_sex"]
 
         # Sanity checks
+        # TODO: Move these to integration tests
         try:
+            assert isinstance(phenotype_data, h5py.Dataset)
+            assert isinstance(eids, h5py.Dataset)
+            assert isinstance(phecodes, h5py.Dataset)
+            assert isinstance(populations, h5py.Dataset)
+            assert isinstance(affected_sex, h5py.Dataset)
+            assert isinstance(biological_sex, h5py.Dataset)
+
+            # Sanity checks
             assert phenotype_data.shape[0] == eids.shape[0]
+            assert biological_sex.shape[0] == eids.shape[0]
+            assert populations.shape[0] == eids.shape[0]
+
             assert phenotype_data.shape[1] == phecodes.shape[0]
+            assert affected_sex.shape[0] == phecodes.shape[0]
+
         except Exception as e:
             print(f"Error in sanity checks: {str(e)}")
             raise
@@ -444,46 +475,46 @@ class PhenotypesHDF5:
         # Load the data matrix and index information as numpy arrays
         self.phenotype_data: h5py.Dataset = phenotype_data
         self.eids: np.ndarray = eids[...].astype(int)
-        self.phecodes: np.ndarray = phecodes[...].astype(str)
         self.populations: np.ndarray = populations[...].astype(str)
+        self.biological_sex: np.ndarray = biological_sex[...].astype(str)
 
-    @cached_property
-    def phecode_to_index(self):
-        phecodes = self.phecodes.astype(str)
-        return {phecode: index for index, phecode in enumerate(phecodes)}
+        self.phecodes: np.ndarray = phecodes[...].astype(str)
+        self.affected_sex: np.ndarray = affected_sex[...].astype(str)
+
+        self.phecode_to_index = {
+            phecode: index for index, phecode in enumerate(self.phecodes)
+        }
 
     def get_population_mask(self, population):
-        if population not in self._population_mask_cache:
-            # Note: We use 'equal' here for speed.
-            # Be aware that there are separate EUR and EUR_S populations!
-            self._population_mask_cache[population] = np.char.equal(
-                self.populations, population
-            )
-        return self._population_mask_cache[population]
+        return self.populations == population
 
-    def get_population_eids(self, population):
-        if population not in self._population_eids_cache:
-            population_mask = self.get_population_mask(population)
-            self._population_eids_cache[population] = self.eids[population_mask]
-        return self._population_eids_cache[population]
+    def get_biological_sex_mask(self, biological_sex):
+        return self.biological_sex == biological_sex
 
-    def get_cases_for_phecode(self, phecode, sex=None, population=None):
-        try:
-            phecode_index = self.phecode_to_index[phecode]
-        except KeyError:
-            raise ValueError(f"Phecode '{phecode}' not found in the data matrix!")
+    def get_affected_sex_mask(self, affected_sex):
+        return self.affected_sex == affected_sex
 
-        if population is None:
-            return self.eids, self.phenotype_data[:, phecode_index]
+    def get_cases_for_phecode(
+        self, phecode, biological_sex=None, population=None, affected_sex=None
+    ):
+        phecode_index = self.phecode_to_index[phecode]
+
+        if biological_sex is not None:
+            biological_sex_mask = self.get_biological_sex_mask(biological_sex)
         else:
+            biological_sex_mask = np.ones(self.biological_sex.shape, dtype=bool)
+
+        if population is not None:
             population_mask = self.get_population_mask(population)
-            if population_mask.sum() == 0:
-                raise ValueError(
-                    f"Population '{population}' not found in the data matrix!"
-                )
-            eids = self.get_population_eids(population)
-            cases_data = self.phenotype_data[:, phecode_index][population_mask]
-            return eids, cases_data
+        else:
+            population_mask = np.ones(self.populations.shape, dtype=bool)
+
+        return (
+            self.eids[population_mask & biological_sex_mask],
+            self.phenotype_data[:, phecode_index][
+                population_mask & biological_sex_mask
+            ],
+        )
 
 
 # ------------------------------------------------------------------------------#

@@ -191,12 +191,14 @@ def test_phecode_term_structure(auth_client):
     assert f'const term = "{term}";' in html
 
 
-def test_phecode_term_variant_detail(auth_client):
+def test_phecode_term_variant_detail(auth_integration_client):
     """Test the JSON response from the variant detail endpoint."""
     phecode = "649.1"
     term = "GO:0035235"
 
-    response = auth_client.get(f"/phecode/{phecode}/term/{term}/tableVariantDetail")
+    response = auth_integration_client.get(
+        f"/phecode/{phecode}/term/{term}/tableVariantDetail"
+    )
     assert response.status_code == 200
 
     data = json.loads(response.data)

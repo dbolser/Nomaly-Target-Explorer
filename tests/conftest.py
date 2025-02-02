@@ -1,40 +1,44 @@
 import os
-import sys
-import tempfile
 from unittest.mock import patch
-
 import pytest
-
-# from flask_login import login_user
 from werkzeug.security import generate_password_hash
 
-from app import app as flask_app
+from app import create_app
+from blueprints.nomaly_services import services
 from db import get_db_connection
 
-# Add the project root directory to the Python path
-# project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# sys.path.insert(0, project_root)
 
-
-@pytest.fixture
+@pytest.fixture(scope="session")
 def app():
-    """Configure Flask app for testing."""
-    flask_app.config["TESTING"] = True
-    flask_app.config["WTF_CSRF_ENABLED"] = False  # Disable CSRF for testing
-    flask_app.config["LOGIN_DISABLED"] = False  # Ensure login is required
-    return flask_app
+    """Create and configure a Flask app instance for unit tests."""
+    _app = create_app(config_name="testing")  # Uses UnitTestConfig
+    yield _app
+
+
+@pytest.fixture(scope="session")
+def integration_app():
+    """Create and configure a Flask app instance for integration tests."""
+    _app = create_app(config_name="integration")  # Uses IntegrationTestConfig
+    yield _app
+
+
+@pytest.fixture(scope="session")
+def hdf5_integration(integration_app):
+    """Fixture for tests that need real HDF5 services.
+    Use this fixture ONLY in tests that absolutely need real HDF5 files."""
+    yield services
 
 
 @pytest.fixture
 def client(app):
-    """Provide a test client."""
+    """Provide a test client for unit tests."""
     return app.test_client()
 
 
 @pytest.fixture
-def runner(app):
-    """Provide a test runner."""
-    return app.test_cli_runner()
+def integration_client(integration_app):
+    """Provide a test client for integration tests."""
+    return integration_app.test_client()
 
 
 @pytest.fixture
@@ -107,7 +111,6 @@ def cleanup_test_admin_after_test_timeout():
 @pytest.fixture
 def auth_client(client, test_admin):
     """Authenticate the client as the test admin user."""
-    # Perform login
     response = client.post(
         "/login",
         data={"username": test_admin["username"], "password": "test_password"},
@@ -173,6 +176,29 @@ def mock_config(tmp_path):
     with patch("config.Config") as mock_config:
         mock_config.VARIANT_SCORES_DIR = str(tmp_path)
         yield mock_config
+
+
+@pytest.fixture(scope="module")
+def db_connection(integration_app):
+    """Provide a database connection for the test module.
+    This fixture automatically provides an app context."""
+    with integration_app.app_context():
+        conn = get_db_connection()
+        yield conn
+        conn.close()  # Connection is closed after the test module finishes
+
+
+@pytest.fixture
+def auth_integration_client(integration_client, test_admin):
+    """Authenticate the integration client as the test admin user."""
+    response = integration_client.post(
+        "/login",
+        data={"username": test_admin["username"], "password": "test_password"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"welcome" in response.data.lower()
+    return integration_client
 
 
 def main():

@@ -36,12 +36,14 @@ class Config:
 
     # Phenotype directories and files
     UKBB_PHENO_DIR = Path("/data/general/UKBB/Phenotypes")
-    PHENOTYPES_H5 = UKBB_PHENO_DIR / "phecode_cases_excludes.h5"
-    PHENOTYPES_PKL = UKBB_PHENO_DIR / "phecode_cases_excludes.pkl"
+    # PHENOTYPES_H5 = UKBB_PHENO_DIR / "phecode_cases_excludes.h5"
+    PHENOTYPES_H5 = UKBB_PHENO_DIR / "phecode_cases_excludes_with_metadata.h5"
+    # PHENOTYPES_PKL = UKBB_PHENO_DIR / "phecode_cases_excludes.pkl"
 
     # Genotype directories and files
     UKBB_GENOTYPES_DIR = Path("/data/general/UKBB/Genotypes/GRCh38")
-    GENOTYPES_H5 = UKBB_GENOTYPES_DIR / "genotypes_with_counts.h5"
+    # GENOTYPES_H5 = UKBB_GENOTYPES_DIR / "genotypes_with_counts.h5"
+    GENOTYPES_H5 = UKBB_GENOTYPES_DIR / "genotypes_with_metadata.h5"
 
     # Nomaly results directories and files (V1)
     NOMALY_RESULTS_DIR = Path("/data/general/UKBB/Run-v1/DatabaseInputs")
@@ -74,22 +76,51 @@ class DevelopmentConfig(Config):
 
 
 class TestingConfig(Config):
-    """Testing configuration"""
+    """Base testing configuration"""
 
     TESTING = True
-    WTF_CSRF_ENABLED = False  # Disable CSRF for testing
+    WTF_CSRF_ENABLED = False
+    SECRET_KEY = "test-secret-key"
+    WTF_CSRF_SECRET_KEY = "test-csrf-secret-key"
+
+    # Test database settings
+    # MYSQL_HOST = os.getenv("TEST_MYSQL_HOST", "localhost")
+    # MYSQL_PORT = os.getenv("TEST_MYSQL_PORT", 3306)
+    # MYSQL_USER = os.getenv("TEST_MYSQL_USER", "test_user")
+    # MYSQL_PASSWORD = os.getenv("TEST_MYSQL_PASSWORD", "test_password")
+    # MYSQL_DB = os.getenv("TEST_MYSQL_DB", "test_db")
+
+
+class UnitTestConfig(TestingConfig):
+    """Unit test configuration - uses mocked services"""
+
+    INIT_SERVICES = False
+
+
+class IntegrationTestConfig(TestingConfig):
+    """Integration test configuration - uses real services"""
+
+    INIT_SERVICES = True
+
+    # Use production HDF5 paths for integration tests
+    PHENOTYPES_H5 = Config.PHENOTYPES_H5
+    GENOTYPES_H5 = Config.GENOTYPES_H5
+    STATS_H5 = Config.STATS_H5
+    STATS_H5_V2 = Config.STATS_H5_V2
 
 
 class ProductionConfig(Config):
     """Production configuration"""
 
+    DEBUG = False
     TESTING = False
-    WTF_CSRF_ENABLED = True  # Enable CSRF protection in non-testing environments
+    WTF_CSRF_ENABLED = True
 
 
 config = {
     "development": DevelopmentConfig,
     "production": ProductionConfig,
-    "testing": TestingConfig,
+    "testing": UnitTestConfig,
+    "integration": IntegrationTestConfig,
     "default": DevelopmentConfig,
 }
