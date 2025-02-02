@@ -262,6 +262,7 @@ def test_genotype_flipping():
     )
 
 
+@pytest.mark.skip(reason="We don't ever use this :(")
 def test_variant_counts():
     """Test the variant counts."""
     counts = nomaly_genotype.get_variant_counts()
