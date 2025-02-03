@@ -3,8 +3,7 @@ import numpy as np
 import h5py
 import tempfile
 
-from data_services.implementations.hdf5.phenotype import HDF5PhenotypeService
-from data_services.interfaces.phenotype import PhenotypeService
+from data_services.phenotype import PhenotypeService
 
 
 @pytest.fixture
@@ -56,7 +55,7 @@ def mock_phenotype_file():
 @pytest.fixture
 def phenotype_service(mock_phenotype_file):
     """Create a PhenotypeService instance with the mock data."""
-    return HDF5PhenotypeService(mock_phenotype_file)
+    return PhenotypeService(mock_phenotype_file)
 
 
 def test_service_initialization(phenotype_service):
@@ -101,7 +100,7 @@ def test_get_cases_invalid_data():
             f.create_dataset("populations", data=np.array([b"EUR", b"EUR", b"SAS"]))
 
             with pytest.raises(KeyError):
-                _ = HDF5PhenotypeService(tmp.name)
+                _ = PhenotypeService(tmp.name)
 
 
 def test_get_cases_with_population(phenotype_service):

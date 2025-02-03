@@ -4,7 +4,7 @@ import pytest
 from werkzeug.security import generate_password_hash
 
 from app import create_app
-from blueprints.nomaly_services import services
+from services import services
 from db import get_db_connection
 
 

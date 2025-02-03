@@ -21,7 +21,7 @@ from flask import (
 )
 from flask_login import login_required
 
-from blueprints.nomaly_services import services
+from services import ServiceRegistry
 from config import Config
 from db import get_term_variants
 
@@ -354,9 +354,13 @@ def stream_progress(disease_code: str, term: str):
     return Response(stream_with_context(generate()), mimetype="text/event-stream")
 
 
-if __name__ == "__main__":
+def main():
     disease_code = "332"
     term = "GO:0030800"
     top_variants, top_gene_set = get_top_variants(disease_code, term)
     print(top_variants)
     print(top_gene_set)
+
+
+if __name__ == "__main__":
+    main()

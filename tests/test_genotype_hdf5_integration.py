@@ -262,23 +262,39 @@ def test_genotype_flipping():
     )
 
 
-@pytest.mark.skip(reason="We don't ever use this :(")
 def test_variant_counts():
-    """Test the variant counts."""
-    counts = nomaly_genotype.get_variant_counts()
+    """Test the variant counts for specific variants."""
+    # Test a variant with known distribution
+    variant = "19:44908684:C:T"
+    counts = nomaly_genotype.get_variant_counts(variant)
 
-    # Verify we have the expected number of variants
-    assert len(counts) == NUM_VARIANTS
+    # Check the counts match expected values
+    assert counts["missing"] == 73846
+    assert counts["homozygous_ref"] == 9863
+    assert counts["heterozygous"] == 108276
+    assert counts["homozygous_alt"] == 295965
 
-    # Test specific variant counts using DataFrame indexing
-    variant1 = "19:44908684:C:T"
-    assert counts.loc[variant1, "heterozygous"] == 108371
-    assert counts.loc[variant1, "homozygous_alt"] == 296223
-    assert counts.loc[variant1, "homozygous_ref"] == 9874
-    assert counts.loc[variant1, "missing"] == 73909
+    # Test another variant with different distribution
+    variant = "6:26199089:A:C"
+    counts = nomaly_genotype.get_variant_counts(variant)
 
-    variant2 = "11:69083946:T:C"
-    assert counts.loc[variant2, "heterozygous"] == 11499
-    assert counts.loc[variant2, "homozygous_alt"] == 474918
-    assert counts.loc[variant2, "homozygous_ref"] == 1516
-    assert counts.loc[variant2, "missing"] == 444
+    assert counts["missing"] == 354
+    assert counts["homozygous_ref"] == 487591
+    assert counts["heterozygous"] == 5
+    assert counts["homozygous_alt"] == 0
+
+    # Test with ancestry filter
+    counts_eur = nomaly_genotype.get_variant_counts(variant, ancestry="EUR")
+    assert isinstance(counts_eur["missing"], int)
+    assert isinstance(counts_eur["homozygous_ref"], int)
+    assert isinstance(counts_eur["heterozygous"], int)
+    assert isinstance(counts_eur["homozygous_alt"], int)
+    assert sum(counts_eur.values()) <= sum(counts.values())
+
+    # Test with sex filter
+    counts_female = nomaly_genotype.get_variant_counts(variant, sex="F")
+    assert isinstance(counts_female["missing"], int)
+    assert isinstance(counts_female["homozygous_ref"], int)
+    assert isinstance(counts_female["heterozygous"], int)
+    assert isinstance(counts_female["homozygous_alt"], int)
+    assert sum(counts_female.values()) <= sum(counts.values())

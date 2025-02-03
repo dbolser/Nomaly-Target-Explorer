@@ -26,7 +26,6 @@ from werkzeug.security import check_password_hash
 from auth import check_page_permission
 from blueprints.admin import admin_bp
 from blueprints.disease_sets import disease_sets_bp
-from blueprints.nomaly_services import services  # imports the NomalyServices instance
 from blueprints.phecode import phecode_bp
 from blueprints.phecode_term import phecode_term_bp
 from blueprints.prioritisation_by_nomaly_scores import prioritisation_bp
@@ -38,7 +37,7 @@ from config import config
 from db import get_db_connection
 from errors import DatabaseConnectionError, DataNotFoundError
 from flask_session import Session
-from services import services as new_services
+from services import ServiceRegistry
 
 # Initialize extensions
 mysql = MySQL()
@@ -67,9 +66,8 @@ def create_app(config_name="default"):
     # Initialize services if not testing or explicitly requested
     if not app.config.get("TESTING", False) or app.config.get("INIT_SERVICES", False):
         # Initialize directly from config
-        services.init_from_config(app.config)
-        # Maintain backward compatibility for other services
-        new_services.init_app(app)
+        services = ServiceRegistry()
+        services.init_from_app(app)
 
     # Register blueprints
     register_blueprints(app)

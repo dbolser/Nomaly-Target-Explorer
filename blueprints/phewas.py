@@ -8,9 +8,8 @@ import pandas as pd
 from scipy.stats import fisher_exact
 from tqdm import tqdm
 
-from blueprints.nomaly_services import services as nomaly_services
 from config import Config
-from data_services.interfaces.phenotype import PhenotypeService
+from data_services.phenotype import PhenotypeService
 from db import get_all_phecodes, get_all_variants
 from services import services
 
@@ -160,14 +159,14 @@ def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
     Returns:
         tuple: (sorted_eids, sorted_genotypes) or None if error
     """
-    genotype_service = nomaly_services.genotype
+    genotype_service = services.genotype
     if genotype_service is None:
         raise ValueError("Genotype service is not initialized!")
 
     try:
         # Get genotype data
-        genotype_eids = genotype_service.individual
-        genotypes = genotype_service.query_variants(variant)
+        genotype_eids = genotype_service._hdf.individual
+        genotypes = genotype_service._hdf.query_variants(variant)
         if genotypes is None or len(genotypes) == 0:
             print(f"No genotype data found for variant {variant}")
             return None
@@ -201,7 +200,7 @@ def process_phecode(
 ) -> dict | None:
     """Process a single phecode."""
     try:
-        eids, cases = phenotype_service.get_cases_for_phecode(phecode)
+        eids, cases = phenotype_service._hdf.get_cases_for_phecode(phecode)
     except ValueError:
         print(f"Phecode {phecode} not found in the data matrix")
         return None
@@ -266,7 +265,10 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
     sorted_genotype_eids, sorted_genotypes = genotype_result
 
     all_phecodes = get_all_phecodes()
+
     phenotype_data = services.phenotype
+    assert phenotype_data is not None
+
     data_to_return = []
 
     for phecode in tqdm(
@@ -343,7 +345,9 @@ def get_phewas_results(
 
             sorted_genotype_eids, sorted_genotypes = genotype_result
             all_phecodes = get_all_phecodes()
+
             phenotype_data = services.phenotype
+            assert phenotype_data is not None
 
             # Process just the requested phecode
             result = process_phecode(

@@ -8,7 +8,7 @@ import pandas as pd
 def test_get_stats_handler_v1():
     """Test that get_stats_handler returns v1 stats by default."""
     from blueprints.phecode import get_stats_handler
-    from blueprints.nomaly_services import services
+    from services import services
 
     handler = get_stats_handler(version=1)
     assert handler == services.stats
@@ -17,7 +17,7 @@ def test_get_stats_handler_v1():
 def test_get_stats_handler_v2():
     """Test that get_stats_handler returns v2 stats when requested."""
     from blueprints.phecode import get_stats_handler
-    from blueprints.nomaly_services import services
+    from services import services
 
     handler = get_stats_handler(version=2)
     assert handler == services.stats_v2

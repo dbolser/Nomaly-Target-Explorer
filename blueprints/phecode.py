@@ -6,8 +6,8 @@ from flask import Blueprint, jsonify, render_template, request, url_for
 
 from blueprints.gwas import format_gwas_results, run_gwas
 from blueprints.nomaly import make_qqplot
-from blueprints.nomaly_services import services
 from db import get_phecode_info, get_term_domains, get_term_genes, get_term_names
+from services import services
 
 logger = logging.getLogger(__name__)
 phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
@@ -18,11 +18,26 @@ def get_stats_handler(version=1):
     return services.stats_v2 if version == 2 else services.stats
 
 
-@phecode_bp.route("/phecode/<string:phecode>", methods=["GET"])
-def show_phecode(phecode):
+def get_phecode_data(phecode, population="EUR") -> dict:
     data = get_phecode_info(phecode)
+    data["population"] = population
+    case_counts = services.phenotype._hdf.get_case_counts_for_phecode(
+        phecode, population=population
+    )
+    data["affected"] = case_counts["affected"]
+    data["excluded"] = case_counts["excluded"]
+    data["control"] = case_counts["control"]
+
+    return data
+
+
+@phecode_bp.route("/phecode/<string:phecode>", methods=["GET"])
+@phecode_bp.route("/phecode/<string:phecode>/<string:population>", methods=["GET"])
+def show_phecode(phecode, population="EUR"):
+    data = get_phecode_data(phecode, population)
     data["runbatch"] = "Run v1"
     data["show_gwas"] = request.args.get("gwas") == "1"
+
     return render_template("phecode.html", data=data)
 
 
