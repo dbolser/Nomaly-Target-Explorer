@@ -77,7 +77,13 @@ def show_phecode_term_variant_detail(
             "flush", flush
         )  # POST body overrides URL parameter if present
 
-    result = calculate_phecode_term_variant_detail(phecode, term, sex, ancestry, flush)
+    try:
+        result = calculate_phecode_term_variant_detail(
+            phecode, term, sex, ancestry, flush
+        )
+    except Exception as e:
+        logger.error(f"Error in show_phecode_term_variant_detail: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
     return jsonify(result)
 
@@ -88,7 +94,7 @@ def calculate_phecode_term_variant_detail(
     sex: Optional[str] = None,
     ancestry: Optional[str] = None,
     flush: bool = False,
-):
+) -> dict:
     genotype_service = services.genotype
     assert genotype_service is not None
 
@@ -143,14 +149,12 @@ def calculate_phecode_term_variant_detail(
 
         if cached_data is not None and "data" in cached_data:
             logger.info(f"Using cached data for phecode {phecode}, term {term}")
-            return jsonify(
-                {
-                    "data": cached_data["data"],
-                    "columns": columns,
-                    "defaultColumns": default_columns,
-                    "numColumns": numeric_columns,
-                }
-            )
+            return {
+                "data": cached_data["data"],
+                "columns": columns,
+                "defaultColumns": default_columns,
+                "numColumns": numeric_columns,
+            }
 
         logger.warning(
             f"Cache miss or flush requested for phecode {phecode}, term {term}"
@@ -166,17 +170,6 @@ def calculate_phecode_term_variant_detail(
         term_df = term_df.merge(pharos, on="gene", how="left").fillna("None")
         term_df = term_df.merge(pp, on="gene", how="left").fillna("None")
         print(f"After merges shape: {term_df.shape}")
-
-        if term_df.empty:
-            print("No variants found for this term!")
-            return jsonify(
-                {
-                    "data": [],
-                    "columns": columns,
-                    "defaultColumns": default_columns,
-                    "numColumns": numeric_columns,
-                }
-            )
 
         # Load GWAS data
         gwas_data = run_gwas(phecode)
@@ -275,7 +268,7 @@ def calculate_phecode_term_variant_detail(
         error_msg = f"Error processing phecode {phecode}, term {term}: {str(e)}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
-        return jsonify({"error": error_msg}), 500
+        raise e
 
 
 def main():

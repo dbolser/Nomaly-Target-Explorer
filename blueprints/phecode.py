@@ -21,9 +21,12 @@ def get_stats_handler(version=1):
 def get_phecode_data(phecode, population="EUR") -> dict:
     data = get_phecode_info(phecode)
     data["population"] = population
+
+    assert services.phenotype is not None
     case_counts = services.phenotype._hdf.get_case_counts_for_phecode(
         phecode, population=population
     )
+
     data["affected"] = case_counts["affected"]
     data["excluded"] = case_counts["excluded"]
     data["control"] = case_counts["control"]
