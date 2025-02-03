@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from flask import current_app, has_app_context
+from flask import has_app_context
 
 
 @contextmanager

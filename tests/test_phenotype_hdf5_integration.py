@@ -1,7 +1,4 @@
 import numpy as np
-import pytest
-
-from config import Config
 
 # Known test cases - these values will need to be updated with actual production data
 KNOWN_PHECODE = "250.2"  # Type 2 diabetes

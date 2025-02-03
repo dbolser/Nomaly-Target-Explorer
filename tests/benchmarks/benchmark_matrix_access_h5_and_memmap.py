@@ -4,7 +4,8 @@ import time
 import numpy as np
 from tqdm import tqdm
 
-from blueprints.nomaly import GenotypeHDF5
+from data_services.genotype import GenotypesHDF5
+
 from config import Config
 
 
@@ -34,7 +35,7 @@ def benchmark_matrix_access(matrix, n_queries=10):
 
 
 if __name__ == "__main__":
-    geno = GenotypeHDF5(Config.GENOTYPES_H5)
+    geno = GenotypesHDF5(Config.GENOTYPES_H5)
     matrix_h5 = geno.genotype_matrix_h5
     print(matrix_h5.shape)
 

@@ -37,7 +37,6 @@ from config import config
 from db import get_db_connection
 from errors import DatabaseConnectionError, DataNotFoundError
 from flask_session import Session
-from services import ServiceRegistry
 
 # Initialize extensions
 mysql = MySQL()

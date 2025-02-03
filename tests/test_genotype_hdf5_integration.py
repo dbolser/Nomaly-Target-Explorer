@@ -1,13 +1,13 @@
 import numpy as np
 
-from blueprints.nomaly import GenotypeHDF5
+from data_services.genotype import GenotypesHDF5
 
 from config import Config
 
 import pytest
 
 config = Config()
-nomaly_genotype = GenotypeHDF5(config.GENOTYPES_H5)
+nomaly_genotype = GenotypesHDF5(config.GENOTYPES_H5)
 
 NUM_INDIVIDUALS = 488377
 NUM_INDIVIDUALS = 487950  # Removed 427 individuals with negative eids
@@ -43,7 +43,8 @@ def test_individual_count():
 
 def test_variant_count():
     """Verify the expected number of variants in the dataset."""
-    assert len(nomaly_genotype.variants) == NUM_VARIANTS
+    assert len(nomaly_genotype.genotype_variant_id) == NUM_VARIANTS
+    assert len(nomaly_genotype.nomaly_variant_id) == NUM_VARIANTS
 
 
 def test_genotype_matrix_shape():
@@ -87,10 +88,10 @@ def test_known_variant_genotype_distribution():
     assert np.sum(genotypes == 2) == expected_alt_homozygous
 
 
-def test_variant_format_in_file():
+def test_genotype_variant_id_format_in_file():
     """Test that variants in the file follow the expected format."""
     # Sample first 1000 variants
-    sample_variants = nomaly_genotype.variants[:1000]
+    sample_variants = nomaly_genotype.genotype_variant_id[:1000]
 
     for variant in sample_variants:
         parts = variant.split(":")
@@ -99,6 +100,28 @@ def test_variant_format_in_file():
         assert parts[1].isdigit(), f"Invalid position: {parts[1]}"
         assert len(parts[2]) >= 1, f"Invalid ref allele: {parts[2]}"
         assert len(parts[3]) >= 1, f"Invalid alt allele: {parts[3]}"
+
+
+def test_nomaly_variant_id_format_in_file():
+    """Test that variants in the file follow the expected format."""
+    # Sample first 1000 variants
+    sample_variants = nomaly_genotype.nomaly_variant_id[:1000]
+
+    missing_count = 0
+    for variant in sample_variants:
+        if variant == "Missing":
+            missing_count += 1
+            continue
+
+        chr, pos, alleles = variant.split("_")
+        assert len(chr) == 1, f"Invalid chromosome: {chr}"
+        assert len(pos) >= 1, f"Invalid position: {pos}"
+        assert len(alleles) == 3, f"Invalid alleles: {alleles}"
+        assert alleles[0] in ["A", "C", "G", "T"], f"Invalid ref allele: {alleles[0]}"
+        assert alleles[1] == "/", f"Invalid separator: {alleles[1]}"
+        assert alleles[2] in ["A", "C", "G", "T"], f"Invalid alt allele: {alleles[2]}"
+
+    assert missing_count < 1000, "There should be less than 1000 missing variants"
 
 
 def test_individual_id_format():
@@ -265,7 +288,7 @@ def test_genotype_flipping():
 def test_variant_counts():
     """Test the variant counts for specific variants."""
     # Test a variant with known distribution
-    variant = "19:44908684:C:T"
+    variant = "19_44908684_T/C"
     counts = nomaly_genotype.get_variant_counts(variant)
 
     # Check the counts match expected values
@@ -273,22 +296,26 @@ def test_variant_counts():
     assert counts["homozygous_ref"] == 9863
     assert counts["heterozygous"] == 108276
     assert counts["homozygous_alt"] == 295965
+    assert counts["total"] == 487950
 
     # Test another variant with different distribution
-    variant = "6:26199089:A:C"
+    variant = "6_26199089_A/C"
     counts = nomaly_genotype.get_variant_counts(variant)
 
     assert counts["missing"] == 354
-    assert counts["homozygous_ref"] == 487591
+    assert counts["homozygous_ref"] == 0
     assert counts["heterozygous"] == 5
-    assert counts["homozygous_alt"] == 0
+    assert counts["homozygous_alt"] == 487591
+    assert counts["total"] == 487950
 
     # Test with ancestry filter
     counts_eur = nomaly_genotype.get_variant_counts(variant, ancestry="EUR")
-    assert isinstance(counts_eur["missing"], int)
-    assert isinstance(counts_eur["homozygous_ref"], int)
-    assert isinstance(counts_eur["heterozygous"], int)
-    assert isinstance(counts_eur["homozygous_alt"], int)
+    assert counts_eur["missing"] == 319
+    assert counts_eur["homozygous_ref"] == 0
+    assert counts_eur["heterozygous"] == 5
+    assert counts_eur["homozygous_alt"] == 449099
+    assert counts_eur["total"] == 449423
+
     assert sum(counts_eur.values()) <= sum(counts.values())
 
     # Test with sex filter
@@ -297,4 +324,5 @@ def test_variant_counts():
     assert isinstance(counts_female["homozygous_ref"], int)
     assert isinstance(counts_female["heterozygous"], int)
     assert isinstance(counts_female["homozygous_alt"], int)
+    assert isinstance(counts_female["total"], int)
     assert sum(counts_female.values()) <= sum(counts.values())

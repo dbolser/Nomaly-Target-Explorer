@@ -174,7 +174,7 @@ class ScoreHDF5:
 
 # Trying to not use globals...
 
-# nomaly_genotype = GenotypeHDF5(Config.GENOTYPES_H5)
+# nomaly_genotype = GenotypesHDF5(Config.GENOTYPES_H5)
 
 # nomaly_stats = StatsHDF5(Config.STATS_H5)
 # nomaly_stats_v2 = StatsHDF5(Config.STATS_H5_V2)

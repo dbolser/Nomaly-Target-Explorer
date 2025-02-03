@@ -101,7 +101,7 @@ class GenotypesHDF5:
             self.genotype_matrix = self.genotype_matrix_mm
 
         except Exception as e:
-            print(f"Error initializing GenotypeHDF5: {str(e)}")
+            print(f"Error initializing GenotypesHDF5: {str(e)}")
             raise
 
     # TODO: Is this needed?

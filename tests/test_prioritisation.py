@@ -6,7 +6,8 @@ from queue import Queue
 import json
 from pathlib import Path
 
-from blueprints.nomaly import GenotypeHDF5
+from data_services.genotype import GenotypesHDF5
+
 from blueprints.prioritisation_by_nomaly_scores import (
     read_cases_for_disease_code,
     read_nomaly_filtered_genotypes,
@@ -58,8 +59,8 @@ def mock_genotypes_data():
 
 @pytest.fixture
 def mock_genotype_hdf5():
-    """Create a mock GenotypeHDF5 instance."""
-    mock = MagicMock(spec=GenotypeHDF5)
+    """Create a mock GenotypesHDF5 instance."""
+    mock = MagicMock(spec=GenotypesHDF5)
     mock.individual = np.array([1001, 1002, 1003])
     mock.query_variantID_genotypes.side_effect = lambda x: (
         np.array([1001, 1002, 1003]),
