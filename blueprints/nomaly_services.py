@@ -1,8 +1,6 @@
 from blueprints.nomaly import StatsHDF5
 from config import Config
-
-from services import services as new_services
-
+from typing import Optional
 
 class NomalyServices:
     def __init__(self):
@@ -12,19 +10,22 @@ class NomalyServices:
         self.stats_v2 = None
         self._initialized = False
 
-    def init_app(self, app):
-        """Initialize with Flask app (exactly once)"""
+    def init_from_config(self, config: Optional[dict] = None):
+        """Initialize services directly from config"""
         if self._initialized:
             return
 
-        # Initialize real services
-        config = app.config
-        self.genotype = new_services.genotype
-        self.phenotype = new_services.phenotype
+        # Use provided config or fall back to default Config
+        config = config or Config.__dict__
+        
+        # Initialize services
         self.stats = StatsHDF5(config.get("STATS_H5", Config.STATS_H5))
         self.stats_v2 = StatsHDF5(config.get("STATS_H5_V2", Config.STATS_H5_V2))
-
         self._initialized = True
+
+    def init_app(self, app):
+        """Initialize with Flask app (maintaining backward compatibility)"""
+        self.init_from_config(app.config)
 
         if not hasattr(app, "extensions"):
             app.extensions = {}

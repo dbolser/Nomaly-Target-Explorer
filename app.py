@@ -66,8 +66,10 @@ def create_app(config_name="default"):
 
     # Initialize services if not testing or explicitly requested
     if not app.config.get("TESTING", False) or app.config.get("INIT_SERVICES", False):
+        # Initialize directly from config
+        services.init_from_config(app.config)
+        # Maintain backward compatibility for other services
         new_services.init_app(app)
-        services.init_app(app)
 
     # Register blueprints
     register_blueprints(app)
