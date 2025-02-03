@@ -1,4 +1,4 @@
-from blueprints.nomaly import GenotypeHDF5, StatsHDF5
+from blueprints.nomaly import StatsHDF5
 from config import Config
 
 from services import services as new_services
@@ -19,7 +19,7 @@ class NomalyServices:
 
         # Initialize real services
         config = app.config
-        self.genotype = GenotypeHDF5(config.get("GENOTYPES_H5", Config.GENOTYPES_H5))
+        self.genotype = new_services.genotype
         self.phenotype = new_services.phenotype
         self.stats = StatsHDF5(config.get("STATS_H5", Config.STATS_H5))
         self.stats_v2 = StatsHDF5(config.get("STATS_H5_V2", Config.STATS_H5_V2))
