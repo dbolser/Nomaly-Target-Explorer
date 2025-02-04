@@ -59,6 +59,8 @@ class StreamLogger:
 
 def read_cases_for_disease_code(phecode: str) -> dict:
     """Read the case information for the disease code."""
+
+    # TODO: Switch to the phenotype service here!
     ukbb_pheno_dir = Config.UKBB_PHENO_DIR
     with open(
         f"{ukbb_pheno_dir}/phecode_cases_excludes/phecode_{phecode}.pkl", "rb"
@@ -157,6 +159,7 @@ def term_variant_prioritisation(
         ["VS00", "VS01", "VS11"]
     ]
 
+    # TODO: Make ind_top_variants a Counter, not a set. Report this in the UI.
     ind_top_variants = set()
     for row in sel_genotypes["data"]:
         ind_top_variants = ind_top_variants.union(
@@ -250,6 +253,12 @@ def get_top_variants(
     # Compute results if not cached
     cases_info = read_cases_for_disease_code(disease_code)
     cases_eids = list(cases_info["cases"])
+
+    # TODO: FILTER BY SCORE HERE!
+    # WE WANT HIGH SCORING AFFECTED INDIVIDUALS
+
+    # LATER, WE report NUMBERS based on the stats for this disease / term  pair...
+    # e.g. Stuff from Chang.
 
     if stream_logger:
         stream_logger.info(f"Processing {len(cases_eids)} cases")
