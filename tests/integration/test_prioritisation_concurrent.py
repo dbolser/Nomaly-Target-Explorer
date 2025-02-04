@@ -1,28 +1,11 @@
 """Test concurrent request handling in the prioritisation blueprint."""
 
-import pytest
-from flask import url_for
 import json
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 
 
-# TODO: I don't think this is working as expected...
-@pytest.fixture(autouse=True)
-def clear_cache(mock_config):
-    """Clear the cache directory before each test."""
-    cache_dir = Path(mock_config.VARIANT_SCORES_DIR)
-    if cache_dir.exists():
-        for f in cache_dir.glob("variant_prioritization_*"):
-            f.unlink()
-    cache_dir.mkdir(exist_ok=True)
-    yield
-
-
-def test_stream_isolation(auth_client):
+def test_stream_isolation(unit_test_app_client_with_cache):
     """Test that concurrent requests maintain proper data isolation."""
-    client = auth_client
-
     # Just test two requests to keep it simple
     test_pairs = [
         ("250.2", "UP:UPA00246"),  # This user has access to 250.2
@@ -31,7 +14,7 @@ def test_stream_isolation(auth_client):
 
     def make_request(disease_code, term):
         """Make a request and track its messages"""
-        response = client.get(
+        response = unit_test_app_client_with_cache.get(
             f"/stream_progress/{disease_code}/{term}?no_cache=true",
             follow_redirects=True,
         )
@@ -62,15 +45,11 @@ def test_stream_isolation(auth_client):
         )
 
 
-def test_error_handling(auth_client):
+def test_error_handling(unit_test_app_client_with_cache):
     """Test error handling for invalid requests."""
-    client = auth_client
-
     # Invalid request
-    response = client.get(
-        url_for(
-            "prioritisation.stream_progress", disease_code="invalid", term="invalid"
-        ),
+    response = unit_test_app_client_with_cache.get(
+        "/stream_progress/invalid/invalid",
         follow_redirects=True,
     )
 
@@ -85,10 +64,8 @@ def test_error_handling(auth_client):
     assert "done" in types, "Should end with done message"
 
 
-def test_cache_concurrency(auth_client):
+def test_cache_concurrency(unit_test_app_client_with_cache):
     """Test that concurrent requests get consistent results when using cache."""
-    client = auth_client
-
     # Use a disease code the test user has access to
     test_pairs = [
         ("250.2", "UP:UPA00246"),  # This user has access to 250.2
@@ -96,7 +73,7 @@ def test_cache_concurrency(auth_client):
 
     def make_request(disease_code, term):
         """Make a request and track its messages"""
-        response = client.get(
+        response = unit_test_app_client_with_cache.get(
             f"/stream_progress/{disease_code}/{term}",
             follow_redirects=True,
         )
@@ -140,10 +117,8 @@ def test_cache_concurrency(auth_client):
         assert result == first_result, "Cache returned different results"
 
 
-def test_error_recovery(auth_client):
+def test_error_recovery(unit_test_app_client_with_cache):
     """Test error handling and recovery during concurrent requests."""
-    client = auth_client
-
     # Mix of valid and invalid requests
     test_cases = [
         ("571.5", "UP:UPA00240"),  # Valid
@@ -152,7 +127,7 @@ def test_error_recovery(auth_client):
     ]
 
     def make_request(disease_code, term):
-        response = client.get(
+        response = unit_test_app_client_with_cache.get(
             f"/stream_progress/{disease_code}/{term}", follow_redirects=True
         )
         messages = []

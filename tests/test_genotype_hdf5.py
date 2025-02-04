@@ -7,68 +7,6 @@ import tempfile
 from data_services.genotype import GenotypesHDF5
 
 
-@pytest.fixture
-def mock_genotype_file():
-    """Create a temporary mock HDF5 file with test data."""
-    with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
-        with h5py.File(tmp.name, "w") as f:
-            # Create required datasets
-            f.create_dataset(
-                "genotype_matrix",
-                data=np.array(
-                    [
-                        [-1, 0, 1, 2],  # Genotypes for first variant
-                        [1, 0, 2, -1],  # Genotypes for second variant
-                    ],
-                    dtype=np.int8,
-                ),
-            )
-            f.create_dataset(
-                "fam", data=np.array([1001, 1002, 1003, 1004])
-            )  # Individual IDs
-            f.create_dataset(
-                "sex",
-                data=np.array(["M", "F", "M", "F"], dtype=np.string_),
-            )
-            f.create_dataset(
-                "ancestry",
-                data=np.array(["EUR", "EUR", "EUR", "SAS"], dtype=np.string_),
-            )
-            f.create_dataset(
-                "bim",
-                data=np.array(
-                    [
-                        b"1:100:A:T",  # First variant
-                        b"2:200:C:G",  # Second variant
-                    ]
-                ),
-            )
-            f.create_dataset(
-                "nomaly_variant_id",
-                data=np.array(
-                    [
-                        b"1:100:A:T",  # First variant
-                        b"2:200:C:G",  # Second variant
-                    ]
-                ),
-            )
-
-        yield tmp.name
-
-
-@pytest.fixture
-def mock_genotype_file_with_npy(mock_genotype_file):
-    """The current implementation of GenotypesHDF5 requires a .npy file to be
-    present 'next to' the HDF5 file. This fixture creates that .npy file."""
-    with h5py.File(mock_genotype_file, "r") as f:
-        matrix = f["genotype_matrix"]
-        assert isinstance(matrix, h5py.Dataset)
-        np_matrix = matrix[:]
-        np.save(f"{mock_genotype_file}.npy", np_matrix)
-        yield mock_genotype_file
-    os.unlink(f"{mock_genotype_file}.npy")
-
-
 def test_init_with_valid_file(mock_genotype_file_with_npy):
     """Test initialization with a valid HDF5 file."""
     geno = GenotypesHDF5(mock_genotype_file_with_npy)

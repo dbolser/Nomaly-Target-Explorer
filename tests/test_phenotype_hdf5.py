@@ -6,64 +6,6 @@ import tempfile
 from data_services.phenotype import PhenotypeService
 
 
-@pytest.fixture
-def mock_phenotype_file():
-    """Create a temporary mock HDF5 file with test phenotype data."""
-    with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
-        with h5py.File(tmp.name, "w") as f:
-            # Create required datasets
-
-            # Phenotype matrix: columns are eids rows are phecodes,
-            # 1 = case, 0 = control, -1 = excluded
-            f.create_dataset(
-                "phenotype_data",
-                data=np.array(
-                    [
-                        [9, 1, 0, 1],  # M
-                        [0, 0, 1, 0],  # F
-                        [1, 9, 0, 1],  # M
-                        [0, 1, 0, 0],  # F
-                    ],
-                    dtype=np.int8,
-                ),
-            )
-
-            # Individual IDs
-            f.create_dataset("eids", data=np.array([101001, 101002, 101003, 101004]))
-
-            # Biological sex labels
-            f.create_dataset("affected_sex", data=np.array([b"M", b"F", b"M", b"F"]))
-
-            # Population labels
-            f.create_dataset(
-                "populations", data=np.array([b"EUR", b"EUR", b"EUR", b"SAS"])
-            )
-
-            # Phecode labels
-            f.create_dataset(
-                "phecodes",
-                # Diabetes, Hypertension, Female-specific, Male-specific
-                data=np.array([b"250.2", b"401.1", b"635.2", b"601.1"]),
-            )
-
-            # Affected sex labels
-            f.create_dataset("phecode_sex", data=np.array([b"B", b"B", b"F", b"M"]))
-
-        yield tmp.name
-
-
-@pytest.fixture
-def phenotype_service(mock_phenotype_file):
-    """Create a PhenotypeService instance with the mock data."""
-    return PhenotypeService(mock_phenotype_file)
-
-
-def test_service_initialization(phenotype_service):
-    """Test that the service initializes correctly."""
-    assert isinstance(phenotype_service, PhenotypeService)
-    assert hasattr(phenotype_service, "_hdf")
-
-
 def test_get_cases_basic(phenotype_service):
     """Test basic case retrieval for a phecode."""
     eids, case_status = phenotype_service.get_cases_for_phecode("250.2")

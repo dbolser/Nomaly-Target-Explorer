@@ -1,45 +1,42 @@
 import json
 import time
 
-# The client is created in conftest.py
-# from conftest import client, auth_client
 
-
-def test_random_route_unauthenticated(client):
+def test_random_route_unauthenticated(integration_app_client):
     """Test a random route redirects to index when not authenticated."""
-    response = client.get("/anything")
+    response = integration_app_client.get("/search")
     assert response.status_code == 302  # Redirect to login
     assert "/" == response.location
 
 
-def test_index_route_unauthenticated(client):
+def test_index_route_unauthenticated(integration_app_client):
     """Test the index route when authenticated."""
-    response = client.get("/")
+    response = integration_app_client.get("/")
     assert response.status_code == 200
     assert b"welcome" in response.data.lower()
 
 
-def test_login_route(client, test_admin):
+def test_login_route(integration_app_client, test_admin):
     """Test login functionality."""
     # Test GET request
-    response = client.get("/login")
+    response = integration_app_client.get("/login")
     assert response.status_code == 200
     assert b"login" in response.data.lower()
 
     # Test POST request with valid credentials
-    response = client.post(
+    response = integration_app_client.post(
         "/login",
         data={"username": test_admin["username"], "password": test_admin["password"]},
     )
     assert response.status_code == 302  # Should be a redirect
     assert response.location == "/"  # Should redirect to index
 
-    response = client.get("/logout")
+    response = integration_app_client.get("/logout")
     assert response.status_code == 302  # Should be a redirect
     assert response.location == "/"  # Should redirect to index
 
     # Test POST request with invalid credentials
-    response = client.post(
+    response = integration_app_client.post(
         "/login",
         data={"username": test_admin["username"], "password": "wr0nG_pa55woRd"},
     )
@@ -47,12 +44,13 @@ def test_login_route(client, test_admin):
     assert b"invalid username or password" in response.data.lower()
 
 
-def test_search_route(auth_client):
+def test_search_route(auth_integration_app_client):
     """Test the disease search functionality."""
-    response = auth_client.get("/diseasesearch?q=diabetes")
+    response = auth_integration_app_client.get("/diseasesearch?q=diabetes")
     assert response.status_code == 200
     data = json.loads(response.data)
     assert isinstance(data, list)
+
     # Verify the structure of returned data
     if len(data) > 0:
         assert all(
@@ -69,17 +67,17 @@ def test_search_route(auth_client):
         )
 
 
-def test_phecode_route(auth_client):
+def test_phecode_route(auth_integration_app_client):
     """Test the phecode detail route."""
     test_phecode = "250.2"  # Example phecode
-    response = auth_client.get(f"/phecode/{test_phecode}")
+    response = auth_integration_app_client.get(f"/phecode/{test_phecode}")
     assert response.status_code == 200
     assert bytes(test_phecode, "utf-8") in response.data
 
 
-def test_disease_sets1_structure(auth_client):
+def test_disease_sets1_structure(auth_integration_app_client):
     """Test the structure and content of the page1 route."""
-    response = auth_client.get("/disease-sets/set1")
+    response = auth_integration_app_client.get("/disease-sets/set1")
     assert response.status_code == 200
 
     # Convert response data to string for easier testing
@@ -106,9 +104,9 @@ def test_disease_sets1_structure(auth_client):
     assert "async function searchData(query, listIndex)" in html
 
 
-def test_disease_sets2_structure(auth_client):
+def test_disease_sets2_structure(auth_integration_app_client):
     """Test the structure and content of the page1 route."""
-    response = auth_client.get("/disease-sets/set2")
+    response = auth_integration_app_client.get("/disease-sets/set2")
     assert response.status_code == 200
 
     # Convert response data to string for easier testing
@@ -135,10 +133,10 @@ def test_disease_sets2_structure(auth_client):
     assert "async function searchData(query, listIndex)" in html
 
 
-def test_page1_search_results(auth_client):
+def test_page1_search_results(auth_integration_app_client):
     """Test that search results are properly structured when loaded."""
     # First make a search request to get some results
-    response = auth_client.get("/diseasesearch?query=Hidradenitis")
+    response = auth_integration_app_client.get("/diseasesearch?query=Hidradenitis")
     assert response.status_code == 200
     data = json.loads(response.data)
 
@@ -156,12 +154,12 @@ def test_page1_search_results(auth_client):
     assert "phecode_group" in first_result
 
 
-def test_phecode_term_structure(auth_client):
+def test_phecode_term_structure(auth_integration_app_client):
     """Test the structure and content of a specific phecode term page."""
     phecode = "649.1"
     term = "GO:0035235"
 
-    response = auth_client.get(f"/phecode/{phecode}/term/{term}")
+    response = auth_integration_app_client.get(f"/phecode/{phecode}/term/{term}")
     assert response.status_code == 200
 
     html = response.data.decode("utf-8")
@@ -191,12 +189,12 @@ def test_phecode_term_structure(auth_client):
     assert f'const term = "{term}";' in html
 
 
-def test_phecode_term_variant_detail(auth_integration_client):
+def test_phecode_term_variant_detail(auth_integration_app_client):
     """Test the JSON response from the variant detail endpoint."""
     phecode = "649.1"
     term = "GO:0035235"
 
-    response = auth_integration_client.get(
+    response = auth_integration_app_client.get(
         f"/phecode/{phecode}/term/{term}/tableVariantDetail"
     )
     assert response.status_code == 200
@@ -245,11 +243,11 @@ def test_phecode_term_variant_detail(auth_integration_client):
         assert float(first_record["GWAS_P"]) >= 0
 
 
-def test_phecode_page_structure(auth_client):
+def test_phecode_page_structure(auth_integration_app_client):
     """Test the structure and content of a specific phecode page."""
     phecode = "649.1"
 
-    response = auth_client.get(f"/phecode/{phecode}")
+    response = auth_integration_app_client.get(f"/phecode/{phecode}")
     assert response.status_code == 200
 
     html = response.data.decode("utf-8")
@@ -258,9 +256,10 @@ def test_phecode_page_structure(auth_client):
     assert "Diabetes or abnormal glucose tolerance complicating pregnancy" in html
     assert f"Phecode: {phecode} (Run v1)" in html
     assert "Sex: Female" in html
-    assert "Affected: <strong>300</strong>" in html
-    assert "Control: 263177" in html
-    assert "Excluded: 138 (649-649.99)" in html
+    assert "Population: EUR" in html
+    assert "Affected: <strong>29</strong>" in html
+    assert "Control: 22845" in html
+    assert "Excluded: 18597 (649-649.99)" in html
     assert "Disease: pregnancy complications" in html
 
     # Test Nomaly Results section
@@ -272,11 +271,11 @@ def test_phecode_page_structure(auth_client):
     assert 'const runbatch = "Run v1";' in html
 
 
-def test_phecode_page_with_gwas(auth_client):
+def test_phecode_page_with_gwas(auth_integration_app_client):
     """Test the phecode page with GWAS functionality enabled."""
     phecode = "649.1"
 
-    response = auth_client.get(f"/phecode/{phecode}?gwas=1")
+    response = auth_integration_app_client.get(f"/phecode/{phecode}?gwas=1")
     assert response.status_code == 200
 
     html = response.data.decode("utf-8")
@@ -331,13 +330,13 @@ def test_phecode_page_with_gwas(auth_client):
 #             assert "OR" in first_assoc
 
 
-def test_phecode_nomaly_stats(auth_client):
+def test_phecode_nomaly_stats(auth_integration_app_client):
     """Test the Nomaly stats endpoint."""
     phecode = "649.1"
 
     # Test both v1 and v2 endpoints
     for version in ["nomaly-stats", "nomaly-stats2"]:
-        response = auth_client.post(f"/{version}/{phecode}")
+        response = auth_integration_app_client.post(f"/{version}/{phecode}")
         assert response.status_code == 200
 
         data = json.loads(response.data)
@@ -386,11 +385,11 @@ def test_phecode_nomaly_stats(auth_client):
             assert len(data["data"]) <= 1050  # Should be limited to 1000 entries
 
 
-def test_variant_page_structure(auth_client):
+def test_variant_page_structure(auth_integration_app_client):
     """Test the structure and content of a specific variant page."""
     variant = "17_80117714_G_A"
 
-    response = auth_client.get(f"/variant/{variant}")
+    response = auth_integration_app_client.get(f"/variant/{variant}")
     assert response.status_code == 200
 
     html = response.data.decode("utf-8")
@@ -421,19 +420,19 @@ def test_variant_page_structure(auth_client):
     # assert "PheWAS identified 327 phecodes with association p<0.05" in html
 
 
-def test_variant_phewas_results(auth_client):
+def test_variant_phewas_results(auth_integration_app_client):
     """Test the PheWAS results endpoint for a variant."""
     variant = "17_80117714_G_A"
 
     # First check initial state
-    response = auth_client.get(f"/phewas-result/{variant}")
+    response = auth_integration_app_client.get(f"/phewas-result/{variant}")
     assert response.status_code == 200
     initial_data = json.loads(response.data)
     assert initial_data["result"] == "Processing..."
     assert initial_data["associations"] == []
 
     # Trigger PheWAS analysis
-    response = auth_client.post(f"/run-phewas/{variant}")
+    response = auth_integration_app_client.post(f"/run-phewas/{variant}")
     assert response.status_code == 202
     assert json.loads(response.data)["status"] == "Task started"
 
@@ -443,7 +442,7 @@ def test_variant_phewas_results(auth_client):
     data = None
 
     while time.time() - start_time < max_wait:
-        response = auth_client.get(f"/phewas-result/{variant}")
+        response = auth_integration_app_client.get(f"/phewas-result/{variant}")
         assert response.status_code == 200
         data = json.loads(response.data)
 
@@ -476,26 +475,26 @@ def test_variant_phewas_results(auth_client):
             assert all(field in first_assoc for field in expected_fields)
 
 
-def test_variant_id_formats(auth_client):
+def test_variant_id_formats(auth_integration_app_client):
     """Test different variant ID format handling."""
     variants = [
         "17_80117714_G_A",  # Underscore format
     ]
 
     for variant in variants:
-        response = auth_client.get(f"/variant/{variant}")
+        response = auth_integration_app_client.get(f"/variant/{variant}")
         assert response.status_code == 200
         html = response.data.decode("utf-8")
         assert "<strong>Chromosome:</strong> 17" in html
         assert "<strong>Position:</strong> 80117714" in html
 
 
-def test_phecode_gwas_pvalues(auth_client):
+def test_phecode_gwas_pvalues(auth_integration_app_client):
     """Test that GWAS P-values are present in phecode page for a specific case."""
     phecode = "561"
 
     # First check the page with GWAS enabled
-    response = auth_client.get(f"/phecode/{phecode}?gwas=1")
+    response = auth_integration_app_client.get(f"/phecode/{phecode}?gwas=1")
     assert response.status_code == 200
     html = response.data.decode("utf-8")
     assert (
@@ -503,7 +502,7 @@ def test_phecode_gwas_pvalues(auth_client):
     )
 
     # Now simulate clicking the GWAS button by calling the run-task endpoint
-    response = auth_client.post(f"/run-task/{phecode}")
+    response = auth_integration_app_client.post(f"/run-task/{phecode}")
     assert response.status_code == 200
     data = json.loads(response.data)
 
@@ -521,7 +520,7 @@ def test_phecode_gwas_pvalues(auth_client):
         assert p_value <= 1  # P-values should be between 0 and 1
 
     # Also check the nomaly stats which should include GWAS data
-    response = auth_client.post(f"/nomaly-stats/{phecode}")
+    response = auth_integration_app_client.post(f"/nomaly-stats/{phecode}")
     assert response.status_code == 200
     data = json.loads(response.data)
 
@@ -538,13 +537,15 @@ def test_phecode_gwas_pvalues(auth_client):
             # Convert to float to ensure it's a valid number
 
 
-def test_phecode_term_gwas_pvalues(auth_client):
+def test_phecode_term_gwas_pvalues(auth_integration_app_client):
     """Test that GWAS P-values are present in phecode term page for a specific case."""
     phecode = "561"
     term = "HP:0000789"
 
     # Get the variant detail data
-    response = auth_client.get(f"/phecode/{phecode}/term/{term}/tableVariantDetail")
+    response = auth_integration_app_client.get(
+        f"/phecode/{phecode}/term/{term}/tableVariantDetail"
+    )
     assert response.status_code == 200
     data = json.loads(response.data)
 

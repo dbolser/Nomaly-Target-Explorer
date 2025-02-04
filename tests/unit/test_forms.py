@@ -9,9 +9,9 @@ class LoginForm(FlaskForm):
     password = PasswordField("Password", validators=[DataRequired()])
 
 
-def test_login_form_validation(app):
+def test_login_form_validation(unit_test_app):
     """Test form validation with CSRF enabled."""
-    with app.test_request_context():
+    with unit_test_app.test_request_context():
         form = LoginForm()
         assert not form.validate()
 
@@ -21,7 +21,7 @@ def test_login_form_validation(app):
                 "username": "testuser",
                 "password": "testpass",
                 # Er... not test config or something?
-                # "csrf_token": form.csrf_token.current_token,
+                "csrf_token": form.csrf_token.current_token,
             }
         )
         assert form.validate(), f"Form validation failed: {form.errors}"

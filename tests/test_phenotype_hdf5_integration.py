@@ -1,5 +1,4 @@
 import numpy as np
-from flask import current_app
 
 # Known test cases - these values will need to be updated with actual production data
 KNOWN_PHECODE = "250.2"  # Type 2 diabetes
@@ -10,18 +9,22 @@ FEMALE_SPECIFIC_PHECODE = "635.2"
 MALE_SPECIFIC_PHECODE = "601.1"
 
 
-def test_production_file_exists(hdf5_integration):
+def test_production_file_exists(integration_app):
     """Verify the production phenotype file exists and is readable."""
-    phenotype_service = hdf5_integration.phenotype
-    assert phenotype_service is not None
-    assert hasattr(phenotype_service, "_hdf")
-    assert hasattr(phenotype_service._hdf, "phenotype_data")
+    with integration_app.app_context():
+        services = integration_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
+        assert phenotype_service is not None
+        assert hasattr(phenotype_service, "_hdf")
+        assert hasattr(phenotype_service._hdf, "phenotype_data")
 
 
-def test_known_phecode_query(hdf5_integration):
+def test_known_phecode_query(integration_app):
     """Test querying a known phecode from production data."""
-    phenotype_service = hdf5_integration.phenotype
-    eids, case_status = phenotype_service.get_cases_for_phecode(KNOWN_PHECODE)
+    with integration_app.app_context():
+        services = integration_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
+        eids, case_status = phenotype_service._hdf.get_cases_for_phecode(KNOWN_PHECODE)
 
     assert eids is not None
     assert case_status is not None
@@ -42,32 +45,38 @@ def test_known_phecode_query(hdf5_integration):
     )
 
 
-def test_sex_specific_phecodes(hdf5_integration, integration_app):
+def test_sex_specific_phecodes(integration_app):
     """Test sex-specific phecodes have appropriate distributions."""
     with integration_app.app_context():
-        phenotype_service = current_app.extensions["nomaly_services"].phenotype
+        services = integration_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
 
     # Female-specific phecode
-    eids_f, status_f = phenotype_service.get_cases_for_phecode(FEMALE_SPECIFIC_PHECODE)
+    eids_f, status_f = phenotype_service._hdf.get_cases_for_phecode(
+        FEMALE_SPECIFIC_PHECODE
+    )
     case_count_f = np.sum(status_f == 1)
     assert case_count_f > 0, (
         "Expected non-zero female cases for female-specific phecode"
     )
 
     # Male-specific phecode
-    eids_m, status_m = phenotype_service.get_cases_for_phecode(MALE_SPECIFIC_PHECODE)
+    eids_m, status_m = phenotype_service._hdf.get_cases_for_phecode(
+        MALE_SPECIFIC_PHECODE
+    )
     case_count_m = np.sum(status_m == 1)
     assert case_count_m > 0, "Expected non-zero male cases for male-specific phecode"
 
 
-def test_individual_consistency(hdf5_integration, integration_app):
+def test_individual_consistency(integration_app):
     """Test that individual IDs are consistent across different phecode queries."""
     with integration_app.app_context():
-        phenotype_service = current_app.extensions["nomaly_services"].phenotype
+        services = integration_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
 
     # Get cases for two different phecodes
-    eids1, _ = phenotype_service.get_cases_for_phecode("250.2")  # Type 2 diabetes
-    eids2, _ = phenotype_service.get_cases_for_phecode("401.1")  # Hypertension
+    eids1, _ = phenotype_service._hdf.get_cases_for_phecode("250.2")  # Type 2 diabetes
+    eids2, _ = phenotype_service._hdf.get_cases_for_phecode("401.1")  # Hypertension
 
     # Check that the individual IDs are in the same range
     assert eids1.min() > 1_000_000
@@ -80,10 +89,11 @@ def test_individual_consistency(hdf5_integration, integration_app):
     assert len(common_ids) > 0, "Expected overlap in individuals between phecodes"
 
 
-def test_case_control_ratios(hdf5_integration, integration_app):
+def test_case_control_ratios(integration_app):
     """Test that case/control ratios are within expected ranges for common diseases."""
     with integration_app.app_context():
-        phenotype_service = current_app.extensions["nomaly_services"].phenotype
+        services = integration_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
 
     common_phecodes = [
         "250.2",  # Type 2 diabetes
@@ -92,7 +102,7 @@ def test_case_control_ratios(hdf5_integration, integration_app):
     ]
 
     for phecode in common_phecodes:
-        _, status = phenotype_service.get_cases_for_phecode(phecode)
+        _, status = phenotype_service._hdf.get_cases_for_phecode(phecode)
         case_count = np.sum(status == 1)
         control_count = np.sum(status == 0)
 
@@ -106,13 +116,14 @@ def test_case_control_ratios(hdf5_integration, integration_app):
         )
 
 
-def test_excluded_individuals(hdf5_integration, integration_app):
+def test_excluded_individuals(integration_app):
     """Test that excluded individuals are handled correctly."""
     with integration_app.app_context():
-        phenotype_service = current_app.extensions["nomaly_services"].phenotype
+        services = integration_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
 
     # Get cases for a phecode
-    eids, status = phenotype_service.get_cases_for_phecode(KNOWN_PHECODE)
+    eids, status = phenotype_service._hdf.get_cases_for_phecode(KNOWN_PHECODE)
 
     assert eids.shape == status.shape
 
@@ -120,10 +131,11 @@ def test_excluded_individuals(hdf5_integration, integration_app):
     assert np.all(np.isin(status, [0, 1, 9])), "Invalid status values in results"
 
 
-def test_population_stratification(hdf5_integration, integration_app):
+def test_population_stratification(integration_app):
     """Test population-specific queries (when implemented)."""
     with integration_app.app_context():
-        phenotype_service = current_app.extensions["nomaly_services"].phenotype
+        services = integration_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
 
     # This is a placeholder test - implement once population filtering is added
     populations = ["EUR", "EUR_S", "AFR", "EAS", "SAS"]
@@ -137,7 +149,7 @@ def test_population_stratification(hdf5_integration, integration_app):
     }
 
     for pop in populations:
-        eids, status = phenotype_service.get_cases_for_phecode(
+        eids, status = phenotype_service._hdf.get_cases_for_phecode(
             KNOWN_PHECODE, population=pop
         )
         # For now, population parameter is ignored, so just verify basic sanity
@@ -147,16 +159,17 @@ def test_population_stratification(hdf5_integration, integration_app):
         assert np.all(np.isin(status, [0, 1, 9]))
 
 
-def test_sex_stratification(hdf5_integration, integration_app):
+def test_sex_stratification(integration_app):
     """Test sex-specific queries (when implemented)."""
     with integration_app.app_context():
-        phenotype_service = current_app.extensions["nomaly_services"].phenotype
+        services = integration_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
 
     counts = {"M": 222530, "F": 263615}
 
     # This is a placeholder test - implement once sex filtering is added
     for sex in ["M", "F"]:
-        eids, status = phenotype_service.get_cases_for_phecode(
+        eids, status = phenotype_service._hdf.get_cases_for_phecode(
             KNOWN_PHECODE, biological_sex=sex
         )
         # For now, sex parameter is ignored, so just verify basic sanity
