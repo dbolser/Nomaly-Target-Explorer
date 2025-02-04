@@ -11,7 +11,8 @@ from tqdm import tqdm
 from config import Config
 from data_services.phenotype import PhenotypeService
 from db import get_all_phecodes, get_all_variants
-from services import services
+
+from flask import current_app
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +160,7 @@ def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
     Returns:
         tuple: (sorted_eids, sorted_genotypes) or None if error
     """
+    services = current_app.extensions["nomaly_services"]
     genotype_service = services.genotype
     if genotype_service is None:
         raise ValueError("Genotype service is not initialized!")
@@ -266,6 +268,7 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
 
     all_phecodes = get_all_phecodes()
 
+    services = current_app.extensions["nomaly_services"]
     phenotype_data = services.phenotype
     assert phenotype_data is not None
 
@@ -346,6 +349,7 @@ def get_phewas_results(
             sorted_genotype_eids, sorted_genotypes = genotype_result
             all_phecodes = get_all_phecodes()
 
+            services = current_app.extensions["nomaly_services"]
             phenotype_data = services.phenotype
             assert phenotype_data is not None
 

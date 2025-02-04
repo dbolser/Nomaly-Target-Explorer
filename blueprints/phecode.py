@@ -2,12 +2,11 @@ import logging
 
 import pandas as pd
 import plotly.io as pio
-from flask import Blueprint, jsonify, render_template, request, url_for
+from flask import Blueprint, current_app, jsonify, render_template, request, url_for
 
 from blueprints.gwas import format_gwas_results, run_gwas
 from blueprints.nomaly import make_qqplot
 from db import get_phecode_info, get_term_domains, get_term_genes, get_term_names
-from services import services
 
 logger = logging.getLogger(__name__)
 phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
@@ -15,6 +14,7 @@ phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
 
 def get_stats_handler(version=1):
     """Get the appropriate stats handler based on version."""
+    services = current_app.extensions["nomaly_services"]
     return services.stats_v2 if version == 2 else services.stats
 
 
@@ -22,6 +22,7 @@ def get_phecode_data(phecode, population="EUR") -> dict:
     data = get_phecode_info(phecode)
     data["population"] = population
 
+    services = current_app.extensions["nomaly_services"]
     assert services.phenotype is not None
     case_counts = services.phenotype._hdf.get_case_counts_for_phecode(
         phecode, population=population

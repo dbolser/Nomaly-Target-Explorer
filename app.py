@@ -62,10 +62,9 @@ def create_app(config_name="default"):
     login_manager.init_app(app)
     cors.init_app(app)
 
-    # Initialize services if not testing or explicitly requested
-    if not app.config.get("TESTING", False) or app.config.get("INIT_SERVICES", False):
-        from services import ServiceRegistry
-        ServiceRegistry(app)
+    from services import ServiceRegistry
+
+    ServiceRegistry(app)
 
     # Register blueprints
     register_blueprints(app)

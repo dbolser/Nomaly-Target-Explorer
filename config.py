@@ -77,52 +77,14 @@ class DevelopmentConfig(Config):
     DEBUG = True
 
 
-class TestingConfig(Config):
-    """Base testing configuration"""
-
-    TESTING = True
-    WTF_CSRF_ENABLED = False
-    SECRET_KEY = "test-secret-key"
-    WTF_CSRF_SECRET_KEY = "test-csrf-secret-key"
-
-    # Test database settings
-    # MYSQL_HOST = os.getenv("TEST_MYSQL_HOST", "localhost")
-    # MYSQL_PORT = os.getenv("TEST_MYSQL_PORT", 3306)
-    # MYSQL_USER = os.getenv("TEST_MYSQL_USER", "test_user")
-    # MYSQL_PASSWORD = os.getenv("TEST_MYSQL_PASSWORD", "test_password")
-    # MYSQL_DB = os.getenv("TEST_MYSQL_DB", "test_db")
-
-
-class UnitTestConfig(TestingConfig):
-    """Unit test configuration - uses mocked services"""
-
-    INIT_SERVICES = False
-
-
-class IntegrationTestConfig(TestingConfig):
-    """Integration test configuration - uses real services"""
-
-    INIT_SERVICES = True
-
-    # Use production HDF5 paths for integration tests
-    PHENOTYPES_H5 = Config.PHENOTYPES_H5
-    GENOTYPES_H5 = Config.GENOTYPES_H5
-    STATS_H5 = Config.STATS_H5
-    STATS_H5_V2 = Config.STATS_H5_V2
-
-
 class ProductionConfig(Config):
     """Production configuration"""
 
-    DEBUG = False
-    TESTING = False
     WTF_CSRF_ENABLED = True
 
 
 config = {
+    "default": DevelopmentConfig,
     "development": DevelopmentConfig,
     "production": ProductionConfig,
-    "testing": UnitTestConfig,
-    "integration": IntegrationTestConfig,
-    "default": DevelopmentConfig,
 }

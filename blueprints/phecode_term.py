@@ -3,7 +3,7 @@ import traceback
 from typing import Optional
 
 import pandas as pd
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request
 
 from blueprints.gwas import format_gwas_results, run_gwas
 from blueprints.nomaly import pharos, pp
@@ -18,7 +18,6 @@ from db import (
     get_term_variants,
 )
 from errors import DataNotFoundError
-from services import services
 
 # Create the blueprint
 phecode_term_bp = Blueprint("phecode_term", __name__, template_folder="../templates")
@@ -95,6 +94,7 @@ def calculate_phecode_term_variant_detail(
     ancestry: Optional[str] = None,
     flush: bool = False,
 ) -> dict:
+    services = current_app.extensions["nomaly_services"]
     genotype_service = services.genotype
     assert genotype_service is not None
 
@@ -279,18 +279,19 @@ def main():
     term = "HP:0000789"
     term = "KW:0544"
 
-    gwas_data = run_gwas(phecode)
-    print(gwas_data)
+    from app import create_app
 
-    term_data = get_term_variants(term)
-    print(term_data)
+    app = create_app("development")
 
-    import config
+    with app.app_context():
+        gwas_data = run_gwas(phecode)
+        print(gwas_data)
 
-    services.init_from_config(config.__dict__)
-    result = calculate_phecode_term_variant_detail(phecode, term, flush=True)
+        term_data = get_term_variants(term)
+        print(term_data)
 
-    print(result)
+        result = calculate_phecode_term_variant_detail(phecode, term, flush=True)
+        print(result)
 
 
 if __name__ == "__main__":

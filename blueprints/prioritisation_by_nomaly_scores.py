@@ -16,12 +16,12 @@ import pandas as pd
 from flask import (
     Blueprint,
     Response,
+    current_app,
     render_template,
     stream_with_context,
 )
 from flask_login import login_required
 
-from services import ServiceRegistry
 from config import Config
 from db import get_term_variants
 
@@ -67,12 +67,14 @@ def read_cases_for_disease_code(phecode: str) -> dict:
 
 def read_nomaly_filtered_genotypes(sorted_eids, short_listed_variants) -> dict:
     """Read genotypes for the individuals and variants."""
+    services = current_app.extensions["nomaly_services"]
+
     genotype_service = services.genotype
     assert genotype_service is not None
 
     # sort the genotype eids
-    sorted_indices = np.argsort(genotype_service.individual)
-    sorted_genotype_eids = genotype_service.individual[sorted_indices]
+    sorted_indices = np.argsort(genotype_service._hdf.individual)
+    sorted_genotype_eids = genotype_service._hdf.individual[sorted_indices]
 
     # search
     indices = np.searchsorted(sorted_genotype_eids, sorted_eids)
@@ -85,7 +87,7 @@ def read_nomaly_filtered_genotypes(sorted_eids, short_listed_variants) -> dict:
     error_variants = []
 
     for vindex, variant_id in enumerate(short_listed_variants):
-        genotype_result = genotype_service.query_variantID_genotypes(variant_id)
+        genotype_result = genotype_service._hdf.query_variantID_genotypes(variant_id)
         if genotype_result is None:
             logger.warning(f"No genotype data found for variant {variant_id}")
             error_variants.append(variant_id)
@@ -355,11 +357,18 @@ def stream_progress(disease_code: str, term: str):
 
 
 def main():
+    """This code exists for debugging purposes."""
+
     disease_code = "332"
     term = "GO:0030800"
-    top_variants, top_gene_set = get_top_variants(disease_code, term)
-    print(top_variants)
-    print(top_gene_set)
+
+    from app import create_app
+
+    app = create_app("development")
+    with app.app_context():
+        top_variants, top_gene_set = get_top_variants(disease_code, term, no_cache=True)
+        print(top_variants)
+        print(top_gene_set)
 
 
 if __name__ == "__main__":
