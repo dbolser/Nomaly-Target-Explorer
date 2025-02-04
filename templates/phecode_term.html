@@ -7,18 +7,7 @@
     <h3>{{data.description}}</h3>
 
     {% include 'partials/phecode_details.html' %}
-
-    <!-- Term information display -->
-    <h3>{{ data.termname }}</h3>
-
-    <div id="termDetails" class="mb-4">
-        <p class="p-2 bg-light rounded">
-            <span>Term: {{ data.term }}</span> |
-            <span>{{ data.domainlen }} domains</span> |
-            <span>{{ data.genelen }} genes</span>:
-            {{ data.genes }}
-        </p>
-    </div>
+    {% include 'partials/term_details.html' %}
 
     <div class="mb-4">
         <a href="{{ url_for('prioritisation.show_variant_scores', disease_code=data.phecode, term=data.term) }}"
