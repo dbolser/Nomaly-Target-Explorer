@@ -24,6 +24,8 @@ from flask_login import login_required
 
 from config import Config
 from db import get_term_variants
+from blueprints.phecode import get_phecode_data
+from db import get_term_names, get_term_domains, get_term_genes
 
 logger = logging.getLogger(__name__)
 
@@ -281,13 +283,30 @@ prioritisation_bp = Blueprint("prioritisation", __name__)
 
 
 @prioritisation_bp.route("/variant_scores/<disease_code>/<term>")
-@login_required
 def show_variant_scores(disease_code: str, term: str):
     """Show the variant scores page."""
+    # Get phecode data
+    data = get_phecode_data(disease_code)
+
+    # Get term data
+    term_names = get_term_names([term])
+    term_domains = get_term_domains([term])
+    term_genes = get_term_genes([term])
+
+    # Add term details to data
+    data["term"] = term
+    data["termname"] = term_names.get(term, "")
+    data["domainlen"] = len(term_domains.get(term, []))
+
+    genes = term_genes[term_genes["term"] == term]["gene"].tolist()
+    data["genelen"] = len(genes)
+    data["genes"] = ", ".join(genes) if len(genes) < 5 else f"{len(genes)} genes"
+
     return render_template(
         "variant_scores.html",
         disease_code=disease_code,
         term=term,
+        data=data,
         top_variants=pd.DataFrame(),
         top_gene_set=pd.DataFrame(),
     )
