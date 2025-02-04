@@ -5,11 +5,11 @@ from data_services.phenotype import PhenotypeService
 
 class ServiceRegistry:
     def __init__(self, app=None):
-        self.genotype: GenotypeService | None = None
-        self.phenotype: PhenotypeService | None = None
-        self.stats: StatsHDF5 | None = None
-        self.stats_v2: StatsHDF5 | None = None
-
+        self.genotype = None
+        self.phenotype = None
+        self.stats = None
+        self.stats_v2 = None
+        
         if app is not None:
             self.init_app(app)
 
@@ -17,9 +17,9 @@ class ServiceRegistry:
         """Initialize services with Flask app"""
         if not hasattr(app, "extensions"):
             app.extensions = {}
-
+            
         app.extensions["nomaly_services"] = self
-
+        
         # Initialize services from config
         self.genotype = GenotypeService(app.config.get("GENOTYPES_H5"))
         self.phenotype = PhenotypeService(app.config.get("PHENOTYPES_H5"))

@@ -10,19 +10,17 @@ FEMALE_SPECIFIC_PHECODE = "635.2"
 MALE_SPECIFIC_PHECODE = "601.1"
 
 
-def test_production_file_exists(hdf5_integration, integration_app):
+def test_production_file_exists(hdf5_integration):
     """Verify the production phenotype file exists and is readable."""
-    with integration_app.app_context():
-        phenotype_service = current_app.extensions["nomaly_services"].phenotype
-        assert phenotype_service is not None
-        assert hasattr(phenotype_service, "_hdf")
-        assert hasattr(phenotype_service._hdf, "phenotype_data")
+    phenotype_service = hdf5_integration.phenotype
+    assert phenotype_service is not None
+    assert hasattr(phenotype_service, "_hdf")
+    assert hasattr(phenotype_service._hdf, "phenotype_data")
 
 
-def test_known_phecode_query(hdf5_integration, integration_app):
+def test_known_phecode_query(hdf5_integration):
     """Test querying a known phecode from production data."""
-    with integration_app.app_context():
-        phenotype_service = current_app.extensions["nomaly_services"].phenotype
+    phenotype_service = hdf5_integration.phenotype
     eids, case_status = phenotype_service.get_cases_for_phecode(KNOWN_PHECODE)
 
     assert eids is not None

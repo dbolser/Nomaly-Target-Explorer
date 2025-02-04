@@ -12,36 +12,19 @@ def app():
     """Create and configure a Flask app instance for unit tests."""
     _app = create_app(config_name="testing")
     
-    # Mock services for unit tests
+    # Initialize services
     with _app.app_context():
         from services import ServiceRegistry
-        from unittest.mock import MagicMock
-        services = ServiceRegistry()
-        services.genotype = MagicMock()
-        services.phenotype = MagicMock()
-        services.stats = MagicMock()
-        services.stats_v2 = MagicMock()
+        services = ServiceRegistry(_app)
         _app.extensions["nomaly_services"] = services
         
     yield _app
 
 @pytest.fixture(scope="session")
-def integration_app():
-    """Create and configure a Flask app instance for integration tests."""
-    _app = create_app(config_name="integration")
-    
-    # Initialize real services for integration tests
-    with _app.app_context():
-        from services import ServiceRegistry
-        ServiceRegistry(_app)
-        
-    yield _app
-
-@pytest.fixture(scope="session")
-def hdf5_integration(integration_app):
-    """Fixture for tests that need real HDF5 services.
-    Use this fixture ONLY in tests that absolutely need real HDF5 files."""
-    yield integration_app.extensions["nomaly_services"]
+def hdf5_integration(app):
+    """Fixture for tests that need real HDF5 services."""
+    with app.app_context():
+        yield app.extensions["nomaly_services"]
 
 
 @pytest.fixture
