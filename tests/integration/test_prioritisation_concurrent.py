@@ -153,3 +153,18 @@ def test_error_recovery(unit_test_app_client_with_cache):
         else:
             assert any(m["type"] == "error" for m in messages)
             assert messages[-1]["type"] == "done"
+
+
+def test_variant_scores_endpoint(auth_integration_app_client):
+    """Test the variant scores endpoint with a known good example."""
+    response = auth_integration_app_client.get("/variant_scores/290.11/GO:0036265")
+    assert response.status_code == 200
+
+    # Test the streaming endpoint too
+    stream_response = auth_integration_app_client.get(
+        "/stream_progress/290.11/GO:0036265"
+    )
+    assert stream_response.status_code == 200
+
+    # Verify we get some actual data and not just errors
+    assert b"error" not in stream_response.data

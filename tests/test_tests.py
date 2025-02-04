@@ -30,11 +30,18 @@ def test_unit_test_app(unit_test_app):
         assert services.stats_v2._mock_return_value is not None  # Should be a mock
 
 
-def test_test_genotype_hdf5_path(test_genotype_hdf5_path):
-    """Test that test_genotype_hdf5_path fixture creates a valid HDF5 file."""
-    assert os.path.exists(test_genotype_hdf5_path)
-    assert test_genotype_hdf5_path.endswith(".h5")
-    assert os.path.exists(f"{test_genotype_hdf5_path}.npy")
+def test_unit_test_app_client(unit_test_app_client):
+    """Test that unit_test_app_client provides a working test client."""
+    # With LOGIN_DISABLED=True, we should be able to access protected routes
+    response = unit_test_app_client.get("/search")
+    assert response.status_code == 200  # Should work without auth due to LOGIN_DISABLED
+
+
+def test_mock_genotype_hdf5_file_with_npy(mock_genotype_hdf5_file_with_npy):
+    """Test that the mock_genotype_hdf5_file_with_npy fixture creates a valid HDF5 file."""
+    assert os.path.exists(mock_genotype_hdf5_file_with_npy)
+    assert mock_genotype_hdf5_file_with_npy.endswith(".h5")
+    assert os.path.exists(f"{mock_genotype_hdf5_file_with_npy}.npy")
 
 
 def test_integration_app(integration_app):
@@ -43,16 +50,12 @@ def test_integration_app(integration_app):
         assert "nomaly_services" in current_app.extensions
         services = current_app.extensions["nomaly_services"]
 
-        assert not hasattr(services.phenotype, "_mock_return_value")  # Should be real
+        assert services.genotype._hdf is not None  # Should be real
+        assert services.phenotype._hdf is not None  # Should be real
+
+        # TODO: Mock these things
         assert not hasattr(services.stats, "_mock_return_value")  # Should be real
         assert not hasattr(services.stats_v2, "_mock_return_value")  # Should be real
-
-
-def test_unit_test_app_client(unit_test_app_client):
-    """Test that unit_test_app_client provides a working test client."""
-    # With LOGIN_DISABLED=True, we should be able to access protected routes
-    response = unit_test_app_client.get("/search")
-    assert response.status_code == 200  # Should work without auth due to LOGIN_DISABLED
 
 
 def test_integration_app_client(integration_app_client):

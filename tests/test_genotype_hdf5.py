@@ -7,9 +7,9 @@ import tempfile
 from data_services.genotype import GenotypesHDF5
 
 
-def test_init_with_valid_file(mock_genotype_file_with_npy):
+def test_init_with_valid_file(mock_genotype_hdf5_file_with_npy):
     """Test initialization with a valid HDF5 file."""
-    geno = GenotypesHDF5(mock_genotype_file_with_npy)
+    geno = GenotypesHDF5(mock_genotype_hdf5_file_with_npy)
     assert geno is not None
     assert hasattr(geno, "f")
     assert hasattr(geno, "genotype_matrix")
@@ -41,19 +41,19 @@ def test_init_with_invalid_file():
         os.unlink(tmp.name)
 
 
-def test_query_variants_single(mock_genotype_file_with_npy):
+def test_query_variants_single(mock_genotype_hdf5_file_with_npy):
     """Test querying a single variant."""
-    geno = GenotypesHDF5(mock_genotype_file_with_npy)
+    geno = GenotypesHDF5(mock_genotype_hdf5_file_with_npy)
     result = geno.query_variants("1:100:A:T")
     assert result is not None
     assert isinstance(result, np.ndarray)
     assert result.shape == (1, 4)  # One variant, four individuals
-    np.testing.assert_array_equal(result[0], [-1, 0, 1, 2])
+    np.testing.assert_array_equal(result[0], [0, 1, 1, 2])
 
 
-def test_query_variants_multiple(mock_genotype_file_with_npy):
+def test_query_variants_multiple(mock_genotype_hdf5_file_with_npy):
     """Test querying multiple variants."""
-    geno = GenotypesHDF5(mock_genotype_file_with_npy)
+    geno = GenotypesHDF5(mock_genotype_hdf5_file_with_npy)
     result = [geno.query_variants(variant) for variant in ["1:100:A:T", "2:200:C:G"]]
 
     for r in result:
@@ -65,33 +65,33 @@ def test_query_variants_multiple(mock_genotype_file_with_npy):
 
     assert isinstance(result, np.ndarray)
     assert result.shape == (2, 4)  # Two variants, four individuals
-    np.testing.assert_array_equal(result, [[-1, 0, 1, 2], [1, 0, 2, -1]])
+    np.testing.assert_array_equal(result, [[0, 1, 1, 2], [1, 0, 0, 1]])
 
 
-def test_query_variants_nonexistent(mock_genotype_file_with_npy):
+def test_query_variants_nonexistent(mock_genotype_hdf5_file_with_npy):
     """Test querying a non-existent variant."""
-    geno = GenotypesHDF5(mock_genotype_file_with_npy)
+    geno = GenotypesHDF5(mock_genotype_hdf5_file_with_npy)
     result = geno.query_variants("3:300:G:C")
     assert result.size == 0
 
 
-def test_query_variants_invalid_format(mock_genotype_file_with_npy):
+def test_query_variants_invalid_format(mock_genotype_hdf5_file_with_npy):
     """Test querying with invalid variant format."""
-    geno = GenotypesHDF5(mock_genotype_file_with_npy)
+    geno = GenotypesHDF5(mock_genotype_hdf5_file_with_npy)
     result = geno.query_variants("invalid_format")
     assert result.size == 0
 
 
-def test_query_variants_empty_input(mock_genotype_file_with_npy):
+def test_query_variants_empty_input(mock_genotype_hdf5_file_with_npy):
     """Test querying with empty input."""
-    geno = GenotypesHDF5(mock_genotype_file_with_npy)
+    geno = GenotypesHDF5(mock_genotype_hdf5_file_with_npy)
     result = geno.query_variants("")
     assert result.size == 0
 
 
-def test_single_variant_mask(mock_genotype_file_with_npy):
+def test_single_variant_mask(mock_genotype_hdf5_file_with_npy):
     """Test creation of single variant mask."""
-    geno = GenotypesHDF5(mock_genotype_file_with_npy)
+    geno = GenotypesHDF5(mock_genotype_hdf5_file_with_npy)
     mask = geno._single_variant_mask("1:100:A:T")
     assert isinstance(mask, np.ndarray)
     assert mask.dtype == bool
@@ -165,9 +165,9 @@ def test_error_handling_corrupted_data():
         123,  # Wrong type
     ],
 )
-def test_variant_format_validation(mock_genotype_file_with_npy, variant_id):
+def test_variant_format_validation(mock_genotype_hdf5_file_with_npy, variant_id):
     """Test validation of various variant ID formats."""
-    geno = GenotypesHDF5(mock_genotype_file_with_npy)
+    geno = GenotypesHDF5(mock_genotype_hdf5_file_with_npy)
     if variant_id == "1:100:A:T":
         result = geno.query_variants(variant_id)
         assert result.size > 0
