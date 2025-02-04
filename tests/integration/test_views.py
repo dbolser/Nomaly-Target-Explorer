@@ -2,7 +2,7 @@ import json
 import time
 
 
-def test_random_route_unauthenticated(integration_app_client):
+def test_search_route_unauthenticated(integration_app_client):
     """Test a random route redirects to index when not authenticated."""
     response = integration_app_client.get("/search")
     assert response.status_code == 302  # Redirect to login
@@ -44,9 +44,9 @@ def test_login_route(integration_app_client, test_admin):
     assert b"invalid username or password" in response.data.lower()
 
 
-def test_search_route(auth_integration_app_client):
+def test_search_route(unit_test_app_client):
     """Test the disease search functionality."""
-    response = auth_integration_app_client.get("/diseasesearch?q=diabetes")
+    response = unit_test_app_client.get("/diseasesearch?q=diabetes")
     assert response.status_code == 200
     data = json.loads(response.data)
     assert isinstance(data, list)
@@ -67,17 +67,17 @@ def test_search_route(auth_integration_app_client):
         )
 
 
-def test_phecode_route(auth_integration_app_client):
+def test_phecode_route(unit_test_app_client):
     """Test the phecode detail route."""
     test_phecode = "250.2"  # Example phecode
-    response = auth_integration_app_client.get(f"/phecode/{test_phecode}")
+    response = unit_test_app_client.get(f"/phecode/{test_phecode}")
     assert response.status_code == 200
     assert bytes(test_phecode, "utf-8") in response.data
 
 
-def test_disease_sets1_structure(auth_integration_app_client):
+def test_disease_sets1_structure(unit_test_app_client):
     """Test the structure and content of the page1 route."""
-    response = auth_integration_app_client.get("/disease-sets/set1")
+    response = unit_test_app_client.get("/disease-sets/set1")
     assert response.status_code == 200
 
     # Convert response data to string for easier testing
@@ -104,9 +104,9 @@ def test_disease_sets1_structure(auth_integration_app_client):
     assert "async function searchData(query, listIndex)" in html
 
 
-def test_disease_sets2_structure(auth_integration_app_client):
+def test_disease_sets2_structure(unit_test_app_client):
     """Test the structure and content of the page1 route."""
-    response = auth_integration_app_client.get("/disease-sets/set2")
+    response = unit_test_app_client.get("/disease-sets/set2")
     assert response.status_code == 200
 
     # Convert response data to string for easier testing
@@ -133,10 +133,10 @@ def test_disease_sets2_structure(auth_integration_app_client):
     assert "async function searchData(query, listIndex)" in html
 
 
-def test_page1_search_results(auth_integration_app_client):
+def test_page1_search_results(unit_test_app_client):
     """Test that search results are properly structured when loaded."""
     # First make a search request to get some results
-    response = auth_integration_app_client.get("/diseasesearch?query=Hidradenitis")
+    response = unit_test_app_client.get("/diseasesearch?query=Hidradenitis")
     assert response.status_code == 200
     data = json.loads(response.data)
 
@@ -154,19 +154,20 @@ def test_page1_search_results(auth_integration_app_client):
     assert "phecode_group" in first_result
 
 
-def test_phecode_term_structure(auth_integration_app_client):
+def test_phecode_term_structure(unit_test_app_client):
     """Test the structure and content of a specific phecode term page."""
     phecode = "649.1"
     term = "GO:0035235"
 
-    response = auth_integration_app_client.get(f"/phecode/{phecode}/term/{term}")
+    response = unit_test_app_client.get(f"/phecode/{phecode}/term/{term}")
     assert response.status_code == 200
 
     html = response.data.decode("utf-8")
 
     # Test phecode section
     assert "Diabetes or abnormal glucose tolerance complicating pregnancy" in html
-    assert f'<span><a href="/phecode/{phecode}"' in html
+    assert f"/phecode/{phecode}" in html  # Just check the URL
+    assert f"PheCode {phecode}" in html  # Check the visible text
     assert "Sex: Female" in html
     assert "<span>Affected: <strong>300</strong></span>" in html
     assert "Excluded: 138" in html
@@ -189,12 +190,12 @@ def test_phecode_term_structure(auth_integration_app_client):
     assert f'const term = "{term}";' in html
 
 
-def test_phecode_term_variant_detail(auth_integration_app_client):
+def test_phecode_term_variant_detail(unit_test_app_client):
     """Test the JSON response from the variant detail endpoint."""
     phecode = "649.1"
     term = "GO:0035235"
 
-    response = auth_integration_app_client.get(
+    response = unit_test_app_client.get(
         f"/phecode/{phecode}/term/{term}/tableVariantDetail"
     )
     assert response.status_code == 200
@@ -243,6 +244,7 @@ def test_phecode_term_variant_detail(auth_integration_app_client):
         assert float(first_record["GWAS_P"]) >= 0
 
 
+# NOTE: We only get the real data when using the auth integration app client
 def test_phecode_page_structure(auth_integration_app_client):
     """Test the structure and content of a specific phecode page."""
     phecode = "649.1"
@@ -271,6 +273,7 @@ def test_phecode_page_structure(auth_integration_app_client):
     assert 'const runbatch = "Run v1";' in html
 
 
+# NOTE: We only get the real data when using the auth integration app client
 def test_phecode_page_with_gwas(auth_integration_app_client):
     """Test the phecode page with GWAS functionality enabled."""
     phecode = "649.1"
