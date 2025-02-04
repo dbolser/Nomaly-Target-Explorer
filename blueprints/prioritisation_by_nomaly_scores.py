@@ -65,12 +65,10 @@ def read_cases_for_disease_code(phecode: str) -> dict:
     return cases
 
 
-def read_nomaly_filtered_genotypes(sorted_eids, short_listed_variants) -> dict:
+def read_nomaly_filtered_genotypes(
+    sorted_eids, short_listed_variants, genotype_service
+) -> dict:
     """Read genotypes for the individuals and variants."""
-    services = current_app.extensions["nomaly_services"]
-
-    genotype_service = services.genotype
-    assert genotype_service is not None
 
     # sort the genotype eids
     sorted_indices = np.argsort(genotype_service._hdf.individual)
@@ -130,7 +128,9 @@ def individual_variant_prioritisation(row, term_variant_scores):
     return top_variants.index
 
 
-def term_variant_prioritisation(sorted_eids, variant_scores, term, stream_logger=None):
+def term_variant_prioritisation(
+    sorted_eids, variant_scores, term, genotype_service, stream_logger=None
+):
     """For each term, prioritise the variants for selected individuals."""
     term_variants = get_term_variants(term).drop(columns=["term"])
 
@@ -138,7 +138,7 @@ def term_variant_prioritisation(sorted_eids, variant_scores, term, stream_logger
         stream_logger.info(f"Reading genotypes for {len(term_variants)} variants")
 
     sel_genotypes = read_nomaly_filtered_genotypes(
-        sorted_eids, term_variants["variant_id"]
+        sorted_eids, term_variants["variant_id"], genotype_service
     )
 
     if stream_logger:
@@ -227,7 +227,11 @@ def save_results_to_cache(
 
 
 def get_top_variants(
-    disease_code: str, term: str, stream_logger=None, no_cache: bool = False
+    disease_code: str,
+    term: str,
+    genotype_service,
+    stream_logger=None,
+    no_cache: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Get the top variants for the disease and term."""
     # Try to load from cache first (unless no_cache is True)
@@ -250,7 +254,7 @@ def get_top_variants(
 
     sorted_eids = np.sort(cases_eids)
     top_variants = term_variant_prioritisation(
-        sorted_eids, variant_scores, term, stream_logger
+        sorted_eids, variant_scores, term, genotype_service, stream_logger
     )
 
     # Create gene set with properly formatted variant lists
@@ -294,12 +298,12 @@ def show_variant_scores(disease_code: str, term: str):
 def stream_progress(disease_code: str, term: str):
     """Stream progress updates and final results."""
 
-    def process_variants(disease_code, term, message_queue):
+    def process_variants(disease_code, term, message_queue, genotype_service):
         """Process variants using the thread pool."""
         try:
             stream_logger = StreamLogger(message_queue)
             top_variants, top_gene_set = get_top_variants(
-                disease_code, term, stream_logger
+                disease_code, term, genotype_service, stream_logger
             )
 
             # Format the gene set variant lists with proper comma separation
@@ -328,11 +332,12 @@ def stream_progress(disease_code: str, term: str):
 
     def generate():
         message_queue = Queue()
+        services = current_app.extensions["nomaly_services"]
 
         try:
-            # Submit to thread pool
+            # Submit to thread pool with the service
             future = variant_processor.submit(
-                process_variants, disease_code, term, message_queue
+                process_variants, disease_code, term, message_queue, services.genotype
             )
 
             # Stream messages as they arrive
@@ -366,7 +371,10 @@ def main():
 
     app = create_app("development")
     with app.app_context():
-        top_variants, top_gene_set = get_top_variants(disease_code, term, no_cache=True)
+        services = current_app.extensions["nomaly_services"]
+        top_variants, top_gene_set = get_top_variants(
+            disease_code, term, services.genotype, no_cache=True
+        )
         print(top_variants)
         print(top_gene_set)
 
