@@ -24,10 +24,9 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h3>{{data.description}}</h3>
 
-    {% include 'partials/phecode_details.html' %}
     {% include 'partials/term_details.html' %}
+    {% include 'partials/phecode_details.html' %}
 
     <h2>Top Variants for Disease {{ disease_code }} and Term {{ term }}</h2>
 
