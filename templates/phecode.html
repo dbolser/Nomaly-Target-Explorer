@@ -5,22 +5,7 @@
 {% block content %}
 <h3>{{data.description}}</h3>
 
-<div id="phecodeDetails" class="mb-4">
-    <p class="p-2 bg-light rounded">
-        <span>Phecode: {{ data.phecode }} ({{data.runbatch}})</span> |
-        <span>Sex: {{ data.sex }}</span> |
-        <span>Population: {{ data.population }}</span> |
-        <span>Affected: <strong>{{ data.affected }}</strong></span> |
-        <span>Control: {{ data.control }} </span> |
-        <span>Excluded: {{ data.excluded }} ({{ data.phecode_exclude }})</span> |
-        <span>Disease: {{ data.phecode_group }}</span>
-    </p>
-    <ul class="meaning-list">
-        {% for meaning in data.meaning %}
-        <li>{{ meaning }}</li>
-        {% endfor %}
-    </ul>
-</div>
+{% include 'partials/phecode_details.html' %}
 
 <!-- Centered spinner -->
 <div id="nomalySpinner" class="d-flex justify-content-center align-items-center my-5">

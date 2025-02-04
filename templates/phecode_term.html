@@ -6,22 +6,8 @@
 <div class="container mt-4">
     <h3>{{data.description}}</h3>
 
-    <div id="phecodeDetails" class="mb-4">
-        <p class="p-2 bg-light rounded">
-            <span><a href="/phecode/{{ data.phecode }}" target="_blank">Phecode: {{ data.phecode }}</a></span> |
-            <span>Sex: {{ data.sex }}</span> |
-            <span>Affected: <strong>{{ data.affected }}</strong></span> |
-            <span>Excluded: {{ data.excluded }} ({{ data.phecode_exclude }})</span> |
-            <span>Disease: {{ data.phecode_group }}</span>
-        </p>
-        <ul class="meaning-list">
-            {% for meaning in data.meaning %}
-            <li>{{ meaning }}</li>
-            {% endfor %}
-        </ul>
-    </div>
+    {% include 'partials/phecode_details.html' %}
 
-    
     <!-- Term information display -->
     <h3>{{ data.termname }}</h3>
 
