@@ -7,6 +7,7 @@ Genes are prioritised by the sum of Nomaly scores of their variants.
 import json
 import logging
 import pickle
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
@@ -18,14 +19,13 @@ from flask import (
     Response,
     current_app,
     render_template,
+    request,
     stream_with_context,
 )
-from flask_login import login_required
 
-from config import Config
-from db import get_term_variants
 from blueprints.phecode import get_phecode_data
-from db import get_term_names, get_term_domains, get_term_genes
+from config import Config
+from db import get_term_domains, get_term_genes, get_term_names, get_term_variants
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,7 @@ def read_nomaly_filtered_genotypes(
     # sort the genotype eids (actually, they should be sorted already...)
     genotype_eids = genotype_service._hdf.individual
     assert np.all(genotype_eids[:-1] <= genotype_eids[1:])
+
     sorted_indices = np.argsort(genotype_eids)
     sorted_genotype_eids = genotype_eids[sorted_indices]
 
@@ -112,7 +113,7 @@ def read_nomaly_filtered_genotypes(
     }
 
 
-def individual_variant_prioritisation(row, term_variant_scores):
+def individual_variant_prioritisation(row, term_variant_scores) -> set[str]:
     """Return numpy array of variant scores for the selected variants."""
     indices = term_variant_scores.index
     sel_vs = term_variant_scores.to_numpy()
@@ -133,17 +134,26 @@ def individual_variant_prioritisation(row, term_variant_scores):
     top_variants = top_variants.assign(rank=range(1, len(top_variants) + 1))
     top_variants = top_variants[(top_variants["vs"] > 1) | (top_variants["rank"] <= 5)]
 
-    return top_variants.index
+    return set(top_variants.index)
 
 
 def term_variant_prioritisation(
     sorted_eids, variant_scores, term, genotype_service, stream_logger=None
 ):
     """For each term, prioritise the variants for selected individuals."""
-    term_variants = get_term_variants(term).drop(columns=["term"])
+    term_variants = get_term_variants(term)
+
+    # Filter but get the largest hmm_score of duplicated variants
+    term_variants = (
+        term_variants.sort_values(by="hmm_score", ascending=False)
+        .drop_duplicates(subset="variant_id", keep="first")
+        .reset_index(drop=True)
+    )
 
     if stream_logger:
         stream_logger.info(f"Reading genotypes for {len(term_variants)} variants")
+    else:
+        logger.info(f"Reading genotypes for {len(term_variants)} variants")
 
     sel_genotypes = read_nomaly_filtered_genotypes(
         sorted_eids, term_variants["variant_id"], genotype_service
@@ -153,9 +163,17 @@ def term_variant_prioritisation(
         stream_logger.info(
             f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read."
         )
+    else:
+        logger.info(
+            f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read."
+        )
 
     if len(sel_genotypes["error_variants"]) > 0 and stream_logger:
-        stream_logger.info(
+        stream_logger.warning(
+            f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants for term {term}."
+        )
+    else:
+        logger.warning(
             f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants for term {term}."
         )
 
@@ -164,20 +182,28 @@ def term_variant_prioritisation(
     ]
 
     # TODO: Make ind_top_variants a Counter, not a set. Report this in the UI.
-    ind_top_variants = set()
-    for row in sel_genotypes["data"]:
-        ind_top_variants = ind_top_variants.union(
-            individual_variant_prioritisation(row, term_variant_scores)
+    ind_top_variants = Counter()
+    for individual in sel_genotypes["data"]:
+        ind_top_variants.update(
+            individual_variant_prioritisation(individual, term_variant_scores)
         )
 
-    top_variants = term_variants[
-        term_variants.variant_id.isin(ind_top_variants)
-    ].sort_values(by="hmm_score", ascending=False)
+    ind_top_variants_df = pd.DataFrame.from_dict(
+        ind_top_variants, orient="index", columns=["num_individuals"]
+    )
+
+    top_variants = term_variants.join(ind_top_variants_df, on="variant_id", how="right")
+    top_variants = top_variants.join(term_variant_scores, on="variant_id")
+    top_variants = top_variants.sort_values(by="hmm_score", ascending=False)
 
     if stream_logger:
         stream_logger.info(f"Term variants: {len(term_variants)}")
         stream_logger.info(f"Top variants: {len(top_variants)}")
         stream_logger.info(f"Individual top variants: {len(ind_top_variants)}")
+    else:
+        logger.info(f"Term variants: {len(term_variants)}")
+        logger.info(f"Top variants: {len(top_variants)}")
+        logger.info(f"Individual top variants: {len(ind_top_variants)}")
 
     return top_variants
 
@@ -275,6 +301,8 @@ def get_top_variants(
 
     if stream_logger:
         stream_logger.info(f"Processing {len(sorted_selected_cases_eids)} cases")
+    else:
+        logger.info(f"Processing {len(sorted_selected_cases_eids)} cases")
 
     top_variants = term_variant_prioritisation(
         sorted_selected_cases_eids,
@@ -287,6 +315,7 @@ def get_top_variants(
     # Create gene set with properly formatted variant lists
     gene_variants = top_variants.groupby("gene")["variant_id"].agg(list)
     gene_scores = top_variants.groupby("gene")["hmm_score"].sum()
+    gene_individuals = top_variants.groupby("gene")["num_individuals"].sum()
     gene_counts = top_variants.groupby("gene").size()
 
     top_gene_set = pd.DataFrame(
@@ -294,6 +323,7 @@ def get_top_variants(
             "variant_id": gene_variants.map(lambda x: ", ".join(x)),
             "hmm_score": gene_scores,
             "variant_num": gene_counts,
+            "num_individuals": gene_individuals,
         }
     )
     top_gene_set = top_gene_set.sort_values("hmm_score", ascending=False)
@@ -310,6 +340,9 @@ prioritisation_bp = Blueprint("prioritisation", __name__)
 @prioritisation_bp.route("/variant_scores/<disease_code>/<term>")
 def show_variant_scores(disease_code: str, term: str):
     """Show the variant scores page."""
+    # Get flush parameter
+    flush = bool(request.args.get("flush", False))
+
     # Get phecode data
     data = get_phecode_data(disease_code)
 
@@ -332,15 +365,17 @@ def show_variant_scores(disease_code: str, term: str):
         disease_code=disease_code,
         term=term,
         data=data,
+        flush=flush,  # Pass to template
         top_variants=pd.DataFrame(),
         top_gene_set=pd.DataFrame(),
     )
 
 
 @prioritisation_bp.route("/stream_progress/<disease_code>/<term>")
-@login_required
 def stream_progress(disease_code: str, term: str):
     """Stream progress updates and final results."""
+    # Get no_cache from the flush parameter
+    no_cache = bool(request.args.get("flush", False))
 
     def process_variants(
         disease_code,
@@ -348,6 +383,7 @@ def stream_progress(disease_code: str, term: str):
         genotype_service,
         nomaly_scores_service,
         message_queue,
+        no_cache,
     ):
         """Process variants using the thread pool."""
         try:
@@ -358,6 +394,7 @@ def stream_progress(disease_code: str, term: str):
                 genotype_service,
                 nomaly_scores_service,
                 stream_logger,
+                no_cache,
             )
 
             # Format the gene set variant lists with proper comma separation
@@ -390,13 +427,14 @@ def stream_progress(disease_code: str, term: str):
 
         try:
             # Submit to thread pool with the service
-            future = variant_processor.submit(
+            _ = variant_processor.submit(
                 process_variants,
                 disease_code,
                 term,
                 services.genotype,
                 services.nomaly_score,
                 message_queue,
+                no_cache,
             )
 
             # Stream messages as they arrive
