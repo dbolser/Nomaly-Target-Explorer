@@ -1,7 +1,7 @@
-from blueprints.nomaly import StatsHDF5
 from data_services.genotype import GenotypeService
 from data_services.phenotype import PhenotypeService
 from data_services.nomaly_score import NomalyScoreService
+from data_services.stats import StatsService
 
 
 class ServiceRegistry:
@@ -9,8 +9,12 @@ class ServiceRegistry:
         self.genotype = None
         self.phenotype = None
         self.stats = None
-        self.stats_v2 = None
         self.nomaly_score = None
+
+        # Don't ask...
+        self.stats_v2 = None
+        self.nomaly_score_v2 = None
+
         if app is not None and not app.config.get("TESTING"):
             self.init_app(app)
 
@@ -24,6 +28,9 @@ class ServiceRegistry:
         # Initialize services from config
         self.genotype = GenotypeService(app.config.get("GENOTYPES_H5"))
         self.phenotype = PhenotypeService(app.config.get("PHENOTYPES_H5"))
+        self.stats = StatsService(app.config.get("STATS_H5"))
         self.nomaly_score = NomalyScoreService(app.config.get("NOMALY_SCORES_H5"))
-        self.stats = StatsHDF5(app.config.get("STATS_H5"))
-        self.stats_v2 = StatsHDF5(app.config.get("STATS_H5_V2"))
+
+        # Please don't ask
+        self.stats_v2 = StatsService(app.config.get("STATS_H5_V2"))
+        self.nomaly_score_v2 = NomalyScoreService(app.config.get("NOMALY_SCORES_H5_V2"))
