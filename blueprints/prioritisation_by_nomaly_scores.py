@@ -75,8 +75,12 @@ def read_nomaly_filtered_genotypes(
     """Read genotypes for the individuals and variants."""
 
     # sort the genotype eids
-    sorted_indices = np.argsort(genotype_service._hdf.individual)
-    sorted_genotype_eids = genotype_service._hdf.individual[sorted_indices]
+
+    # sort the genotype eids (actually, they should be sorted already...)
+    genotype_eids = genotype_service._hdf.individual
+    assert np.all(genotype_eids[:-1] <= genotype_eids[1:])
+    sorted_indices = np.argsort(genotype_eids)
+    sorted_genotype_eids = genotype_eids[sorted_indices]
 
     # search
     indices = np.searchsorted(sorted_genotype_eids, sorted_eids)
@@ -255,18 +259,29 @@ def get_top_variants(
     cases_info = read_cases_for_disease_code(disease_code)
     cases_eids = list(cases_info["cases"])
 
+    sorted_cases_eids = np.sort(cases_eids)
+
     # TODO: FILTER BY SCORE HERE!
     # WE WANT HIGH SCORING AFFECTED INDIVIDUALS
 
+    scores_for_term = nomaly_scores_service._hdf.get_scores_by_eids_unsorted(
+        sorted_cases_eids, terms=[term]
+    )
+
+    sorted_selected_cases_eids = sorted_cases_eids[scores_for_term > 0.022]
+
     # LATER, WE report NUMBERS based on the stats for this disease / term  pair...
-    # e.g. Stuff from Chang.
+    # e.g. Stuff from Chang's email.
 
     if stream_logger:
-        stream_logger.info(f"Processing {len(cases_eids)} cases")
+        stream_logger.info(f"Processing {len(sorted_selected_cases_eids)} cases")
 
-    sorted_eids = np.sort(cases_eids)
     top_variants = term_variant_prioritisation(
-        sorted_eids, variant_scores, term, genotype_service, stream_logger
+        sorted_selected_cases_eids,
+        variant_scores,
+        term,
+        genotype_service,
+        stream_logger,
     )
 
     # Create gene set with properly formatted variant lists
@@ -328,7 +343,11 @@ def stream_progress(disease_code: str, term: str):
     """Stream progress updates and final results."""
 
     def process_variants(
-        disease_code, term, message_queue, genotype_service, nomaly_scores_service
+        disease_code,
+        term,
+        genotype_service,
+        nomaly_scores_service,
+        message_queue,
     ):
         """Process variants using the thread pool."""
         try:
@@ -372,7 +391,12 @@ def stream_progress(disease_code: str, term: str):
         try:
             # Submit to thread pool with the service
             future = variant_processor.submit(
-                process_variants, disease_code, term, message_queue, services.genotype
+                process_variants,
+                disease_code,
+                term,
+                services.genotype,
+                services.nomaly_score,
+                message_queue,
             )
 
             # Stream messages as they arrive
