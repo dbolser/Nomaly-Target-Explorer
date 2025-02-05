@@ -87,10 +87,8 @@ def test_individual_variant_prioritisation(mock_variant_scores):
 
     top_variants = individual_variant_prioritisation(row, term_variant_scores)
 
-    assert isinstance(top_variants, pd.Index)
+    assert isinstance(top_variants, set)
     assert len(top_variants) > 0
-    scores = [term_variant_scores.loc[v].sum() for v in top_variants]
-    assert all(scores[i] >= scores[i + 1] for i in range(len(scores) - 1))
 
 
 def test_term_variant_prioritisation(

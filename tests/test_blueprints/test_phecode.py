@@ -107,7 +107,7 @@ def test_nomaly_stats_endpoint(version, auth_integration_app_client, mocker):
 
     # Mock the stats handler to return both DataFrames
     mock_handler = Mock()
-    mock_handler.get_stats_by_disease.return_value = mock_diseasestats
+    mock_handler.get_stats_by_phecode.return_value = mock_diseasestats
     mocker.patch("blueprints.phecode.get_stats_handler", return_value=mock_handler)
 
     # Mock the read_disease_stats function to return both DataFrames
@@ -154,7 +154,7 @@ def test_nomaly_stats_error_handling(unit_test_app_client, mocker):
     """Test error handling in nomaly-stats endpoints."""
     # Mock the stats handler to raise an exception
     mock_handler = Mock()
-    mock_handler.get_stats_by_disease.side_effect = Exception("Test error")
+    mock_handler.get_stats_by_phecode.side_effect = Exception("Test error")
     mocker.patch("blueprints.phecode.get_stats_handler", return_value=mock_handler)
 
     # Test both endpoints

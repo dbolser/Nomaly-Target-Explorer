@@ -181,14 +181,19 @@ def unit_test_app(test_app, mock_genotype_hdf5_file_with_npy, mock_phenotype_fil
         from data_services.genotype import GenotypeService
         from data_services.phenotype import PhenotypeService
 
+        from data_services.stats import StatsService
+        from data_services.nomaly_score import NomalyScoreService
+
         # Create test services
         services = ServiceRegistry()
 
-        # TODO: Mock these out using fixtures from specific tests.
         services.genotype = GenotypeService(mock_genotype_hdf5_file_with_npy)
         services.phenotype = PhenotypeService(mock_phenotype_file)
+
+        # TODO: Mock these out using fixtures from specific tests.
         services.stats = MagicMock()
         services.stats_v2 = MagicMock()
+        services.nomaly_score = MagicMock()
 
         test_app.extensions["nomaly_services"] = services
 
