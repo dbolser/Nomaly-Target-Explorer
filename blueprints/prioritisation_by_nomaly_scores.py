@@ -235,6 +235,7 @@ def get_top_variants(
     disease_code: str,
     term: str,
     genotype_service,
+    nomaly_scores_service,
     stream_logger=None,
     no_cache: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -326,12 +327,18 @@ def show_variant_scores(disease_code: str, term: str):
 def stream_progress(disease_code: str, term: str):
     """Stream progress updates and final results."""
 
-    def process_variants(disease_code, term, message_queue, genotype_service):
+    def process_variants(
+        disease_code, term, message_queue, genotype_service, nomaly_scores_service
+    ):
         """Process variants using the thread pool."""
         try:
             stream_logger = StreamLogger(message_queue)
             top_variants, top_gene_set = get_top_variants(
-                disease_code, term, genotype_service, stream_logger
+                disease_code,
+                term,
+                genotype_service,
+                nomaly_scores_service,
+                stream_logger,
             )
 
             # Format the gene set variant lists with proper comma separation
@@ -401,7 +408,7 @@ def main():
     with app.app_context():
         services = current_app.extensions["nomaly_services"]
         top_variants, top_gene_set = get_top_variants(
-            disease_code, term, services.genotype, no_cache=True
+            disease_code, term, services.genotype, services.nomaly_scores, no_cache=True
         )
         print(top_variants)
         print(top_gene_set)
