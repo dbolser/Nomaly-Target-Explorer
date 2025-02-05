@@ -18,9 +18,9 @@ class NomalyScoresHDF5:
         # Jumping through hoops to fix the type checker...
         # TODO: Fix the naming of the fields
         try:
-            nomaly_scores = self.f["nomaly_scores"]
-            eids = self.f["eids"]
-            terms = self.f["terms"]
+            nomaly_scores = self.f["scores"]
+            eids = self.f["eid"]
+            terms = self.f["term"]
 
             # Sanity checks
             assert isinstance(nomaly_scores, h5py.Dataset)
