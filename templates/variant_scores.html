@@ -58,89 +58,86 @@
         }
 
         // Connect to SSE endpoint
-        const source = new EventSource("{{ url_for('prioritisation.stream_progress', 
-            disease_code = disease_code,
-            term = term,
-            flush = flush | int if flush else none) }}");
+        const source = new EventSource("{{url_for('prioritisation.stream_progress', disease_code = disease_code, term = term, flush = flush | int if flush else none)}}");
 
-    source.onmessage = function (event) {
-        try {
-            const message = JSON.parse(event.data);
-            console.log('Received message:', message);  // Debug logging
+        source.onmessage = function (event) {
+            try {
+                const message = JSON.parse(event.data);
+                console.log('Received message:', message);  // Debug logging
 
-            switch (message.type) {
-                case 'progress':
-                    const time = new Date().toLocaleTimeString();
-                    logOutput.textContent += `[${time}] ${message.data}\n`;
-                    logOutput.scrollTop = logOutput.scrollHeight;
-                    break;
+                switch (message.type) {
+                    case 'progress':
+                        const time = new Date().toLocaleTimeString();
+                        logOutput.textContent += `[${time}] ${message.data}\n`;
+                        logOutput.scrollTop = logOutput.scrollHeight;
+                        break;
 
-                case 'results':
-                    // Initialize gene set table
-                    const geneSetColumns = Object.keys(message.data.top_gene_set[0]).map(key => ({
-                        data: key,
-                        title: key.replace(/_/g, ' '),
-                        render: key === 'variant_id' ?
-                            (data, type) => {
-                                if (type === 'display' && data) {
-                                    const links = data.split(', ').map(createVariantLink).join(', ');
-                                    return `<div class="variant-cell" title="${data}">${links}</div>`;
-                                }
-                                return data;
-                            } :
-                            null
-                    }));
-                    const hmmScoreIndex = geneSetColumns.findIndex(col => col.data === 'hmm_score');
-                    initializeDataTable('gene-set-table', message.data.top_gene_set, geneSetColumns, {
-                        pageLength: 10,
-                        order: [[hmmScoreIndex, 'desc']],
-                        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
-                    });
+                    case 'results':
+                        // Initialize gene set table
+                        const geneSetColumns = Object.keys(message.data.top_gene_set[0]).map(key => ({
+                            data: key,
+                            title: key.replace(/_/g, ' '),
+                            render: key === 'variant_id' ?
+                                (data, type) => {
+                                    if (type === 'display' && data) {
+                                        const links = data.split(', ').map(createVariantLink).join(', ');
+                                        return `<div class="variant-cell" title="${data}">${links}</div>`;
+                                    }
+                                    return data;
+                                } :
+                                null
+                        }));
+                        const hmmScoreIndex = geneSetColumns.findIndex(col => col.data === 'hmm_score');
+                        initializeDataTable('gene-set-table', message.data.top_gene_set, geneSetColumns, {
+                            pageLength: 10,
+                            order: [[hmmScoreIndex, 'desc']],
+                            lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
+                        });
 
-                    // Initialize variants table
-                    const variantColumns = Object.keys(message.data.top_variants[0]).map(key => ({
-                        data: key,
-                        title: key.replace(/_/g, ' '),
-                        render: key === 'variant_id' ?
-                            (data, type) => {
-                                if (type === 'display') {
-                                    return `<div class="variant-cell" title="${data}">${createVariantLink(data)}</div>`;
-                                }
-                                return data;
-                            } :
-                            null
-                    }));
-                    const variantHmmScoreIndex = variantColumns.findIndex(col => col.data === 'hmm_score');
-                    initializeDataTable('variants-table', message.data.top_variants, variantColumns, {
-                        pageLength: 10,
-                        order: [[variantHmmScoreIndex, 'desc']],
-                        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
-                    });
+                        // Initialize variants table
+                        const variantColumns = Object.keys(message.data.top_variants[0]).map(key => ({
+                            data: key,
+                            title: key.replace(/_/g, ' '),
+                            render: key === 'variant_id' ?
+                                (data, type) => {
+                                    if (type === 'display') {
+                                        return `<div class="variant-cell" title="${data}">${createVariantLink(data)}</div>`;
+                                    }
+                                    return data;
+                                } :
+                                null
+                        }));
+                        const variantHmmScoreIndex = variantColumns.findIndex(col => col.data === 'hmm_score');
+                        initializeDataTable('variants-table', message.data.top_variants, variantColumns, {
+                            pageLength: 10,
+                            order: [[variantHmmScoreIndex, 'desc']],
+                            lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
+                        });
 
-                    results.style.display = 'block';
-                    break;
+                        results.style.display = 'block';
+                        break;
 
-                case 'error':
-                    logOutput.textContent += `ERROR: ${message.data}\n`;
-                    logOutput.scrollTop = logOutput.scrollHeight;
-                    break;
+                    case 'error':
+                        logOutput.textContent += `ERROR: ${message.data}\n`;
+                        logOutput.scrollTop = logOutput.scrollHeight;
+                        break;
 
-                case 'done':
-                    source.close();
-                    loadingBox.style.display = 'none';
-                    break;
+                    case 'done':
+                        source.close();
+                        loadingBox.style.display = 'none';
+                        break;
+                }
+            } catch (e) {
+                console.error('Error processing message:', e, event.data);
+                logOutput.textContent += `Error processing message: ${e}\n`;
             }
-        } catch (e) {
-            console.error('Error processing message:', e, event.data);
-            logOutput.textContent += `Error processing message: ${e}\n`;
-        }
-    };
+        };
 
-    source.onerror = function (event) {
-        console.error('SSE error:', event);
-        source.close();
-        logOutput.textContent += 'Connection error occurred.\n';
-    };
+        source.onerror = function (event) {
+            console.error('SSE error:', event);
+            source.close();
+            logOutput.textContent += 'Connection error occurred.\n';
+        };
     });
 </script>
 {% endblock %}
