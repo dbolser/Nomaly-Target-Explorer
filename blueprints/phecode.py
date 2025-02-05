@@ -12,15 +12,16 @@ logger = logging.getLogger(__name__)
 phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
 
 
-def get_stats_handler(version=1):
+# TODO: Move this to the stats service!
+# TODO: Implement a stats service that can handle different versions *and* populations
+def get_stats_handler(version=1, population: str | None = None):
     """Get the appropriate stats handler based on version."""
     services = current_app.extensions["nomaly_services"]
     return services.stats_v2 if version == 2 else services.stats
 
 
-def get_phecode_data(phecode, population="EUR") -> dict:
+def get_phecode_data(phecode, population: str | None = None) -> dict:
     data = get_phecode_info(phecode)
-    data["population"] = population
 
     services = current_app.extensions["nomaly_services"]
     assert services.phenotype is not None
@@ -28,6 +29,7 @@ def get_phecode_data(phecode, population="EUR") -> dict:
         phecode, population=population
     )
 
+    data["population"] = population or "ALL"
     data["affected"] = case_counts["affected"]
     data["excluded"] = case_counts["excluded"]
     data["control"] = case_counts["control"]
@@ -35,6 +37,7 @@ def get_phecode_data(phecode, population="EUR") -> dict:
     return data
 
 
+# TODO: Merge these two endpoints
 @phecode_bp.route("/phecode/<string:phecode>", methods=["GET"])
 @phecode_bp.route("/phecode/<string:phecode>/<string:population>", methods=["GET"])
 def show_phecode(phecode, population="EUR"):
@@ -46,13 +49,15 @@ def show_phecode(phecode, population="EUR"):
 
 
 @phecode_bp.route("/phecode2/<string:phecode>", methods=["GET"])
-def show_phecode2(phecode):
-    data = get_phecode_info(phecode)
+@phecode_bp.route("/phecode2/<string:phecode>/<string:population>", methods=["GET"])
+def show_phecode2(phecode, population="EUR"):
+    data = get_phecode_data(phecode, population)
     data["runbatch"] = "Run v2"
     data["show_gwas"] = request.args.get("gwas") == "1"
     return render_template("phecode.html", data=data)
 
 
+# Called by phecode.html
 @phecode_bp.route("/run-task/<string:phecode>", methods=["POST"])
 def run_task(phecode):
     """Endpoint to run GWAS analysis."""
@@ -72,10 +77,10 @@ def run_task(phecode):
         return jsonify({"status": "failed", "result": error_message}), 500
 
 
-def read_disease_stats_from_nomaly_statsHDF5(stats_handler, phecode):
+def read_disease_stats_from_nomaly_statsHDF5(stats_handler, phecode: str):
     """Read disease stats from HDF5 file using the provided stats handler."""
     try:
-        diseasestats = stats_handler.get_stats_by_disease(phecode)
+        diseasestats = stats_handler._hdf.get_stats_by_phecode(phecode)
     except Exception as e:
         logger.error(
             f"Failed to get Nomaly stats for Phecode {phecode}, exception was {e}",
@@ -279,6 +284,7 @@ def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
     return jsonify(response)
 
 
+# TODO: Merge these two endpoints
 @phecode_bp.route("/nomaly-stats/<string:phecode>", methods=["POST"])
 def get_nomaly_stats(phecode):
     """Get nomaly stats for v1."""
@@ -305,3 +311,31 @@ def get_nomaly_stats2(phecode):
     except Exception as e:
         logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
         return jsonify({"error": "Failed to get Nomaly stats"}), 500
+
+
+def main():
+    from app import create_app
+
+    app = create_app("development")
+
+    with app.app_context():
+        services = current_app.extensions["nomaly_services"]
+        stats_service = get_stats_handler(version=2, population="EUR")
+        stats_hdf = stats_service._hdf
+
+        print(stats_hdf.get_stats_by_phecode("332"))
+        print(stats_hdf.get_stats_by_phecode("332", "roc_stats_lrn_pvalue"))
+        print(
+            stats_hdf.get_stats_by_phecode(
+                "332", ["roc_stats_lrn_pvalue", "mwu_pvalue"]
+            )
+        )
+
+        print(stats_hdf.get_stats_by_term_phecode("MP:0004957", "332"))
+
+        some_test = read_disease_stats_from_nomaly_statsHDF5(stats_service, "332")
+        print(some_test)
+
+
+if __name__ == "__main__":
+    main()
