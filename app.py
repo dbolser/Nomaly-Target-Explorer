@@ -62,7 +62,7 @@ def create_app(config_name="default"):
     login_manager.init_app(app)
     cors.init_app(app)
 
-    from services import ServiceRegistry
+    from data_services.registry import ServiceRegistry
 
     ServiceRegistry(app)
 

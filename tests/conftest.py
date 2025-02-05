@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 from app import create_app
-from services import ServiceRegistry
+from data_services.registry import ServiceRegistry
 from db import get_db_connection
 import os
 
