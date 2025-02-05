@@ -408,7 +408,7 @@ def main():
     with app.app_context():
         services = current_app.extensions["nomaly_services"]
         top_variants, top_gene_set = get_top_variants(
-            disease_code, term, services.genotype, services.nomaly_scores, no_cache=True
+            disease_code, term, services.genotype, services.nomaly_score, no_cache=True
         )
         print(top_variants)
         print(top_gene_set)
