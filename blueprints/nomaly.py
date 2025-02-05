@@ -144,27 +144,6 @@ class ICD10HDF5:
         return cases
 
 
-class ScoreHDF5:
-    def __init__(self, hdf5_file):
-        self.hdf5_file = hdf5_file
-        self.f = h5py.File(hdf5_file, "r")
-
-        # Load the data matrix and index information
-        self.data_matrix: np.ndarray = self.f["scores"]
-        self.rows: np.ndarray = self.f["eid"][...]  # Load row data
-        self.columns: np.ndarray = self.f["term"][...]  # Load column data
-
-    def get_score_by_eid(self, eid):
-        mask_row = self.rows.astype(str) == eid
-        mask_row_indices = np.where(mask_row)[0][0]
-        return self.data_matrix[mask_row_indices, :]
-
-    def get_score_by_term(self, term):
-        mask_column = self.columns.astype(str) == term
-        mask_column_indices = np.where(mask_column)[0][0]
-        return self.data_matrix[:, mask_column_indices]
-
-
 # ------------------------------------------------------------------------------#
 # Initiate classes
 # ------------------------------------------------------------------------------#
