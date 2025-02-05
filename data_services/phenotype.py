@@ -24,17 +24,17 @@ class PhenotypesHDF5:
         affected_sex = self.f["phecode_sex"]
         biological_sex = self.f["affected_sex"]
 
-        # Sanity checks
-        # TODO: Move these to integration tests
-        try:
-            assert isinstance(phenotype_data, h5py.Dataset)
-            assert isinstance(eids, h5py.Dataset)
-            assert isinstance(phecodes, h5py.Dataset)
-            assert isinstance(populations, h5py.Dataset)
-            assert isinstance(affected_sex, h5py.Dataset)
-            assert isinstance(biological_sex, h5py.Dataset)
+        # Type checker magic
+        assert isinstance(phenotype_data, h5py.Dataset)
+        assert isinstance(eids, h5py.Dataset)
+        assert isinstance(phecodes, h5py.Dataset)
+        assert isinstance(populations, h5py.Dataset)
+        assert isinstance(affected_sex, h5py.Dataset)
+        assert isinstance(biological_sex, h5py.Dataset)
 
-            # Sanity checks
+        # Sanity checks
+        # TODO: Move these to integration tests?
+        try:
             assert phenotype_data.shape[0] == eids.shape[0]
             assert biological_sex.shape[0] == eids.shape[0]
             assert populations.shape[0] == eids.shape[0]
@@ -69,7 +69,7 @@ class PhenotypesHDF5:
         return self.affected_sex == affected_sex
 
     def get_cases_for_phecode(
-        self, phecode, biological_sex=None, population=None, affected_sex=None
+        self, phecode, population: str | None = None, biological_sex: str | None = None
     ):
         phecode_index = self.phecode_to_index[phecode]
 
@@ -91,7 +91,7 @@ class PhenotypesHDF5:
         )
 
     def get_case_counts_for_phecode(
-        self, phecode, population=None, biological_sex=None
+        self, phecode, population: str | None = None, biological_sex: str | None = None
     ):
         eids, cases = self.get_cases_for_phecode(
             phecode, population=population, biological_sex=biological_sex
