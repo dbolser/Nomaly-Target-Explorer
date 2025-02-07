@@ -77,18 +77,28 @@ class StatsHDF5:
     # TODO: Perhaps allow phecode to also be a list like above?
     # TODO: Think about making return type consistent.
     def get_stats_by_term_phecode(
-        self, term: str, phecode: str
+        self, term: str, phecode: str, statstype: None | str | np.ndarray = None
     ) -> dict[str, np.ndarray]:
-        mask_column = self.phecodes == phecode
-        mask_column_indices = np.where(mask_column)[0][0]
+        if statstype is None:
+            statstype = self.statistics
+        elif isinstance(statstype, str):
+            statstype = np.array([statstype])
+        elif isinstance(statstype, np.ndarray):
+            pass
 
-        mask_row = self.terms == term
-        mask_row_indices = np.where(mask_row)[0][0]
+        term_mask = self.terms == term
+        mask_row_indices = np.where(term_mask)[0][0]
+
+        phecode_mask = self.phecodes == phecode
+        mask_column_indices = np.where(phecode_mask)[0][0]
+
+        statstype_mask = np.isin(self.statistics, statstype)
+        statstype_mask_indices = np.where(statstype_mask)[0]
 
         # return a dictionary with the statstype as key and the value as the data
         statsdict = {
             self.statistics[i]: self.data[mask_row_indices, mask_column_indices, i]
-            for i in range(len(self.statistics))
+            for i in statstype_mask_indices
         }
 
         return statsdict
