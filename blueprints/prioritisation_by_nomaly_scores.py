@@ -31,7 +31,8 @@ from data_services.stats import StatsHDF5
 logger = logging.getLogger(__name__)
 
 
-# TODO: Move to the variant scores service?
+# TODO: Move to a new variant scores (or 'nomaly_data') data service?
+
 # In memory data
 variant_scores = pd.read_csv(
     "/data/clu/ukbb/variantscores.tsv", sep="\t", index_col="variant_id"
@@ -167,12 +168,13 @@ def term_variant_prioritisation(
     """For each term, prioritise the variants for selected individuals."""
     term_variants = get_term_variants(term)
 
-    # Filter but get the largest hmm_score of duplicated variants
-    term_variants = (
-        term_variants.sort_values(by="hmm_score", ascending=False)
-        .drop_duplicates(subset="variant_id", keep="first")
-        .reset_index(drop=True)
-    )
+    # Filter but get the largest hmm_score of duplicated variants.. OR NOT
+    # TODO: DECIDE!
+    # term_variants = (
+    #     term_variants.sort_values(by="hmm_score", ascending=False)
+    #     .drop_duplicates(subset="variant_id", keep="first")
+    #     .reset_index(drop=True)
+    # )
 
     if stream_logger:
         stream_logger.info(f"Reading genotypes for {len(term_variants)} variants")
@@ -187,19 +189,18 @@ def term_variant_prioritisation(
         stream_logger.info(
             f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read."
         )
+        if len(sel_genotypes["error_variants"]) > 0:
+            stream_logger.warning(
+                f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants for term {term}."
+            )
     else:
         logger.info(
             f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read."
         )
-
-    if len(sel_genotypes["error_variants"]) > 0 and stream_logger:
-        stream_logger.warning(
-            f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants for term {term}."
-        )
-    else:
-        logger.warning(
-            f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants for term {term}."
-        )
+        if len(sel_genotypes["error_variants"]) > 0:
+            logger.warning(
+                f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants for term {term}."
+            )
 
     term_variant_scores = variant_scores.loc[sel_genotypes["col_variants"]][
         ["VS00", "VS01", "VS11"]
@@ -209,6 +210,7 @@ def term_variant_prioritisation(
         sel_genotypes, term_variant_scores
     )
 
+    # NOTE, if we keep 'duplicate' variants above, I think we lose them here!
     top_variants = term_variants.join(ind_top_variants_df, on="variant_id", how="right")
     top_variants = top_variants.join(term_variant_scores, on="variant_id")
     top_variants = top_variants.sort_values(by="hmm_score", ascending=False)
@@ -232,9 +234,7 @@ def get_cache_path(disease_code: str, term: str) -> Path:
     return cache_dir / f"variant_prioritization_{disease_code}_{term}.json"
 
 
-def load_cached_results(
-    disease_code: str, term: str
-) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+def load_cached_results(disease_code: str, term: str) -> dict | None:
     """Load cached results if they exist."""
     cache_path = get_cache_path(disease_code, term)
     if not cache_path.exists():
@@ -245,35 +245,22 @@ def load_cached_results(
         with open(cache_path) as f:
             data = json.load(f)
 
-        # Convert back to DataFrames
-        top_variants = pd.DataFrame.from_records(data["top_variants"])
-        top_gene_set = pd.DataFrame.from_records(data["top_gene_set"]).set_index("gene")
-
-        return top_variants, top_gene_set
+        return data
     except Exception as e:
         logger.error(f"Error loading cached results: {e}")
         return None
 
 
-def save_results_to_cache(
-    disease_code: str, term: str, top_variants: pd.DataFrame, top_gene_set: pd.DataFrame
-):
+def save_results_to_cache(disease_code: str, term: str, data: dict):
     """Save results to cache file."""
     try:
         cache_path = get_cache_path(disease_code, term)
 
-        # Convert to the same format we send to the client
-        data = {
-            "top_variants": top_variants.to_dict(orient="records"),
-            # Reset index and rename the index column to 'gene'
-            "top_gene_set": top_gene_set.reset_index()
-            .rename(columns={"index": "gene"})
-            .to_dict(orient="records"),
-        }
-
         # Save as JSON
         with open(cache_path, "w") as f:
             json.dump(data, f, indent=2)  # indent for readability
+        # Meh
+        return load_cached_results(disease_code, term)
     except Exception as e:
         logger.error(f"Error saving results to cache: {e}")
 
@@ -283,10 +270,12 @@ def get_top_variants(
     term: str,
     genotype_service,
     nomaly_scores_service,
+    stats_service,
     stream_logger=None,
     no_cache: bool = False,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> dict:
     """Get the top variants for the disease and term."""
+
     # Try to load from cache first (unless no_cache is True)
     if not no_cache:
         cached_results = load_cached_results(disease_code, term)
@@ -307,47 +296,110 @@ def get_top_variants(
     # TODO: FILTER BY SCORE HERE!
     # WE WANT HIGH SCORING AFFECTED INDIVIDUALS
 
-    scores_for_term = nomaly_scores_service._hdf.get_scores_by_eids_unsorted(
+    cases_scores_for_term = nomaly_scores_service._hdf.get_scores_by_eids_unsorted(
         sorted_cases_eids, terms=[term]
     )
 
-    sorted_selected_cases_eids = sorted_cases_eids[scores_for_term > 0.022]
-
-    if stream_logger:
-        stream_logger.info(f"Processing {len(sorted_selected_cases_eids)} cases")
-    else:
-        logger.info(f"Processing {len(sorted_selected_cases_eids)} cases")
-
-    top_variants = term_variant_prioritisation(
-        sorted_selected_cases_eids,
-        variant_scores,
-        term,
-        genotype_service,
-        stream_logger,
+    stats = stats_service._hdf.get_stats_by_term_phecode(
+        term=term,
+        phecode=disease_code,
+        statstype=[
+            "num_rp",
+            "num_rn",
+            "metric1_pvalue",
+            "roc_stats_mcc_pvalue",
+            "roc_stats_mcc_threshold",
+            "roc_stats_yjs_pvalue",
+            "roc_stats_yjs_threshold",
+        ],
     )
 
-    # Create gene set with properly formatted variant lists
-    gene_variants = top_variants.groupby("gene")["variant_id"].agg(list)
-    gene_hmm_score = top_variants.groupby("gene")["hmm_score"].sum()
-    gene_total_vs = top_variants.groupby("gene")["vs"].sum()
-    gene_num_individual = top_variants.groupby("gene")["num_individuals"].sum()
-    gene_num_variants = top_variants.groupby("gene").size()
+    stats["total_cases"] = len(cases_scores_for_term)
 
-    top_gene_set = pd.DataFrame(
-        {
-            "variant_id": gene_variants.map(lambda x: ", ".join(x)),
-            "hmm_score": gene_hmm_score,
-            "total_vs": gene_total_vs,
-            "variant_num": gene_num_variants,
-            "num_individuals": gene_num_individual,
-        }
+    stats["metric1_threshold"] = 0.022
+
+    # Lets recalculate! Yay!
+
+    stats["metric1_tpr"] = (
+        np.sum(cases_scores_for_term > stats["metric1_threshold"]) / stats["num_rp"]
     )
-    top_gene_set = top_gene_set.sort_values("hmm_score", ascending=False)
+    stats["metric1_fpr"] = (
+        np.sum(cases_scores_for_term <= stats["metric1_threshold"]) / stats["num_rn"]
+    )
+
+    stats["roc_stats_mcc_tpr"] = (
+        np.sum(cases_scores_for_term > stats["roc_stats_mcc_threshold"])
+        / stats["num_rp"]
+    )
+    stats["roc_stats_mcc_fpr"] = (
+        np.sum(cases_scores_for_term <= stats["roc_stats_mcc_threshold"])
+        / stats["num_rn"]
+    )
+
+    stats["roc_stats_yjs_tpr"] = (
+        np.sum(cases_scores_for_term > stats["roc_stats_yjs_threshold"])
+        / stats["num_rp"]
+    )
+    stats["roc_stats_yjs_fpr"] = (
+        np.sum(cases_scores_for_term <= stats["roc_stats_yjs_threshold"])
+        / stats["num_rn"]
+    )
+
+    # Get the specific EIDs above the threshold for Variant Prioritization
+
+    stats["metric1_eids"] = sorted_cases_eids[
+        cases_scores_for_term > stats["metric1_threshold"]
+    ]
+    stats["roc_stats_mcc_eids"] = sorted_cases_eids[
+        cases_scores_for_term > stats["roc_stats_mcc_threshold"]
+    ]
+    stats["roc_stats_yjs_eids"] = sorted_cases_eids[
+        cases_scores_for_term > stats["roc_stats_yjs_threshold"]
+    ]
+
+    # FUCK meeeeeeeeeeeeeeeeeeeeee
+    for stat in ["metric1", "roc_stats_mcc", "roc_stats_yjs"]:
+        eids = stats[f"{stat}_eids"]
+        top_variants = term_variant_prioritisation(
+            eids,
+            variant_scores,
+            term,
+            genotype_service,
+            stream_logger,
+        )
+        stats[f"{stat}_top_variants"] = top_variants.drop(
+            columns=["term", "aa"]
+        ).to_dict(orient="records")
+
+        # Create gene set with properly formatted variant lists
+        gene_variants = top_variants.groupby("gene")["variant_id"].agg(list)
+        gene_hmm_score = top_variants.groupby("gene")["hmm_score"].sum()
+        gene_total_vs = top_variants.groupby("gene")["vs"].sum()
+        gene_num_individual = top_variants.groupby("gene")["num_individuals"].sum()
+        gene_num_variants = top_variants.groupby("gene").size()
+
+        top_gene_set = pd.DataFrame(
+            {
+                "variant_id": gene_variants.map(lambda x: ", ".join(x)),
+                "hmm_score": gene_hmm_score,
+                "total_vs": gene_total_vs,
+                "variant_num": gene_num_variants,
+                "num_individuals": gene_num_individual,
+            }
+        )
+        top_gene_set = top_gene_set.sort_values("hmm_score", ascending=False)
+
+        stats[f"{stat}_top_gene_set"] = (
+            # Reset index and rename the index column to 'gene'
+            top_gene_set.reset_index()
+            .rename(columns={"index": "gene"})
+            .to_dict(orient="records"),
+        )
 
     # Save to cache
-    save_results_to_cache(disease_code, term, top_variants, top_gene_set)
+    save_results_to_cache(disease_code, term, stats)
 
-    return top_variants.drop(columns=["term", "aa"]), top_gene_set
+    return stats
 
 
 prioritisation_bp = Blueprint("prioritisation", __name__)
@@ -410,6 +462,7 @@ def stream_progress(disease_code: str, term: str):
         term,
         genotype_service,
         nomaly_scores_service,
+        stats_service,
         message_queue,
         no_cache,
     ):
@@ -421,6 +474,7 @@ def stream_progress(disease_code: str, term: str):
                 term,
                 genotype_service,
                 nomaly_scores_service,
+                stats_service,
                 stream_logger,
                 no_cache,
             )
@@ -461,6 +515,7 @@ def stream_progress(disease_code: str, term: str):
                 term,
                 services.genotype,
                 services.nomaly_score,
+                services.stats,
                 message_queue,
                 no_cache,
             )
@@ -492,8 +547,11 @@ def main():
     disease_code = "332"
     term = "GO:0030800"
 
-    disease_code = "256"
-    term = "GO:0036265"
+    # disease_code = "256"
+    # term = "GO:0036265"  # <- Dis term booog!
+
+    disease_code = "290.11"
+    term = "GO:0016861"
 
     from app import create_app
 
@@ -501,15 +559,17 @@ def main():
     with app.app_context():
         services = current_app.extensions["nomaly_services"]
 
-        stats_service = services.stats._hdf
-        stats_data = get_stats_data(stats_service, disease_code, term)
-        print(pd.Series(stats_data))
-
-        top_variants, top_gene_set = get_top_variants(
-            disease_code, term, services.genotype, services.nomaly_score, no_cache=True
+        data = get_top_variants(
+            disease_code,
+            term,
+            services.genotype,
+            services.nomaly_score,
+            services.stats,
+            no_cache=True,
         )
-        print(top_variants)
-        print(top_gene_set)
+
+        # FUCK ME!
+        print(data)
 
 
 if __name__ == "__main__":
