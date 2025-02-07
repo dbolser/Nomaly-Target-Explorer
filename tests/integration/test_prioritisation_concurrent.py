@@ -157,12 +157,12 @@ def test_error_recovery(unit_test_app_client_with_cache):
 
 def test_variant_scores_endpoint(auth_integration_app_client):
     """Test the variant scores endpoint with a known good example."""
-    response = auth_integration_app_client.get("/variant_scores/290.11/GO:0036265")
+    response = auth_integration_app_client.get("/variant_scores/290.11/GO:0016861")
     assert response.status_code == 200
 
     # Test the streaming endpoint too
     stream_response = auth_integration_app_client.get(
-        "/stream_progress/290.11/GO:0036265"
+        "/stream_progress/290.11/GO:0016861"
     )
     assert stream_response.status_code == 200
 
