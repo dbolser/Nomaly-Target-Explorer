@@ -61,6 +61,7 @@ class StatsHDF5:
                 disease_data, index=self.terms.astype(str), columns=self.statistics
             )
 
+        # NOTE: The return types of these alternative calls are different!
         elif isinstance(statstype, str):
             # Return the data for the given statstype
             mask_3rd_dim = self.statistics == statstype
@@ -73,6 +74,8 @@ class StatsHDF5:
             mask_3rd_dim_indices = np.where(mask_3rd_dim)[0]
             return self.data[:, mask_column_indices, mask_3rd_dim_indices]
 
+    # TODO: Perhaps allow phecode to also be a list like above?
+    # TODO: Think about making return type consistent.
     def get_stats_by_term_phecode(
         self, term: str, phecode: str
     ) -> dict[str, np.ndarray]:

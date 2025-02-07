@@ -50,14 +50,15 @@ class Config:
     NOMALY_SCORES_H5 = NOMALY_RESULTS_DIR / "float16_scores.h5"
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats.h5"
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats-fixed.h5"
-    STATS_H5 = NOMALY_RESULTS_DIR / "stats-fixed-EUR.h5"
+    STATS_H5 = NOMALY_RESULTS_DIR / "stats-EUR-2025-02-07.h5"
 
     # Nomaly results directories and files (V2)
     NOMALY_RESULTS_DIR_V2 = Path("/data/general/UKBB/Run-v2/DatabaseInputs")
     NOMALY_SCORES_H5_V2 = NOMALY_RESULTS_DIR_V2 / "float16_scores.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-fixed.h5"
-    STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-fixed-EUR.h5"
+    # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-fixed-EUR.h5"
+    STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-EUR-2025-02-07.h5"
 
     RESOURCE_DATA_DIR = Path("/data/general/Data/")
 
