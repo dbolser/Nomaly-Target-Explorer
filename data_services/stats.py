@@ -45,6 +45,58 @@ class StatsHDF5:
         self.phecodes: np.ndarray = phecodes[...].astype(str)
         self.statistics: np.ndarray = statistics[...].astype(str)
 
+    # TODO: ALL THESE FUNCTIONS SHOULD BE ONE GENERAL FUNTION WITH 3 OPTIONAL ARGUMENTS
+    # TODO: 1. phecode (str|list), 2. term (str|list), 3. statstype (str|list)
+    # TODO: Return type should be consistent.
+
+    def get_stats_wip(
+        self,
+        phecode: None | str | list = None,
+        term: None | str | list = None,
+        statstype: None | str | list = None,
+    ) -> pd.DataFrame:
+        if isinstance(phecode, str):
+            phecode = [phecode]
+        if isinstance(term, str):
+            term = [term]
+        if isinstance(statstype, str):
+            statstype = [statstype]
+
+        if not phecode and not term:
+            raise ValueError(
+                "What the fuck are you doing? At least one of phecode or term must be provided!"
+            )
+        elif phecode and term:
+            if not len(phecode) == 1 or not len(term) == 1:
+                raise ValueError(
+                    "What the fuck are you doing? Either phecode or term must be a single value!"
+                )
+
+        if phecode is None:
+            phecode_mask = np.ones(len(self.phecodes), dtype=bool)
+        else:
+            phecode_mask = np.isin(self.phecodes, phecode)
+
+        if term is None:
+            term_mask = np.ones(len(self.terms), dtype=bool)
+        else:
+            term_mask = np.isin(self.terms, term)
+
+        if statstype is None:
+            statstype_mask = np.ones(len(self.statistics), dtype=bool)
+        else:
+            statstype_mask = np.isin(self.statistics, statstype)
+
+        # NOTE: All data is stored as 'float' in the HDF, however, some columns
+        # are actually integers. TODO: This is fine, but we could convert to int
+        # here.
+        return pd.DataFrame(
+            self.data[term_mask][:, phecode_mask][:, :, statstype_mask],
+            index=self.terms[term_mask],
+            columns=self.phecodes[phecode_mask],
+            dtype=float,
+        )
+
     def get_stats_by_phecode(
         self, phecode: str, statstype: None | str | list = None
     ) -> pd.DataFrame | np.ndarray:
