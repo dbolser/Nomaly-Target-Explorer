@@ -260,7 +260,7 @@ def save_results_to_cache(disease_code: str, term: str, data: dict):
         with open(cache_path, "w") as f:
             json.dump(data, f, indent=2)  # indent for readability
         # Meh
-        return load_cached_results(disease_code, term)
+        # return load_cached_results(disease_code, term)
     except Exception as e:
         logger.error(f"Error saving results to cache: {e}")
 
@@ -326,6 +326,7 @@ def get_top_variants(
     stats["metric1_fpr"] = (
         np.sum(cases_scores_for_term <= stats["metric1_threshold"]) / stats["num_rn"]
     )
+    stats["metric1_lrp"] = stats["metric1_tpr"] / stats["metric1_fpr"]
 
     stats["roc_stats_mcc_tpr"] = (
         np.sum(cases_scores_for_term > stats["roc_stats_mcc_threshold"])
@@ -335,6 +336,7 @@ def get_top_variants(
         np.sum(cases_scores_for_term <= stats["roc_stats_mcc_threshold"])
         / stats["num_rn"]
     )
+    stats["roc_stats_mcc_lrp"] = stats["roc_stats_mcc_tpr"] / stats["roc_stats_mcc_fpr"]
 
     stats["roc_stats_yjs_tpr"] = (
         np.sum(cases_scores_for_term > stats["roc_stats_yjs_threshold"])
@@ -344,6 +346,7 @@ def get_top_variants(
         np.sum(cases_scores_for_term <= stats["roc_stats_yjs_threshold"])
         / stats["num_rn"]
     )
+    stats["roc_stats_yjs_lrp"] = stats["roc_stats_yjs_tpr"] / stats["roc_stats_yjs_fpr"]
 
     # Get the specific EIDs above the threshold for Variant Prioritization
 
@@ -367,6 +370,9 @@ def get_top_variants(
             genotype_service,
             stream_logger,
         )
+        stats[f"{stat}_tp"] = len(eids)
+        del stats[f"{stat}_eids"]
+
         stats[f"{stat}_top_variants"] = top_variants.drop(
             columns=["term", "aa"]
         ).to_dict(orient="records")
@@ -389,12 +395,20 @@ def get_top_variants(
         )
         top_gene_set = top_gene_set.sort_values("hmm_score", ascending=False)
 
-        stats[f"{stat}_top_gene_set"] = (
-            # Reset index and rename the index column to 'gene'
+        # Create gene set data without tuple wrapping
+        gene_set_data = (
             top_gene_set.reset_index()
             .rename(columns={"index": "gene"})
-            .to_dict(orient="records"),
+            .to_dict(orient="records")
         )
+        stats[f"{stat}_top_gene_set"] = gene_set_data
+
+        # Add debug print to see the structure
+        print(
+            f"Gene set structure in get_top_variants: {type(stats[f'{stat}_top_gene_set'])}"
+        )
+        if stats[f"{stat}_top_gene_set"]:
+            print(f"First gene set item type: {type(stats[f'{stat}_top_gene_set'][0])}")
 
     # Save to cache
     save_results_to_cache(disease_code, term, stats)
@@ -428,12 +442,17 @@ def show_variant_scores(disease_code: str, term: str):
     data["genelen"] = len(genes)
     data["genes"] = ", ".join(genes) if len(genes) < 5 else f"{len(genes)} genes"
 
-    stats_service = current_app.extensions["nomaly_services"].stats._hdf
-    stats_data = get_stats_data(stats_service, disease_code, term)
-    # Merge teh two dictionaries:
-    data = {**data, **stats_data}
+    # Initialize empty stats values
+    data.update(
+        {
+            "metric1_pvalue": 1,
+            "metric1_tpr": 0,
+            "metric1_fpr": 0,
+            "metric1_lrp": 0,
+            "metric1_tp": 0,
+        }
+    )
 
-    data["stats"] = stats_data
     return render_template(
         "variant_scores.html",
         disease_code=disease_code,
@@ -469,7 +488,7 @@ def stream_progress(disease_code: str, term: str):
         """Process variants using the thread pool."""
         try:
             stream_logger = StreamLogger(message_queue)
-            top_variants, top_gene_set = get_top_variants(
+            data = get_top_variants(
                 disease_code,
                 term,
                 genotype_service,
@@ -479,29 +498,59 @@ def stream_progress(disease_code: str, term: str):
                 no_cache,
             )
 
+            # HACK FOR TESTING...
+            top_variants_dict = data["metric1_top_variants"]
+            top_gene_set_dict = data["metric1_top_gene_set"]
+
+            # Ensure top_gene_set_dict is not wrapped in an extra array
+            if isinstance(top_gene_set_dict, tuple) and len(top_gene_set_dict) == 1:
+                top_gene_set_dict = top_gene_set_dict[0]
+
+            print(f"Gene set structure before message: {type(top_gene_set_dict)}")
+            if top_gene_set_dict:
+                print(f"First gene set item type: {type(top_gene_set_dict[0])}")
+
             # Format the gene set variant lists with proper comma separation
-            top_gene_set_dict = top_gene_set.reset_index().to_dict(orient="records")
             for record in top_gene_set_dict:
                 if "variant_id" in record and record["variant_id"]:
                     variants = str(record["variant_id"]).split(",")
                     record["variant_id"] = ", ".join(v.strip() for v in variants)
 
             # Send results
-            message_queue.put(
-                {
-                    "type": "results",
-                    "data": {
-                        "top_variants": top_variants.to_dict(orient="records"),
-                        "top_gene_set": top_gene_set_dict,
+            message_data = {
+                "type": "results",
+                "data": {
+                    "top_variants": top_variants_dict,
+                    "top_gene_set": top_gene_set_dict,
+                    "stats": {
+                        "metric1_pvalue": float(data["metric1_pvalue"]),
+                        "metric1_tpr": float(data["metric1_tpr"]),
+                        "metric1_fpr": float(data["metric1_fpr"]),
+                        "metric1_lrp": float(data["metric1_lrp"]),
+                        "metric1_tp": int(data["metric1_tp"]),
                     },
-                }
-            )
+                },
+            }
+
+            # Add debug print to see the stats values
+            print("Stats values being sent:")
+            print(f"metric1_pvalue: {data['metric1_pvalue']}")
+            print(f"metric1_tpr: {data['metric1_tpr']}")
+            print(f"metric1_fpr: {data['metric1_fpr']}")
+            print(f"metric1_lrp: {data['metric1_lrp']}")
+            print(f"metric1_tp: {data['metric1_tp']}")
+
+            message_queue.put(message_data)
+            print("Results message sent")
 
         except Exception as e:
+            print(f"Error in process_variants: {str(e)}")
             logger.error(f"Error processing variants: {e}")
             message_queue.put({"type": "error", "data": str(e)})
         finally:
+            print("Sending done message...")
             message_queue.put({"type": "done"})
+            print("Done message sent")
 
     def generate():
         message_queue = Queue()
@@ -509,6 +558,7 @@ def stream_progress(disease_code: str, term: str):
 
         try:
             # Submit to thread pool with the service
+            print("Submitting to thread pool...")
             _ = variant_processor.submit(
                 process_variants,
                 disease_code,
@@ -519,15 +569,20 @@ def stream_progress(disease_code: str, term: str):
                 message_queue,
                 no_cache,
             )
+            print("Submitted to thread pool")
 
             # Stream messages as they arrive
             while True:
                 try:
+                    print("Waiting for message...")
                     msg = message_queue.get(timeout=60)  # 1 minute timeout
+                    print(f"Got message of type: {msg.get('type')}")
                     yield f"data: {json.dumps(msg)}\n\n"
                     if msg["type"] == "done":
+                        print("Got done message, breaking")
                         break
                 except Exception as e:
+                    print(f"Error in message loop: {str(e)}")
                     logger.error(f"Error in stream: {e}")
                     yield f"data: {json.dumps({'type': 'error', 'data': str(e)})}\n\n"
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
@@ -565,11 +620,18 @@ def main():
             services.genotype,
             services.nomaly_score,
             services.stats,
-            no_cache=True,
+            # no_cache=True,
         )
 
         # FUCK ME!
-        print(data)
+
+        # print(json.dumps(data, indent=2))
+
+        for key, value in data.items():
+            if "top_variants" in key or "top_gene_set" in key:
+                data[key] = "REDACTED!"
+
+        print(json.dumps(data, indent=2))
 
 
 if __name__ == "__main__":

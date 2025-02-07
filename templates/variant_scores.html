@@ -61,7 +61,8 @@
                     <strong>Fisher-exact P-value:</strong>
                 </div>
                 <div class="col-md-9">
-                    {{ "%.2e"|format(data.metric1_pvalue|float)|default('9.99e-99') }} (two-sided at threshold)
+                    <span id="metric1_pvalue">{{ "%.2e"|format(data.metric1_pvalue|float)|default('Loading...')
+                        }}</span> (two-sided at threshold)
                 </div>
             </div>
 
@@ -73,20 +74,23 @@
                     <div class="row">
                         <div class="col-md-4">
                             <div class="text-center">
-                                <h5>Cases</h5>
-                                <div class="h3">{{ data.metric1_tp_case|default('99') }}%</div>
+                                <h5>Cases (True Positive Rate (TP/Cases))</h5>
+                                <div class="h3"><span id="metric1_tpr">{{ data.metric1_tpr|default('Loading...')
+                                        }}</span>%</div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="text-center">
-                                <h5>Controls</h5>
-                                <div class="h3">{{ data.metric1_fp_control|default('99.9') }}%</div>
+                                <h5>Controls (False Positive Rate (FP/Controls))</h5>
+                                <div class="h3"><span id="metric1_fpr">{{ data.metric1_fpr|default('Loading...')
+                                        }}</span>%</div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="text-center">
-                                <h5>Ratio</h5>
-                                <div class="h3">{{ data.metric1_ratio|default('99.9') }}</div>
+                                <h5>Ratio (Positive Likelihood Ratio (TPR/FPR))</h5>
+                                <div class="h3"><span id="metric1_lrp">{{ data.metric1_lrp|default('Loading...')
+                                        }}</span></div>
                             </div>
                         </div>
                     </div>
@@ -95,8 +99,8 @@
 
             <div class="mt-3">
                 <p class="mb-0">
-                    <i class="fas fa-info-circle"></i> Variants are responsible for the prediction of these {{
-                    data.metric1_num_tp_fn|default('9,999') }} people.
+                    <i class="fas fa-info-circle"></i> Variants are responsible for the prediction of these
+                    <span id="metric1_tp">{{ data.metric1_tp|default('Loading...') }}</span> people.
                 </p>
             </div>
         </div>
@@ -148,6 +152,23 @@
                         break;
 
                     case 'results':
+                        // Update metric1 stats
+                        if (message.data.stats) {
+                            console.log('Updating stats with:', message.data.stats);  // Debug log
+
+                            const stats = message.data.stats;
+                            document.getElementById('metric1_pvalue').textContent =
+                                stats.metric1_pvalue.toExponential(2);
+                            document.getElementById('metric1_tpr').textContent =
+                                (stats.metric1_tpr * 100).toFixed(2);  // Convert to percentage
+                            document.getElementById('metric1_fpr').textContent =
+                                (stats.metric1_fpr * 100).toFixed(2);  // Convert to percentage
+                            document.getElementById('metric1_lrp').textContent =
+                                stats.metric1_lrp.toFixed(2);
+                            document.getElementById('metric1_tp').textContent =
+                                stats.metric1_tp.toString();
+                        }
+
                         // Initialize gene set table
                         const geneSetColumns = Object.keys(message.data.top_gene_set[0]).map(key => ({
                             data: key,
