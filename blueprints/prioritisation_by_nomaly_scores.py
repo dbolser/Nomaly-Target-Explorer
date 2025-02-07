@@ -7,7 +7,7 @@ Genes are prioritised by the sum of Nomaly scores of their variants.
 import json
 import logging
 import pickle
-from collections import Counter
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
@@ -26,9 +26,12 @@ from flask import (
 from blueprints.phecode import get_phecode_data
 from config import Config
 from db import get_term_domains, get_term_genes, get_term_names, get_term_variants
+from data_services.stats import StatsHDF5
 
 logger = logging.getLogger(__name__)
 
+
+# TODO: Move to the variant scores service?
 # In memory data
 variant_scores = pd.read_csv(
     "/data/clu/ukbb/variantscores.tsv", sep="\t", index_col="variant_id"
@@ -113,7 +116,7 @@ def read_nomaly_filtered_genotypes(
     }
 
 
-def individual_variant_prioritisation(row, term_variant_scores) -> set[str]:
+def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
     """Return numpy array of variant scores for the selected variants."""
     indices = term_variant_scores.index
     sel_vs = term_variant_scores.to_numpy()
@@ -134,7 +137,28 @@ def individual_variant_prioritisation(row, term_variant_scores) -> set[str]:
     top_variants = top_variants.assign(rank=range(1, len(top_variants) + 1))
     top_variants = top_variants[(top_variants["vs"] > 1) | (top_variants["rank"] <= 5)]
 
-    return set(top_variants.index)
+    return top_variants
+
+
+def process_individual_variants(sel_genotypes, term_variant_scores):
+    """Process variants for all individuals more efficiently"""
+    ind_top_variants = defaultdict(int)
+    ind_top_variants_scores = defaultdict(float)
+
+    for individual in sel_genotypes["data"]:
+        top_variants = individual_variant_prioritisation(
+            individual, term_variant_scores
+        )
+        for variant, vs in zip(top_variants.index, top_variants["vs"]):
+            ind_top_variants[variant] += 1
+            ind_top_variants_scores[variant] += vs
+
+    return pd.DataFrame(
+        {
+            "num_individuals": pd.Series(ind_top_variants),
+            "vs": pd.Series(ind_top_variants_scores),
+        }
+    )
 
 
 def term_variant_prioritisation(
@@ -181,15 +205,8 @@ def term_variant_prioritisation(
         ["VS00", "VS01", "VS11"]
     ]
 
-    # TODO: Make ind_top_variants a Counter, not a set. Report this in the UI.
-    ind_top_variants = Counter()
-    for individual in sel_genotypes["data"]:
-        ind_top_variants.update(
-            individual_variant_prioritisation(individual, term_variant_scores)
-        )
-
-    ind_top_variants_df = pd.DataFrame.from_dict(
-        ind_top_variants, orient="index", columns=["num_individuals"]
+    ind_top_variants_df = process_individual_variants(
+        sel_genotypes, term_variant_scores
     )
 
     top_variants = term_variants.join(ind_top_variants_df, on="variant_id", how="right")
@@ -199,11 +216,11 @@ def term_variant_prioritisation(
     if stream_logger:
         stream_logger.info(f"Term variants: {len(term_variants)}")
         stream_logger.info(f"Top variants: {len(top_variants)}")
-        stream_logger.info(f"Individual top variants: {len(ind_top_variants)}")
+        stream_logger.info(f"Individual top variants: {len(ind_top_variants_df)}")
     else:
         logger.info(f"Term variants: {len(term_variants)}")
         logger.info(f"Top variants: {len(top_variants)}")
-        logger.info(f"Individual top variants: {len(ind_top_variants)}")
+        logger.info(f"Individual top variants: {len(ind_top_variants_df)}")
 
     return top_variants
 
@@ -296,9 +313,6 @@ def get_top_variants(
 
     sorted_selected_cases_eids = sorted_cases_eids[scores_for_term > 0.022]
 
-    # LATER, WE report NUMBERS based on the stats for this disease / term  pair...
-    # e.g. Stuff from Chang's email.
-
     if stream_logger:
         stream_logger.info(f"Processing {len(sorted_selected_cases_eids)} cases")
     else:
@@ -314,16 +328,18 @@ def get_top_variants(
 
     # Create gene set with properly formatted variant lists
     gene_variants = top_variants.groupby("gene")["variant_id"].agg(list)
-    gene_scores = top_variants.groupby("gene")["hmm_score"].sum()
-    gene_individuals = top_variants.groupby("gene")["num_individuals"].sum()
-    gene_counts = top_variants.groupby("gene").size()
+    gene_hmm_score = top_variants.groupby("gene")["hmm_score"].sum()
+    gene_total_vs = top_variants.groupby("gene")["vs"].sum()
+    gene_num_individual = top_variants.groupby("gene")["num_individuals"].sum()
+    gene_num_variants = top_variants.groupby("gene").size()
 
     top_gene_set = pd.DataFrame(
         {
             "variant_id": gene_variants.map(lambda x: ", ".join(x)),
-            "hmm_score": gene_scores,
-            "variant_num": gene_counts,
-            "num_individuals": gene_individuals,
+            "hmm_score": gene_hmm_score,
+            "total_vs": gene_total_vs,
+            "variant_num": gene_num_variants,
+            "num_individuals": gene_num_individual,
         }
     )
     top_gene_set = top_gene_set.sort_values("hmm_score", ascending=False)
@@ -331,7 +347,7 @@ def get_top_variants(
     # Save to cache
     save_results_to_cache(disease_code, term, top_variants, top_gene_set)
 
-    return top_variants, top_gene_set
+    return top_variants.drop(columns=["term", "aa"]), top_gene_set
 
 
 prioritisation_bp = Blueprint("prioritisation", __name__)
@@ -360,6 +376,12 @@ def show_variant_scores(disease_code: str, term: str):
     data["genelen"] = len(genes)
     data["genes"] = ", ".join(genes) if len(genes) < 5 else f"{len(genes)} genes"
 
+    stats_service = current_app.extensions["nomaly_services"].stats._hdf
+    stats_data = get_stats_data(stats_service, disease_code, term)
+    # Merge teh two dictionaries:
+    data = {**data, **stats_data}
+
+    data["stats"] = stats_data
     return render_template(
         "variant_scores.html",
         disease_code=disease_code,
@@ -369,6 +391,12 @@ def show_variant_scores(disease_code: str, term: str):
         top_variants=pd.DataFrame(),
         top_gene_set=pd.DataFrame(),
     )
+
+
+def get_stats_data(stats_service: StatsHDF5, disease_code: str, term: str) -> dict:
+    """Get the stats data for the disease and term."""
+    stats_data = stats_service.get_stats_by_term_phecode(term, disease_code)
+    return stats_data
 
 
 @prioritisation_bp.route("/stream_progress/<disease_code>/<term>")
@@ -464,11 +492,19 @@ def main():
     disease_code = "332"
     term = "GO:0030800"
 
+    disease_code = "256"
+    term = "GO:0036265"
+
     from app import create_app
 
     app = create_app("development")
     with app.app_context():
         services = current_app.extensions["nomaly_services"]
+
+        stats_service = services.stats._hdf
+        stats_data = get_stats_data(stats_service, disease_code, term)
+        print(pd.Series(stats_data))
+
         top_variants, top_gene_set = get_top_variants(
             disease_code, term, services.genotype, services.nomaly_score, no_cache=True
         )

@@ -19,6 +19,10 @@
     td .variant-cell {
         width: 400px;
     }
+
+    .numeric-cell {
+        text-align: right;
+    }
 </style>
 {% endblock %}
 
@@ -57,7 +61,7 @@
                     <strong>Fisher-exact P-value:</strong>
                 </div>
                 <div class="col-md-9">
-                    {{ data.metric1_pvalue|default('9.99e-99') }} (two-sided at threshold)
+                    {{ "%.2e"|format(data.metric1_pvalue|float)|default('9.99e-99') }} (two-sided at threshold)
                 </div>
             </div>
 
@@ -148,6 +152,8 @@
                         const geneSetColumns = Object.keys(message.data.top_gene_set[0]).map(key => ({
                             data: key,
                             title: key.replace(/_/g, ' '),
+                            visible: !['VS00', 'VS01', 'VS11'].includes(key),
+                            className: ['VS00', 'VS01', 'VS11', 'hmm_score', 'total_vs'].includes(key) ? 'numeric-cell' : null,
                             render: key === 'variant_id' ?
                                 (data, type) => {
                                     if (type === 'display' && data) {
@@ -156,12 +162,26 @@
                                     }
                                     return data;
                                 } :
-                                null
+                                key === 'hmm_score' || key === 'total_vs' ?
+                                    (data, type) => {
+                                        if (type === 'display') {
+                                            return Number(data).toFixed(2);
+                                        }
+                                        return data;
+                                    } :
+                                    ['VS00', 'VS01', 'VS11'].includes(key) ?
+                                        (data, type) => {
+                                            if (type === 'display') {
+                                                return Number(data).toFixed(2);
+                                            }
+                                            return data;
+                                        } :
+                                        null
                         }));
-                        const hmmScoreIndex = geneSetColumns.findIndex(col => col.data === 'hmm_score');
+                        const totalVsIndex = geneSetColumns.findIndex(col => col.data === 'total_vs');
                         initializeDataTable('gene-set-table', message.data.top_gene_set, geneSetColumns, {
                             pageLength: 10,
-                            order: [[hmmScoreIndex, 'desc']],
+                            order: [[totalVsIndex, 'desc']],
                             lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
                         });
 
@@ -169,6 +189,8 @@
                         const variantColumns = Object.keys(message.data.top_variants[0]).map(key => ({
                             data: key,
                             title: key.replace(/_/g, ' '),
+                            visible: !['VS00', 'VS01', 'VS11'].includes(key),
+                            className: ['VS00', 'VS01', 'VS11', 'hmm_score', 'vs'].includes(key) ? 'numeric-cell' : null,
                             render: key === 'variant_id' ?
                                 (data, type) => {
                                     if (type === 'display') {
@@ -176,12 +198,26 @@
                                     }
                                     return data;
                                 } :
-                                null
+                                key === 'hmm_score' || key === 'vs' ?
+                                    (data, type) => {
+                                        if (type === 'display') {
+                                            return Number(data).toFixed(2);
+                                        }
+                                        return data;
+                                    } :
+                                    ['VS00', 'VS01', 'VS11'].includes(key) ?
+                                        (data, type) => {
+                                            if (type === 'display') {
+                                                return Number(data).toFixed(3);
+                                            }
+                                            return data;
+                                        } :
+                                        null
                         }));
-                        const variantHmmScoreIndex = variantColumns.findIndex(col => col.data === 'hmm_score');
+                        const vsIndex = variantColumns.findIndex(col => col.data === 'vs');
                         initializeDataTable('variants-table', message.data.top_variants, variantColumns, {
                             pageLength: 10,
-                            order: [[variantHmmScoreIndex, 'desc']],
+                            order: [[vsIndex, 'desc']],
                             lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
                         });
 
