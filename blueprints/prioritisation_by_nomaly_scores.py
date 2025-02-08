@@ -323,30 +323,34 @@ def get_top_variants(
     stats["metric1_tpr"] = (
         np.sum(cases_scores_for_term > stats["metric1_threshold"]) / stats["num_rp"]
     )
-    stats["metric1_fpr"] = (
-        np.sum(cases_scores_for_term <= stats["metric1_threshold"]) / stats["num_rn"]
+    # Calculate True Positive Rate (Sensitivity)
+    stats["metric1_tpr"] = (
+        np.sum(cases_scores_for_term > stats["metric1_threshold"]) / stats["num_rp"]
     )
-    stats["metric1_lrp"] = stats["metric1_tpr"] / stats["metric1_fpr"]
+    
+    # Calculate False Positive Rate (1 - Specificity)
+    stats["metric1_fpr"] = (
+        np.sum(cases_scores_for_term > stats["metric1_threshold"]) / stats["total_cases"]
+    )
+    stats["metric1_lrp"] = stats["metric1_tpr"] / (stats["metric1_fpr"] + 1e-10)  # Add small epsilon to avoid division by zero
 
+    # MCC threshold metrics
     stats["roc_stats_mcc_tpr"] = (
-        np.sum(cases_scores_for_term > stats["roc_stats_mcc_threshold"])
-        / stats["num_rp"]
+        np.sum(cases_scores_for_term > stats["roc_stats_mcc_threshold"]) / stats["num_rp"]
     )
     stats["roc_stats_mcc_fpr"] = (
-        np.sum(cases_scores_for_term <= stats["roc_stats_mcc_threshold"])
-        / stats["num_rn"]
+        np.sum(cases_scores_for_term > stats["roc_stats_mcc_threshold"]) / stats["total_cases"]
     )
-    stats["roc_stats_mcc_lrp"] = stats["roc_stats_mcc_tpr"] / stats["roc_stats_mcc_fpr"]
+    stats["roc_stats_mcc_lrp"] = stats["roc_stats_mcc_tpr"] / (stats["roc_stats_mcc_fpr"] + 1e-10)
 
+    # YJS threshold metrics
     stats["roc_stats_yjs_tpr"] = (
-        np.sum(cases_scores_for_term > stats["roc_stats_yjs_threshold"])
-        / stats["num_rp"]
+        np.sum(cases_scores_for_term > stats["roc_stats_yjs_threshold"]) / stats["num_rp"]
     )
     stats["roc_stats_yjs_fpr"] = (
-        np.sum(cases_scores_for_term <= stats["roc_stats_yjs_threshold"])
-        / stats["num_rn"]
+        np.sum(cases_scores_for_term > stats["roc_stats_yjs_threshold"]) / stats["total_cases"]
     )
-    stats["roc_stats_yjs_lrp"] = stats["roc_stats_yjs_tpr"] / stats["roc_stats_yjs_fpr"]
+    stats["roc_stats_yjs_lrp"] = stats["roc_stats_yjs_tpr"] / (stats["roc_stats_yjs_fpr"] + 1e-10)
 
     # Get the specific EIDs above the threshold for Variant Prioritization
 
