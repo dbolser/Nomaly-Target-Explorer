@@ -42,7 +42,11 @@
                     <strong>Criteria Type:</strong>
                 </div>
                 <div class="col-md-9">
-                    Metric 1
+                    <select id="statsSelect" class="form-control">
+                        <option value="metric1">Metric 1</option>
+                        <option value="roc_stats_mcc">ROC MCC</option>
+                        <option value="roc_stats_yjs">ROC YJS</option>
+                    </select>
                 </div>
             </div>
 
@@ -139,6 +143,109 @@
         // Connect to SSE endpoint
         const source = new EventSource("{{url_for('prioritisation.stream_progress', disease_code = disease_code, term = term, flush = flush | int if flush else none)}}");
 
+        // Handle stats selection change
+        document.getElementById('statsSelect')?.addEventListener('change', function() {
+            const selectedMetric = this.value;
+            // Re-populate tables with selected stats
+            if (window.currentResultData) {
+                const metricData = window.currentResultData[selectedMetric];
+                updateStatsDisplay(metricData.stats);
+                initializeTables(metricData);
+            }
+        });
+
+        function updateStatsDisplay(stats) {
+            if (!stats) return;
+            
+            document.getElementById('metric1_pvalue').textContent =
+                stats.pvalue.toExponential(2);
+            document.getElementById('metric1_tpr').textContent =
+                (stats.tpr * 100).toFixed(2);
+            document.getElementById('metric1_fpr').textContent =
+                (stats.fpr * 100).toFixed(2);
+            document.getElementById('metric1_lrp').textContent =
+                stats.lrp.toFixed(2);
+            document.getElementById('metric1_tp').textContent =
+                stats.tp.toString();
+        }
+
+        function initializeTables(metricData) {
+            if (!metricData) return;
+            
+            // Initialize gene set table
+            const geneSetColumns = Object.keys(metricData.top_gene_set[0]).map(key => ({
+                data: key,
+                title: key.replace(/_/g, ' '),
+                visible: !['VS00', 'VS01', 'VS11'].includes(key),
+                className: ['VS00', 'VS01', 'VS11', 'hmm_score', 'total_vs'].includes(key) ? 'numeric-cell' : null,
+                render: key === 'variant_id' ?
+                    (data, type) => {
+                        if (type === 'display' && data) {
+                            const links = data.split(', ').map(createVariantLink).join(', ');
+                            return `<div class="variant-cell" title="${data}">${links}</div>`;
+                        }
+                        return data;
+                    } :
+                    key === 'hmm_score' || key === 'total_vs' ?
+                        (data, type) => {
+                            if (type === 'display') {
+                                return Number(data).toFixed(2);
+                            }
+                            return data;
+                        } :
+                        ['VS00', 'VS01', 'VS11'].includes(key) ?
+                            (data, type) => {
+                                if (type === 'display') {
+                                    return Number(data).toFixed(2);
+                                }
+                                return data;
+                            } :
+                            null
+            }));
+            const totalVsIndex = geneSetColumns.findIndex(col => col.data === 'total_vs');
+            initializeDataTable('gene-set-table', metricData.top_gene_set, geneSetColumns, {
+                pageLength: 10,
+                order: [[totalVsIndex, 'desc']],
+                lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
+            });
+
+            // Initialize variants table
+            const variantColumns = Object.keys(metricData.top_variants[0]).map(key => ({
+                data: key,
+                title: key.replace(/_/g, ' '),
+                visible: !['VS00', 'VS01', 'VS11'].includes(key),
+                className: ['VS00', 'VS01', 'VS11', 'hmm_score', 'vs'].includes(key) ? 'numeric-cell' : null,
+                render: key === 'variant_id' ?
+                    (data, type) => {
+                        if (type === 'display') {
+                            return `<div class="variant-cell" title="${data}">${createVariantLink(data)}</div>`;
+                        }
+                        return data;
+                    } :
+                    key === 'hmm_score' || key === 'vs' ?
+                        (data, type) => {
+                            if (type === 'display') {
+                                return Number(data).toFixed(2);
+                            }
+                            return data;
+                        } :
+                        ['VS00', 'VS01', 'VS11'].includes(key) ?
+                            (data, type) => {
+                                if (type === 'display') {
+                                    return Number(data).toFixed(3);
+                                }
+                                return data;
+                            } :
+                            null
+            }));
+            const vsIndex = variantColumns.findIndex(col => col.data === 'vs');
+            initializeDataTable('variants-table', metricData.top_variants, variantColumns, {
+                pageLength: 10,
+                order: [[vsIndex, 'desc']],
+                lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
+            });
+        }
+
         source.onmessage = function (event) {
             try {
                 const message = JSON.parse(event.data);
@@ -152,9 +259,14 @@
                         break;
 
                     case 'results':
-                        // Update stats based on selected metric
-                        const selectedMetric = document.getElementById('statsSelect').value;
+                        // Default to metric1 if statsSelect doesn't exist yet
+                        const selectedMetric = document.getElementById('statsSelect')?.value || 'metric1';
                         const metricData = message.data[selectedMetric];
+                        
+                        if (!metricData) {
+                            console.error('No metric data found for:', selectedMetric);
+                            return;
+                        }
                         
                         if (metricData.stats) {
                             console.log('Updating stats with:', metricData.stats);  // Debug log
