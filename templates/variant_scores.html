@@ -322,7 +322,7 @@
                         });
 
                         // Initialize variants table
-                        const variantColumns = Object.keys(message.data.top_variants[0]).map(key => ({
+                        const variantColumns = Object.keys(metricData.top_variants[0]).map(key => ({
                             data: key,
                             title: key.replace(/_/g, ' '),
                             visible: !['VS00', 'VS01', 'VS11'].includes(key),
@@ -351,7 +351,7 @@
                                         null
                         }));
                         const vsIndex = variantColumns.findIndex(col => col.data === 'vs');
-                        initializeDataTable('variants-table', message.data.top_variants, variantColumns, {
+                        initializeDataTable('variants-table', metricData.top_variants, variantColumns, {
                             pageLength: 10,
                             order: [[vsIndex, 'desc']],
                             lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
