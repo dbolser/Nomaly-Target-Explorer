@@ -515,6 +515,8 @@ def stream_progress(disease_code: str, term: str):
                             "fpr": float(data["metric1_fpr"]),
                             "lrp": float(data["metric1_lrp"]),
                             "tp": int(data["metric1_tp"]),
+                            "threshold": float(data["metric1_threshold"]),
+                            "meaning": "True Positives, True Negatives, False Positives and False Negatives determined using a specific nomaly score threshold"
                         }
                     },
                     "roc_stats_mcc": {
@@ -526,6 +528,8 @@ def stream_progress(disease_code: str, term: str):
                             "fpr": float(data["roc_stats_mcc_fpr"]),
                             "lrp": float(data["roc_stats_mcc_lrp"]),
                             "tp": int(data["roc_stats_mcc_tp"]),
+                            "threshold": float(data["roc_stats_mcc_threshold"]),
+                            "meaning": "Threshold determined by maximum 'best-separation' p-value (MCC). Note this is a two-sided P value. To see if people above the threshold have a predisposition to be affected or not-affected, check the TPR and FPR below."
                         }
                     },
                     "roc_stats_yjs": {
@@ -537,6 +541,8 @@ def stream_progress(disease_code: str, term: str):
                             "fpr": float(data["roc_stats_yjs_fpr"]),
                             "lrp": float(data["roc_stats_yjs_lrp"]),
                             "tp": int(data["roc_stats_yjs_tp"]),
+                            "threshold": float(data["roc_stats_yjs_threshold"]),
+                            "meaning": "Threshold by maximum fraction of cases over threshold to that of controls."
                         }
                     }
                 }

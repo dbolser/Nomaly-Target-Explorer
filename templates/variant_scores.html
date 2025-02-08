@@ -54,9 +54,17 @@
                 <div class="col-md-3">
                     <strong>Meaning:</strong>
                 </div>
-                <div class="col-md-9">
-                    Using a specific Nomaly Score Threshold of 0.022 to measure True Positives, True Negatives, False
-                    Positives, False Negatives
+                <div class="col-md-9" id="meaning-text">
+                    Loading...
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <strong>Threshold:</strong>
+                </div>
+                <div class="col-md-9" id="threshold-text">
+                    Loading...
                 </div>
             </div>
 
@@ -167,6 +175,10 @@
                 stats.lrp.toFixed(2);
             document.getElementById('metric1_tp').textContent =
                 stats.tp.toString();
+            document.getElementById('meaning-text').textContent =
+                stats.meaning;
+            document.getElementById('threshold-text').textContent =
+                stats.threshold.toFixed(4);
         }
 
         function initializeTables(metricData) {
