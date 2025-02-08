@@ -152,25 +152,28 @@
                         break;
 
                     case 'results':
-                        // Update metric1 stats
-                        if (message.data.stats) {
-                            console.log('Updating stats with:', message.data.stats);  // Debug log
+                        // Update stats based on selected metric
+                        const selectedMetric = document.getElementById('statsSelect').value;
+                        const metricData = message.data[selectedMetric];
+                        
+                        if (metricData.stats) {
+                            console.log('Updating stats with:', metricData.stats);  // Debug log
 
-                            const stats = message.data.stats;
+                            const stats = metricData.stats;
                             document.getElementById('metric1_pvalue').textContent =
-                                stats.metric1_pvalue.toExponential(2);
+                                stats.pvalue.toExponential(2);
                             document.getElementById('metric1_tpr').textContent =
-                                (stats.metric1_tpr * 100).toFixed(2);  // Convert to percentage
+                                (stats.tpr * 100).toFixed(2);  // Convert to percentage
                             document.getElementById('metric1_fpr').textContent =
-                                (stats.metric1_fpr * 100).toFixed(2);  // Convert to percentage
+                                (stats.fpr * 100).toFixed(2);  // Convert to percentage
                             document.getElementById('metric1_lrp').textContent =
-                                stats.metric1_lrp.toFixed(2);
+                                stats.lrp.toFixed(2);
                             document.getElementById('metric1_tp').textContent =
-                                stats.metric1_tp.toString();
+                                stats.tp.toString();
                         }
 
                         // Initialize gene set table
-                        const geneSetColumns = Object.keys(message.data.top_gene_set[0]).map(key => ({
+                        const geneSetColumns = Object.keys(metricData.top_gene_set[0]).map(key => ({
                             data: key,
                             title: key.replace(/_/g, ' '),
                             visible: !['VS00', 'VS01', 'VS11'].includes(key),

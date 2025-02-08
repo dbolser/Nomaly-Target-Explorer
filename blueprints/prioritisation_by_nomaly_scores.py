@@ -498,38 +498,44 @@ def stream_progress(disease_code: str, term: str):
                 no_cache,
             )
 
-            # HACK FOR TESTING...
-            top_variants_dict = data["metric1_top_variants"]
-            top_gene_set_dict = data["metric1_top_gene_set"]
-
-            # Ensure top_gene_set_dict is not wrapped in an extra array
-            if isinstance(top_gene_set_dict, tuple) and len(top_gene_set_dict) == 1:
-                top_gene_set_dict = top_gene_set_dict[0]
-
-            print(f"Gene set structure before message: {type(top_gene_set_dict)}")
-            if top_gene_set_dict:
-                print(f"First gene set item type: {type(top_gene_set_dict[0])}")
-
-            # Format the gene set variant lists with proper comma separation
-            for record in top_gene_set_dict:
-                if "variant_id" in record and record["variant_id"]:
-                    variants = str(record["variant_id"]).split(",")
-                    record["variant_id"] = ", ".join(v.strip() for v in variants)
-
-            # Send results
+            # Send all stats data
             message_data = {
                 "type": "results",
                 "data": {
-                    "top_variants": top_variants_dict,
-                    "top_gene_set": top_gene_set_dict,
-                    "stats": {
-                        "metric1_pvalue": float(data["metric1_pvalue"]),
-                        "metric1_tpr": float(data["metric1_tpr"]),
-                        "metric1_fpr": float(data["metric1_fpr"]),
-                        "metric1_lrp": float(data["metric1_lrp"]),
-                        "metric1_tp": int(data["metric1_tp"]),
+                    "metric1": {
+                        "top_variants": data["metric1_top_variants"],
+                        "top_gene_set": data["metric1_top_gene_set"],
+                        "stats": {
+                            "pvalue": float(data["metric1_pvalue"]),
+                            "tpr": float(data["metric1_tpr"]),
+                            "fpr": float(data["metric1_fpr"]),
+                            "lrp": float(data["metric1_lrp"]),
+                            "tp": int(data["metric1_tp"]),
+                        }
                     },
-                },
+                    "roc_stats_mcc": {
+                        "top_variants": data["roc_stats_mcc_top_variants"],
+                        "top_gene_set": data["roc_stats_mcc_top_gene_set"],
+                        "stats": {
+                            "pvalue": float(data["roc_stats_mcc_pvalue"]),
+                            "tpr": float(data["roc_stats_mcc_tpr"]),
+                            "fpr": float(data["roc_stats_mcc_fpr"]),
+                            "lrp": float(data["roc_stats_mcc_lrp"]),
+                            "tp": int(data["roc_stats_mcc_tp"]),
+                        }
+                    },
+                    "roc_stats_yjs": {
+                        "top_variants": data["roc_stats_yjs_top_variants"],
+                        "top_gene_set": data["roc_stats_yjs_top_gene_set"],
+                        "stats": {
+                            "pvalue": float(data["roc_stats_yjs_pvalue"]),
+                            "tpr": float(data["roc_stats_yjs_tpr"]),
+                            "fpr": float(data["roc_stats_yjs_fpr"]),
+                            "lrp": float(data["roc_stats_yjs_lrp"]),
+                            "tp": int(data["roc_stats_yjs_tp"]),
+                        }
+                    }
+                }
             }
 
             # Add debug print to see the stats values
