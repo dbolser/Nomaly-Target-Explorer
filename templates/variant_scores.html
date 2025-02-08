@@ -259,7 +259,10 @@
                         break;
 
                     case 'results':
-                        // Default to metric1 if statsSelect doesn't exist yet
+                        // Store the full result data
+                        window.currentResultData = message.data;
+                        
+                        // Get selected metric
                         const selectedMetric = document.getElementById('statsSelect')?.value || 'metric1';
                         const metricData = message.data[selectedMetric];
                         
@@ -267,25 +270,12 @@
                             console.error('No metric data found for:', selectedMetric);
                             return;
                         }
+
+                        // Update stats display
+                        updateStatsDisplay(metricData.stats);
                         
-                        if (metricData.stats) {
-                            console.log('Updating stats with:', metricData.stats);  // Debug log
-
-                            const stats = metricData.stats;
-                            document.getElementById('metric1_pvalue').textContent =
-                                stats.pvalue.toExponential(2);
-                            document.getElementById('metric1_tpr').textContent =
-                                (stats.tpr * 100).toFixed(2);  // Convert to percentage
-                            document.getElementById('metric1_fpr').textContent =
-                                (stats.fpr * 100).toFixed(2);  // Convert to percentage
-                            document.getElementById('metric1_lrp').textContent =
-                                stats.lrp.toFixed(2);
-                            document.getElementById('metric1_tp').textContent =
-                                stats.tp.toString();
-                        }
-
-                        // Initialize gene set table
-                        const geneSetColumns = Object.keys(metricData.top_gene_set[0]).map(key => ({
+                        // Initialize tables with selected metric data
+                        initializeTables(metricData);
                             data: key,
                             title: key.replace(/_/g, ' '),
                             visible: !['VS00', 'VS01', 'VS11'].includes(key),
