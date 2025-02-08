@@ -9,11 +9,12 @@ load_dotenv()
 
 class Config:
     """Base configuration"""
+    TESTING = False
+    DEBUG = False
 
     # Flask settings
     HOST = "0.0.0.0"
     PORT = 8756
-    DEBUG = False
 
     # Session settings
     SESSION_TYPE = "filesystem"
@@ -74,20 +75,29 @@ class Config:
     # PHECODE_TERM_DIR = Path("/data/personal/danbolser/ukbb/by_phecode_term")
 
 
+class TestingConfig(Config):
+    """Testing configuration"""
+    TESTING = True
+    DEBUG = True
+    WTF_CSRF_ENABLED = False
+    # Use in-memory database for testing
+    MYSQL_HOST = "localhost"
+    MYSQL_PORT = 3306
+    MYSQL_USER = "testuser"
+    MYSQL_PASSWORD = "testpass"
+    MYSQL_DB = "testdb"
+
 class DevelopmentConfig(Config):
     """Development configuration"""
-
     DEBUG = True
-
 
 class ProductionConfig(Config):
     """Production configuration"""
-
     WTF_CSRF_ENABLED = True
-
 
 config = {
     "default": DevelopmentConfig,
     "development": DevelopmentConfig,
+    "testing": TestingConfig,
     "production": ProductionConfig,
 }
