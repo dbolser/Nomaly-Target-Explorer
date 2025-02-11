@@ -5,6 +5,10 @@ from typing import Optional
 import h5py
 import numpy as np
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 chr_str = re.compile("chr", re.IGNORECASE)
 
 
@@ -239,23 +243,23 @@ class GenotypesHDF5:
             # Try original variant
             genotypes = self._query_variants_internal(std_variant)
             if genotypes is not None:
-                print(f"Found variant {variant} in original orientation")
+                logger.debug(f"Found variant {variant} in original orientation")
                 return genotypes
 
             # Try flipped alleles
             flipped = self._flip_alleles(std_variant)
             genotypes = self._query_variants_internal(flipped)
             if genotypes is not None:
-                print(f"Found variant {variant} in flipped orientation")
+                logger.debug(f"Found variant {variant} in flipped orientation")
                 # Because we flipped the alleles, we need to flip the genotypes...
                 genotypes[genotypes != -1] = 2 - genotypes[genotypes != -1]
                 return genotypes
 
-            print(f"Variant not found in either orientation: {variant}")
+            logger.warning(f"Variant not found in either orientation: {variant}")
             return np.array([])
 
         except Exception as e:
-            print(f"Error in query_variants: {str(e)}")
+            logger.error(f"Error in query_variants: {str(e)}")
             return np.array([])
 
     def _query_variants_internal(self, variant: str) -> np.ndarray | None:
@@ -277,11 +281,11 @@ class GenotypesHDF5:
                     return None
                 return submatrix
             except Exception as e:
-                print(f"Error accessing genotype matrix: {str(e)}")
+                logger.error(f"Error accessing genotype matrix: {str(e)}")
                 return None
 
         except Exception as e:
-            print(f"Error in _query_variants_internal: {str(e)}")
+            logger.error(f"Error in _query_variants_internal: {str(e)}")
             return None
 
     def _single_variant_mask(self, varsel: str) -> np.ndarray | None:
@@ -292,7 +296,7 @@ class GenotypesHDF5:
                 return None
             return mask
         except Exception as e:
-            print(f"Error in _single_variant_mask: {str(e)}")
+            logger.error(f"Error in _single_variant_mask: {str(e)}")
             raise
 
     def query_variantID_genotypes(
@@ -312,13 +316,13 @@ class GenotypesHDF5:
             genotype_eids = self.individual
             genotypes = self.query_variants(variant)
             if genotypes is None or len(genotypes) == 0:
-                print(f"No genotype data found for variant {variant}")
+                logger.warning(f"No genotype data found for variant {variant}")
                 return None
 
             # Get first row of genotypes (for single variant)
             genotypes = genotypes[0]
             if len(genotypes) != len(genotype_eids):
-                print(
+                logger.warning(
                     f"Mismatch between genotypes ({len(genotypes)}) and IDs ({len(genotype_eids)})"
                 )
                 return None
@@ -331,5 +335,5 @@ class GenotypesHDF5:
             return sorted_genotype_eids, sorted_genotypes
 
         except Exception as e:
-            print(f"Error in get_genotype_data for variant {variant}: {str(e)}")
+            logger.error(f"Error in get_genotype_data for variant {variant}: {str(e)}")
             return None

@@ -42,6 +42,8 @@ class PhenotypesHDF5:
             assert phenotype_data.shape[1] == phecodes.shape[0]
             assert affected_sex.shape[0] == phecodes.shape[0]
 
+            assert np.all(np.diff(eids) > 0), "EIDs are expected to be sorted"
+
         except Exception as e:
             print(f"Error in sanity checks: {str(e)}")
             raise
@@ -55,9 +57,13 @@ class PhenotypesHDF5:
         self.phecodes: np.ndarray = phecodes[...].astype(str)
         self.affected_sex: np.ndarray = affected_sex[...].astype(str)
 
+        # TODO: What about eid to index mapping?
+        # TODO: Is this useful?
         self.phecode_to_index = {
             phecode: index for index, phecode in enumerate(self.phecodes)
         }
+
+        # TODO: Do we need a memory-mapped matrix here too?
 
     def get_population_mask(self, population):
         return self.populations == population

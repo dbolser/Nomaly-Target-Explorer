@@ -9,6 +9,7 @@ load_dotenv()
 
 class Config:
     """Base configuration"""
+
     TESTING = False
     DEBUG = False
 
@@ -51,7 +52,8 @@ class Config:
     NOMALY_SCORES_H5 = NOMALY_RESULTS_DIR / "float16_scores.h5"
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats.h5"
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats-fixed.h5"
-    STATS_H5 = NOMALY_RESULTS_DIR / "stats-EUR-2025-02-07.h5"
+    # STATS_H5 = NOMALY_RESULTS_DIR / "stats-EUR-2025-02-07.h5"
+    STATS_H5 = NOMALY_RESULTS_DIR / "stats-All-2025-02-10.h5"
 
     # Nomaly results directories and files (V2)
     NOMALY_RESULTS_DIR_V2 = Path("/data/general/UKBB/Run-v2/DatabaseInputs")
@@ -59,24 +61,27 @@ class Config:
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-fixed.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-fixed-EUR.h5"
-    STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-EUR-2025-02-07.h5"
+    # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-EUR-2025-02-07.h5"
+    STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-All-2025-02-10.h5"
 
     RESOURCE_DATA_DIR = Path("/data/general/Data/")
 
     # Caching directoriesd
-    GWAS_PHENO_DIR = Path("/data/clu/ukbb/by_pheno")
-    PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
-    PHECODE_TERM_DIR = Path("/data/clu/ukbb/by_phecode_term")
-    VARIANT_SCORES_DIR = Path("/data/clu/ukbb/variant_scores")
+    # GWAS_PHENO_DIR = Path("/data/clu/ukbb/by_pheno")
+    # PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
+    # PHECODE_TERM_DIR = Path("/data/clu/ukbb/by_phecode_term")
+    # VARIANT_SCORES_DIR = Path("/data/clu/ukbb/variant_scores")
 
     # Caching directories
-    # GWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/eur_gwas")
-    # PHEWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/eur_phewas")
-    # PHECODE_TERM_DIR = Path("/data/personal/danbolser/ukbb/by_phecode_term")
+    GWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/cache/by_pheno")
+    PHEWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/cache/by_variant")
+    PHECODE_TERM_DIR = Path("/data/personal/danbolser/ukbb/cache/by_phecode_term")
+    VARIANT_SCORES_DIR = Path("/data/personal/danbolser/ukbb/cache/variant_scores")
 
 
 class TestingConfig(Config):
     """Testing configuration"""
+
     TESTING = True
     DEBUG = True
     WTF_CSRF_ENABLED = False
@@ -87,13 +92,18 @@ class TestingConfig(Config):
     MYSQL_PASSWORD = "testpass"
     MYSQL_DB = "testdb"
 
+
 class DevelopmentConfig(Config):
     """Development configuration"""
+
     DEBUG = True
+
 
 class ProductionConfig(Config):
     """Production configuration"""
+
     WTF_CSRF_ENABLED = True
+
 
 config = {
     "default": DevelopmentConfig,

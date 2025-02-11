@@ -1,50 +1,40 @@
 import pytest
 from flask import template_rendered
 from contextlib import contextmanager
-from app import create_app
 
-@pytest.fixture
-def app():
-    """Create and configure a new app instance for each test."""
-    app = create_app('testing')
-    yield app
-
-@pytest.fixture
-def client(app):
-    """A test client for the app."""
-    return app.test_client()
 
 @contextmanager
-def captured_templates(app):
+def captured_templates(integration_app):
     recorded = []
-    
+
     def record(sender, template, context, **extra):
         recorded.append((template, context))
-        
-    template_rendered.connect(record, app)
+
+    template_rendered.connect(record, integration_app)
     try:
         yield recorded
     finally:
-        template_rendered.disconnect(record, app)
+        template_rendered.disconnect(record, integration_app)
 
-def test_variant_scores_template(client):
-    with captured_templates(client.application) as templates:
-        response = client.get('/variant_scores/290.11/GO:0016861')
+
+def test_variant_scores_template(integration_app_client):
+    with captured_templates(integration_app_client.application) as templates:
+        response = integration_app_client.get("/variant_scores/290.11/GO:0016861")
         assert response.status_code == 200
-        
+
         # Check that the correct template was rendered
         template, context = templates[0]
-        assert template.name == 'variant_scores.html'
-        
+        assert template.name == "variant_scores.html"
+
         # Check that required context variables are present
-        assert 'data' in context
-        assert 'disease_code' in context
-        assert 'term' in context
-        
+        assert "data" in context
+        assert "disease_code" in context
+        assert "term" in context
+
         # Check that initial stats values are set
-        data = context['data']
-        assert 'metric1_pvalue' in data
-        assert 'metric1_tpr' in data
-        assert 'metric1_fpr' in data
-        assert 'metric1_lrp' in data
-        assert 'metric1_tp' in data
+        data = context["data"]
+        assert "metric1_pvalue" in data
+        assert "metric1_tpr" in data
+        assert "metric1_fpr" in data
+        assert "metric1_lrp" in data
+        assert "metric1_tp" in data

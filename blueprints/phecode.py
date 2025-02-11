@@ -29,7 +29,7 @@ def get_phecode_data(phecode, population: str | None = None) -> dict:
         phecode, population=population
     )
 
-    data["population"] = population or "ALL"
+    data["population"] = population or "All"
     data["affected"] = case_counts["affected"]
     data["excluded"] = case_counts["excluded"]
     data["control"] = case_counts["control"]
@@ -40,7 +40,7 @@ def get_phecode_data(phecode, population: str | None = None) -> dict:
 # TODO: Merge these two endpoints
 @phecode_bp.route("/phecode/<string:phecode>", methods=["GET"])
 @phecode_bp.route("/phecode/<string:phecode>/<string:population>", methods=["GET"])
-def show_phecode(phecode, population="EUR"):
+def show_phecode(phecode, population=None):
     data = get_phecode_data(phecode, population)
     data["runbatch"] = "Run v1"
     data["show_gwas"] = request.args.get("gwas") == "1"
@@ -50,7 +50,7 @@ def show_phecode(phecode, population="EUR"):
 
 @phecode_bp.route("/phecode2/<string:phecode>", methods=["GET"])
 @phecode_bp.route("/phecode2/<string:phecode>/<string:population>", methods=["GET"])
-def show_phecode2(phecode, population="EUR"):
+def show_phecode2(phecode, population=None):
     data = get_phecode_data(phecode, population)
     data["runbatch"] = "Run v2"
     data["show_gwas"] = request.args.get("gwas") == "1"
@@ -320,7 +320,9 @@ def main():
 
     with app.app_context():
         services = current_app.extensions["nomaly_services"]
-        stats_service = get_stats_handler(version=2, population="EUR")
+
+        # TOOD: Move this to the stats service?
+        stats_service = get_stats_handler(version=2, population=None)
         stats_hdf = stats_service._hdf
 
         print(stats_hdf.get_stats_by_phecode("332"))

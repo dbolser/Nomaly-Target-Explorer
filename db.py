@@ -301,12 +301,12 @@ def get_term_variants(term: str) -> pd.DataFrame:
                     variant_id,
                     gene
                 """
-                print(f"\nExecuting query for term: {term}")
-                print(f"Query: {query}")
+                logger.info(f"\nExecuting query for term: {term}")
+                logger.debug(f"Query: {query}")
 
                 cur.execute(query, (term,))
                 results = cur.fetchall()
-                print(f"Number of results from DB: {len(results)}")
+                logger.info(f"Number of results from DB: {len(results)}")
 
                 if not results:
                     logger.warning(f"No data found for term: {term}")
@@ -317,13 +317,13 @@ def get_term_variants(term: str) -> pd.DataFrame:
 
                 df = pd.DataFrame(results, columns=columns)
 
-                print(f"Created DataFrame with shape: {df.shape}")
+                logger.debug(f"Created DataFrame with shape: {df.shape}")
 
                 # Convert numpy types to Python native types
                 if not df.empty:
                     df["hmm_score"] = df["hmm_score"].astype(float)
-                    print("Sample of data:")
-                    print(df.head())
+                    logger.debug("Sample of data:")
+                    logger.debug(df.head())
 
                 return df
     except DatabaseConnectionError:
