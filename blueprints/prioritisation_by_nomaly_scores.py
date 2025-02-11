@@ -163,7 +163,8 @@ def process_individual_variants(sel_genotypes, term_variant_scores):
         top_variants = individual_variant_prioritisation(
             individual, term_variant_scores
         )
-        for variant, vs in zip(top_variants.index, top_variants["vs"]):
+        fucking_unique_variants = top_variants.index.unique()
+        for variant, vs in zip(fucking_unique_variants, top_variants["vs"]):
             ind_top_variants[variant] += 1
             ind_top_variants_scores[variant] += vs
 
@@ -719,8 +720,8 @@ def main():
     # disease_code = "290.11"
     # term = "GO:0016861"
 
-    # disease_code = "290.11"
-    # term = "CD:MESH:D009139"
+    disease_code = "290.11"
+    term = "CD:MESH:D009139"
 
     # disease_code = "334.2"
     # term = "GO:0044559"
@@ -730,6 +731,9 @@ def main():
 
     # disease_code = "324.1"
     # term = "GO:0009225"
+
+    disease_code = "332"
+    term = "GO:0030800"
 
     from app import create_app
 
