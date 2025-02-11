@@ -1,19 +1,20 @@
-from blueprints.nomaly import nomaly_genotype, PhenotypesHDF5
-from db import get_all_phecodes
-
+import logging
+import os
 from collections import Counter
 from typing import Any, List, NamedTuple
 
+import numpy as np
+import pandas as pd
+from flask import current_app
+from scipy.stats import fisher_exact
 from tqdm import tqdm
 
-import pandas as pd
-import numpy as np
-
-from scipy.stats import fisher_exact
-
-import os
-
 from config import Config
+from data_services.phenotype import PhenotypeService
+from db import get_all_phecodes, get_all_variants
+
+logger = logging.getLogger(__name__)
+
 
 PHEWAS_PHENO_DIR = Config.PHEWAS_PHENO_DIR
 
@@ -148,20 +149,32 @@ class PhecodeCounts:
         return string
 
 
-def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
+def get_genotype_data(
+    variant: str, services=None
+) -> tuple[np.ndarray, np.ndarray] | None:
     """
     Get genotype data for a variant.
 
     Args:
         variant (str): Variant ID in format "CHR:POS:REF:ALT"
+        services: Service registry containing required services
 
     Returns:
         tuple: (sorted_eids, sorted_genotypes) or None if error
     """
+    if services is None:
+        from flask import current_app
+
+        services = current_app.extensions["nomaly_services"]
+
+    genotype_service = services.genotype
+    if genotype_service is None:
+        raise ValueError("Genotype service is not initialized!")
+
     try:
         # Get genotype data
-        genotype_eids = nomaly_genotype.individual
-        genotypes = nomaly_genotype.query_variants(variant)
+        genotype_eids = genotype_service._hdf.individual
+        genotypes = genotype_service._hdf.query_variants(variant)
         if genotypes is None or len(genotypes) == 0:
             print(f"No genotype data found for variant {variant}")
             return None
@@ -187,10 +200,15 @@ def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
 
 
 def process_phecode(
-    phecode, sorted_genotype_eids, sorted_genotypes, phenotype_data, all_phecodes
-):
+    phecode: str,
+    sorted_genotype_eids: np.ndarray,
+    sorted_genotypes: np.ndarray,
+    phenotype_service: PhenotypeService,  # Type hint the interface
+    all_phecodes: pd.DataFrame,
+) -> dict | None:
+    """Process a single phecode."""
     try:
-        eids, cases = phenotype_data.get_cases_for_phecode(phecode)
+        eids, cases = phenotype_service._hdf.get_cases_for_phecode(phecode)
     except ValueError:
         print(f"Phecode {phecode} not found in the data matrix")
         return None
@@ -206,7 +224,7 @@ def process_phecode(
         for case in [0, 1]:
             count = np.sum((matched_genotypes == genotype) & (matched_cases == case))
             if count > 0:
-                phecode_counts.add(case, int(genotype), count)
+                phecode_counts.add(case, genotype, count)
 
     stats = phecode_counts.get_stats()
     odds_ratio, p_value = stats["fisher_stats"]
@@ -241,13 +259,13 @@ def process_phecode(
     }
 
 
-def phecode_level_assoc(variant: str) -> pd.DataFrame:
+def phecode_level_assoc(variant: str, services=None) -> pd.DataFrame:
     """
     Run PheWAS analysis for a variant and save results to file.
     Returns the DataFrame of results.
     """
     # Get genotype data and handle failure case
-    genotype_result = get_genotype_data(variant)
+    genotype_result = get_genotype_data(variant, services)
     if genotype_result is None:
         print(f"No genotype data found for variant {variant}")
         return pd.DataFrame()
@@ -255,7 +273,11 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
     sorted_genotype_eids, sorted_genotypes = genotype_result
 
     all_phecodes = get_all_phecodes()
-    phenotype_data = PhenotypesHDF5()
+
+    services = services if services else current_app.extensions["nomaly_services"]
+    phenotype_data = services.phenotype
+    assert phenotype_data is not None
+
     data_to_return = []
 
     for phecode in tqdm(
@@ -288,7 +310,9 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
     return results_df
 
 
-def get_phewas_results(variant: str, phecode: str | None = None) -> pd.DataFrame | None:
+def get_phewas_results(
+    variant: str, phecode: str | None = None, flush_cache: bool = False, services=None
+) -> pd.DataFrame:
     """
     Get PheWAS results for a variant, either from cache or by running analysis.
     If phecode is provided and no cached results exist, only analyze that specific phecode.
@@ -296,6 +320,8 @@ def get_phewas_results(variant: str, phecode: str | None = None) -> pd.DataFrame
     Args:
         variant (str): Variant ID in format "CHR:POS:REF:ALT"
         phecode (str | None): Optional phecode to analyze
+        flush_cache (bool): Whether to ignore cached results
+        services: Service registry containing required services
 
     Returns:
         pd.DataFrame | None: DataFrame with PheWAS results or None if analysis fails
@@ -312,8 +338,10 @@ def get_phewas_results(variant: str, phecode: str | None = None) -> pd.DataFrame
                 return df[df["phecode"] == phecode]
             return df
         except Exception as e:
-            print(f"Error reading existing PheWAS file for variant {variant}: {e}")
-            return None
+            logger.error(
+                f"Error reading existing PheWAS file for variant {variant}: {e}"
+            )
+            return pd.DataFrame()
 
     # If no cached results and specific phecode requested, analyze just that phecode
     if phecode is not None:
@@ -322,13 +350,15 @@ def get_phewas_results(variant: str, phecode: str | None = None) -> pd.DataFrame
                 f"Running single-phecode analysis for variant {variant} and phecode {phecode}"
             )
             # Get genotype data
-            genotype_result = get_genotype_data(variant)
+            genotype_result = get_genotype_data(variant, services)
             if genotype_result is None:
-                return None
+                return pd.DataFrame()
 
             sorted_genotype_eids, sorted_genotypes = genotype_result
             all_phecodes = get_all_phecodes()
-            phenotype_data = PhenotypesHDF5()
+
+            phenotype_data = services.phenotype if services else None
+            assert phenotype_data is not None
 
             # Process just the requested phecode
             result = process_phecode(
@@ -341,22 +371,24 @@ def get_phewas_results(variant: str, phecode: str | None = None) -> pd.DataFrame
 
             if result:
                 return pd.DataFrame([result])
-            return None
+            return pd.DataFrame()
 
         except Exception as e:
-            print(f"Error in single-phecode analysis for variant {variant}: {e}")
-            return None
+            logger.error(
+                f"Error in single-phecode analysis for variant '{variant}': {e}"
+            )
+            return pd.DataFrame()
 
     # No cached results and no specific phecode - run full analysis
     try:
-        results_df = phecode_level_assoc(variant)
+        results_df = phecode_level_assoc(variant, services)
         if results_df is None or results_df.empty:
             print(f"PheWAS analysis returned no results for variant {variant}")
-            return None
+            return pd.DataFrame()
         return results_df
     except Exception as e:
         print(f"Error running PheWAS for variant {variant}: {e}")
-        return None
+        return pd.DataFrame()
 
 
 def format_phewas_row_for_display(row: pd.Series) -> dict:
@@ -383,7 +415,7 @@ def format_phewas_row_for_display(row: pd.Series) -> dict:
 
 
 def get_formatted_phewas_data(
-    variant_id: str, phecode: str | None = None
+    variant_id: str, phecode: str | None = None, services=None
 ) -> List[dict[str, Any]]:
     """
     Get formatted PheWAS data for a variant, optionally filtered by phecode.
@@ -391,11 +423,12 @@ def get_formatted_phewas_data(
     Args:
         variant_id (str): Variant ID
         phecode (str | None): Optional phecode to filter results
+        services: Service registry containing required services
 
     Returns:
         List[dict]: List of formatted PheWAS results (one dict per row)
     """
-    phewas_df = get_phewas_results(variant_id, phecode)
+    phewas_df = get_phewas_results(variant_id, phecode, services=services)
 
     if phewas_df is None or phewas_df.empty:
         print(f"No PheWAS results available for variant {variant_id}")
@@ -418,30 +451,36 @@ def process_variant(variant: str):
     return get_phewas_results(variant, None)
 
 
-from multiprocessing import Pool
-
-
-def main():
-    test_variant = "11:69083946:T:C"
-    test_variant = "9:35066710:A:G"
-    test_variant = "19:44908684:C:T"
-    test_variant = "8:7055492:C:T"  # Just kill me
-    test_variant = "8:6870776:T:C"
-
-    # phecode_level_assoc(test_variant)
-
-    from db import get_all_variants
+def run_full_analysis():
+    """Run PheWAS analysis on all variants."""
+    from multiprocessing import Pool
 
     variants_df = get_all_variants()
     variants_df["variant_id_standard"] = variants_df.variant_id.apply(
         lambda x: x.replace("/", "_")
     )
 
-    # Create a pool of 10 workers
     with Pool(96) as p:
-        # Map get_phewas_results to all variants
         p.map(process_variant, variants_df.variant_id_standard)
-        print("Done!")
+
+
+def main():
+    """Debug entry point for blueprint development."""
+    from app import create_app
+
+    app = create_app("development")
+    with app.app_context():
+        # Quick test of single variant/phecode
+        test_variant = "19:15373898:C:T"
+        test_variant = "5:33951588:C:G"
+        # results = get_phewas_results(test_variant, "642.1")
+        results = get_phewas_results(test_variant, None)
+        print(results)
+
+        # Optionally run full analysis
+        DO_FULL_RUN = False
+        if DO_FULL_RUN:
+            run_full_analysis()
 
 
 if __name__ == "__main__":

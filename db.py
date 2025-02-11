@@ -1,31 +1,26 @@
+import logging
 import mysql.connector
+import pandas as pd
 from mysql.connector.abstracts import MySQLConnectionAbstract
 
-import pandas as pd
-
 from errors import DatabaseConnectionError, DataNotFoundError
-from flask import current_app
-from utils import app_context
-
-import logging
+from config import Config
 
 logger = logging.getLogger(__name__)
 
 
-# Connect to the database
 def get_db_connection() -> MySQLConnectionAbstract:
+    """Get a database connection using config values."""
     try:
-        with app_context():
-            conn = mysql.connector.connect(
-                host=current_app.config["MYSQL_HOST"],
-                port=current_app.config["MYSQL_PORT"],
-                user=current_app.config["MYSQL_USER"],
-                password=current_app.config["MYSQL_PASSWORD"],
-                database=current_app.config["MYSQL_DB"],
-            )
-            # TODO: See tests/unit/test_models.py
-            assert isinstance(conn, MySQLConnectionAbstract)
-            return conn
+        conn = mysql.connector.connect(
+            host=Config.MYSQL_HOST,
+            port=Config.MYSQL_PORT,
+            user=Config.MYSQL_USER,
+            password=Config.MYSQL_PASSWORD,
+            database=Config.MYSQL_DB,
+        )
+        assert isinstance(conn, MySQLConnectionAbstract)
+        return conn
     except Exception as e:
         logger.error("Database connection failed", exc_info=True)
         raise DatabaseConnectionError(f"Could not connect to database: {str(e)}")
@@ -37,18 +32,10 @@ def get_all_phecodes() -> pd.DataFrame:
             with conn.cursor(dictionary=True) as cur:
                 cur.execute(
                     """
-        SELECT 
-          phecode, description, sex, phecode_group #, 
-          #GROUP_CONCAT(icd10 ORDER BY icd10_count DESC),
-          #GROUP_CONCAT(meaning ORDER BY icd10_count DESC), 
-          #GROUP_CONCAT(icd10_count ORDER BY icd10_count DESC), 
-          #SUM(icd10_count)
-        FROM phecode_definition
-        #INNER JOIN icd10_phecode USING(phecode)
-        #INNER JOIN icd10_coding USING(icd10)
-        #GROUP BY phecode
-        ;
-        """
+                    SELECT 
+                      phecode, description, sex, phecode_group
+                    FROM phecode_definition
+                    """
                 )
                 results = cur.fetchall()
 
@@ -80,8 +67,7 @@ def get_phecode_info(phecode: str) -> dict:
                 if not results:
                     raise DataNotFoundError(f"No data found for phecode: {phecode}")
 
-                assert isinstance(results, dict)
-                return results
+                return dict(results)
     except DatabaseConnectionError:
         raise
     except Exception as e:
@@ -313,18 +299,14 @@ def get_term_variants(term: str) -> pd.DataFrame:
                 GROUP BY
                     term,
                     variant_id,
-                    gene,
-                    wild,
-                    mutant
-                HAVING
-                    ABS(wild - mutant) = MAX(ABS(wild - mutant));
+                    gene
                 """
-                print(f"\nExecuting query for term: {term}")
-                print(f"Query: {query}")
+                logger.info(f"\nExecuting query for term: {term}")
+                logger.debug(f"Query: {query}")
 
                 cur.execute(query, (term,))
                 results = cur.fetchall()
-                print(f"Number of results from DB: {len(results)}")
+                logger.info(f"Number of results from DB: {len(results)}")
 
                 if not results:
                     logger.warning(f"No data found for term: {term}")
@@ -335,13 +317,13 @@ def get_term_variants(term: str) -> pd.DataFrame:
 
                 df = pd.DataFrame(results, columns=columns)
 
-                print(f"Created DataFrame with shape: {df.shape}")
+                logger.debug(f"Created DataFrame with shape: {df.shape}")
 
                 # Convert numpy types to Python native types
                 if not df.empty:
                     df["hmm_score"] = df["hmm_score"].astype(float)
-                    print("Sample of data:")
-                    print(df.head())
+                    logger.debug("Sample of data:")
+                    logger.debug(df.head())
 
                 return df
     except DatabaseConnectionError:

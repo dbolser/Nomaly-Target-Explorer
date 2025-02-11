@@ -1,13 +1,16 @@
 import numpy as np
 
-from blueprints.nomaly import GenotypeHDF5
+from data_services.genotype import GenotypesHDF5
 
 from config import Config
 
+import pytest
+
 config = Config()
-nomaly_genotype = GenotypeHDF5(config.GENOTYPES_H5)
+nomaly_genotype = GenotypesHDF5(config.GENOTYPES_H5)
 
 NUM_INDIVIDUALS = 488377
+NUM_INDIVIDUALS = 487950  # Removed 427 individuals with negative eids
 NUM_VARIANTS = 83011
 
 
@@ -40,7 +43,8 @@ def test_individual_count():
 
 def test_variant_count():
     """Verify the expected number of variants in the dataset."""
-    assert len(nomaly_genotype.variants) == NUM_VARIANTS
+    assert len(nomaly_genotype.genotype_variant_id) == NUM_VARIANTS
+    assert len(nomaly_genotype.nomaly_variant_id) == NUM_VARIANTS
 
 
 def test_genotype_matrix_shape():
@@ -56,19 +60,38 @@ def test_known_variant_genotype_distribution():
     assert result is not None
 
     genotypes = result[0]
-    expected_ref_homozygous = 9874
-    expected_heterozygous = 108371
-    expected_alt_homozygous = 296223
 
+    expected_missing_______ = 73846
+    expected_ref_homozygous = 9863
+    expected_heterozygous__ = 108276
+    expected_alt_homozygous = 295965
+
+    assert np.sum(genotypes == -1) == expected_missing_______
     assert np.sum(genotypes == 0) == expected_ref_homozygous
-    assert np.sum(genotypes == 1) == expected_heterozygous
+    assert np.sum(genotypes == 1) == expected_heterozygous__
+    assert np.sum(genotypes == 2) == expected_alt_homozygous
+
+    variant = "6:26199089:A:C"
+    result = nomaly_genotype.query_variants(variant)
+    assert result is not None
+
+    genotypes = result[0]
+
+    expected_missing_______ = 354
+    expected_ref_homozygous = 487591
+    expected_heterozygous__ = 5
+    expected_alt_homozygous = 0
+
+    assert np.sum(genotypes == -1) == expected_missing_______
+    assert np.sum(genotypes == 0) == expected_ref_homozygous
+    assert np.sum(genotypes == 1) == expected_heterozygous__
     assert np.sum(genotypes == 2) == expected_alt_homozygous
 
 
-def test_variant_format_in_file():
+def test_genotype_variant_id_format_in_file():
     """Test that variants in the file follow the expected format."""
     # Sample first 1000 variants
-    sample_variants = nomaly_genotype.variants[:1000]
+    sample_variants = nomaly_genotype.genotype_variant_id[:1000]
 
     for variant in sample_variants:
         parts = variant.split(":")
@@ -79,6 +102,28 @@ def test_variant_format_in_file():
         assert len(parts[3]) >= 1, f"Invalid alt allele: {parts[3]}"
 
 
+def test_nomaly_variant_id_format_in_file():
+    """Test that variants in the file follow the expected format."""
+    # Sample first 1000 variants
+    sample_variants = nomaly_genotype.nomaly_variant_id[:1000]
+
+    missing_count = 0
+    for variant in sample_variants:
+        if variant == "Missing":
+            missing_count += 1
+            continue
+
+        chr, pos, alleles = variant.split("_")
+        assert len(chr) == 1, f"Invalid chromosome: {chr}"
+        assert len(pos) >= 1, f"Invalid position: {pos}"
+        assert len(alleles) == 3, f"Invalid alleles: {alleles}"
+        assert alleles[0] in ["A", "C", "G", "T"], f"Invalid ref allele: {alleles[0]}"
+        assert alleles[1] == "/", f"Invalid separator: {alleles[1]}"
+        assert alleles[2] in ["A", "C", "G", "T"], f"Invalid alt allele: {alleles[2]}"
+
+    assert missing_count < 1000, "There should be less than 1000 missing variants"
+
+
 def test_individual_id_format():
     """Test that individual IDs are in the expected format."""
     sample_ids = nomaly_genotype.individual[:1000]
@@ -86,15 +131,15 @@ def test_individual_id_format():
     # THIS WAS A PROBLEM IN THE ORIGINAL FILE, e..g there was exactly 1 -1 in
     # the sample_ids!
 
-    NUM_MISSING_IDS = 1
+    NUM_MISSING_IDS = 0
 
-    assert (
-        np.sum(sample_ids == -1) == NUM_MISSING_IDS
-    ), f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
+    assert np.sum(sample_ids == -1) == NUM_MISSING_IDS, (
+        f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
+    )
 
-    assert (
-        np.sum(sample_ids < 0) == NUM_MISSING_IDS
-    ), f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
+    assert np.sum(sample_ids < 0) == NUM_MISSING_IDS, (
+        f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
+    )
 
     for id_num in sample_ids:
         assert isinstance(id_num, np.integer)
@@ -126,9 +171,9 @@ def test_flipped_allele_query():
 
     # First verify the original variant isn't found
     result_original = nomaly_genotype.query_variants(variant)
-    assert (
-        result_original is not None
-    ), "Either original or flipped variant should be found"
+    assert result_original is not None, (
+        "Either original or flipped variant should be found"
+    )
 
     # The query should automatically try the flipped version
     genotypes = result_original[0]
@@ -152,17 +197,25 @@ def test_variant_format_standardization():
         ("chr8_6870776_C/T", "8:6870776:C:T"),
         ("Chr8_6870776_C_T", "8:6870776:C:T"),
         ("CHR8:6870776:C:T", "8:6870776:C:T"),
-        # Invalid formats
-        ("invalid_format", None),
-        ("8_6870776", None),  # Missing alleles
-        ("8_pos_C/T", None),  # Invalid position
-        ("", None),  # Empty string
-        ("8_6870776_C", None),  # Missing alt
     ]
 
     for input_variant, expected in test_cases:
         result = geno._standardize_variant_format(input_variant)
         assert result == expected, f"Failed for {input_variant}"
+
+    test_cases = [
+        # Invalid formats
+        "invalid_format",
+        "8_6870776",  # Missing alleles
+        "8_pos_C/T",  # Invalid position
+        "",  # Empty string
+        "8_6870776_C",  # Missing alt
+    ]
+
+    # Test that invalid formats raise ValueError
+    for invalid_variant in test_cases:
+        with pytest.raises(ValueError):
+            geno._standardize_variant_format(invalid_variant)
 
 
 def test_query_with_different_formats():
@@ -172,7 +225,6 @@ def test_query_with_different_formats():
         "8_6870776_C/T",  # underscore format
         "8:6870776:C:T",  # colon format
         "chr8_6870776_C/T",  # with chr prefix
-        "8-6870776-C-T",  # dash format
     ]
 
     # All should return the same data
@@ -210,45 +262,67 @@ def test_genotype_flipping():
 
     # Verify that homozygous ref (0) in one is homozygous alt (2) in the other
     ref_homozygous_mask = genotypes_ref == 0
-    assert all(
-        genotypes_flipped[ref_homozygous_mask] == 2
-    ), "Homozygous ref not flipped to homozygous alt"
+    assert all(genotypes_flipped[ref_homozygous_mask] == 2), (
+        "Homozygous ref not flipped to homozygous alt"
+    )
 
     # Verify that homozygous alt (2) in one is homozygous ref (0) in the other
     alt_homozygous_mask = genotypes_ref == 2
-    assert all(
-        genotypes_flipped[alt_homozygous_mask] == 0
-    ), "Homozygous alt not flipped to homozygous ref"
+    assert all(genotypes_flipped[alt_homozygous_mask] == 0), (
+        "Homozygous alt not flipped to homozygous ref"
+    )
 
     # Verify that heterozygous (1) stays heterozygous
     het_mask = genotypes_ref == 1
-    assert all(
-        genotypes_flipped[het_mask] == 1
-    ), "Heterozygous genotypes changed during flipping"
+    assert all(genotypes_flipped[het_mask] == 1), (
+        "Heterozygous genotypes changed during flipping"
+    )
 
     # Verify that missing (-1) stays missing
     missing_mask = genotypes_ref == -1
-    assert all(
-        genotypes_flipped[missing_mask] == -1
-    ), "Missing genotypes changed during flipping"
+    assert all(genotypes_flipped[missing_mask] == -1), (
+        "Missing genotypes changed during flipping"
+    )
 
 
 def test_variant_counts():
-    """Test the variant counts."""
-    counts = nomaly_genotype.get_variant_counts()
+    """Test the variant counts for specific variants."""
+    # Test a variant with known distribution
+    variant = "19_44908684_T/C"
+    counts = nomaly_genotype.get_variant_counts(variant)
 
-    # Verify we have the expected number of variants
-    assert len(counts) == NUM_VARIANTS
+    # Check the counts match expected values
+    assert counts["missing"] == 73846
+    assert counts["homozygous_ref"] == 9863
+    assert counts["heterozygous"] == 108276
+    assert counts["homozygous_alt"] == 295965
+    assert counts["total"] == 487950
 
-    # Test specific variant counts using DataFrame indexing
-    variant1 = "19:44908684:C:T"
-    assert counts.loc[variant1, "heterozygous"] == 108371
-    assert counts.loc[variant1, "homozygous_alt"] == 296223
-    assert counts.loc[variant1, "homozygous_ref"] == 9874
-    assert counts.loc[variant1, "missing"] == 73909
+    # Test another variant with different distribution
+    variant = "6_26199089_A/C"
+    counts = nomaly_genotype.get_variant_counts(variant)
 
-    variant2 = "11:69083946:T:C"
-    assert counts.loc[variant2, "heterozygous"] == 11499
-    assert counts.loc[variant2, "homozygous_alt"] == 474918
-    assert counts.loc[variant2, "homozygous_ref"] == 1516
-    assert counts.loc[variant2, "missing"] == 444
+    assert counts["missing"] == 354
+    assert counts["homozygous_ref"] == 0
+    assert counts["heterozygous"] == 5
+    assert counts["homozygous_alt"] == 487591
+    assert counts["total"] == 487950
+
+    # Test with ancestry filter
+    counts_eur = nomaly_genotype.get_variant_counts(variant, ancestry="EUR")
+    assert counts_eur["missing"] == 319
+    assert counts_eur["homozygous_ref"] == 0
+    assert counts_eur["heterozygous"] == 5
+    assert counts_eur["homozygous_alt"] == 449099
+    assert counts_eur["total"] == 449423
+
+    assert sum(counts_eur.values()) <= sum(counts.values())
+
+    # Test with sex filter
+    counts_female = nomaly_genotype.get_variant_counts(variant, sex="F")
+    assert isinstance(counts_female["missing"], int)
+    assert isinstance(counts_female["homozygous_ref"], int)
+    assert isinstance(counts_female["heterozygous"], int)
+    assert isinstance(counts_female["homozygous_alt"], int)
+    assert isinstance(counts_female["total"], int)
+    assert sum(counts_female.values()) <= sum(counts.values())

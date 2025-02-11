@@ -1,0 +1,17 @@
+<div id="phecodeDetails" class="mb-4">
+    <h3>Disease: {{data.description}}</h3>
+    <p class="p-2 bg-light rounded">
+        <span>Phecode: {{ data.phecode }} {% if data.runbatch %}({{data.runbatch}}){% endif %}</span> |
+        <span>Sex: {{ data.sex }}</span> |
+        {% if data.population %}<span>Population: {{ data.population }}</span> |{% endif %}
+        <span>Affected: <strong>{{ data.affected }}</strong></span> |
+        <span>Control: {{ data.control }} </span> |
+        <span>Excluded: {{ data.excluded }} ({{ data.phecode_exclude }})</span> |
+        <span>Disease: {{ data.phecode_group }}</span>
+    </p>
+    <ul class="meaning-list">
+        {% for meaning in data.meaning %}
+        <li>{{ meaning }}</li>
+        {% endfor %}
+    </ul>
+</div>

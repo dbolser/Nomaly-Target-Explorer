@@ -4,32 +4,15 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h3>{{data.description}}</h3>
 
-    <div id="phecodeDetails" class="mb-4">
-        <p class="p-2 bg-light rounded">
-            <span><a href="/phecode/{{ data.phecode }}" target="_blank">Phecode: {{ data.phecode }}</a></span> |
-            <span>Sex: {{ data.sex }}</span> |
-            <span>Affected: <strong>{{ data.affected }}</strong></span> |
-            <span>Excluded: {{ data.excluded }} ({{ data.phecode_exclude }})</span> |
-            <span>Disease: {{ data.phecode_group }}</span>
-        </p>
-        <ul class="meaning-list">
-            {% for meaning in data.meaning %}
-            <li>{{ meaning }}</li>
-            {% endfor %}
-        </ul>
-    </div>
-    <!-- Term information display -->
-    <h3>{{ data.termname }}</h3>
+    {% include 'partials/phecode_details.html' %}
+    {% include 'partials/term_details.html' %}
 
-    <div id="termDetails" class="mb-4">
-        <p class="p-2 bg-light rounded">
-            <span>Term: {{ data.term }}</span> |
-            <span>{{ data.domainlen }} domains</span> |
-            <span>{{ data.genelen }} genes</span>:
-            {{ data.genes }}
-        </p>
+    <div class="mb-4">
+        <a href="{{ url_for('prioritisation.show_variant_scores', disease_code=data.phecode, term=data.term) }}"
+            class="btn btn-outline-primary">
+            View Variant Prioritisation Analysis
+        </a>
     </div>
 
 </div>

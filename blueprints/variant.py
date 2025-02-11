@@ -11,6 +11,7 @@ variant_bp = Blueprint("variant", __name__, template_folder="../templates")
 # Dictionary to store background task results
 phewas_results = {}
 
+
 # Route to render the Variant page
 @variant_bp.route("/variant/<string:variant>", methods=["POST", "GET"])
 def show_variant(variant):
@@ -56,54 +57,65 @@ def show_variant(variant):
         print(traceback.format_exc())
         return render_template("error.html", error=error_msg)
 
+
 # Background task function
-def background_task(variant, flush=False):
+def background_task(variant: str, services, flush: bool = False):
     try:
-        # Get formatted PheWAS results
-        results = get_formatted_phewas_data(variant, None)  # None to get all phecodes
-        
+        # Get formatted PheWAS results using injected services
+        results = get_formatted_phewas_data(
+            variant, None, services
+        )  # None to get all phecodes
+
         if not results:
             phewas_results[variant] = {
                 "result": f"No associations found for variant {variant}",
-                "associations": []
+                "associations": [],
             }
         else:
             # Filter significant associations using raw p-value
-            assoc_sig = [r for r in results if r['p_value'] < 0.05]
+            assoc_sig = [r for r in results if r["p_value"] < 0.05]
 
             # Drop the p_value key from the dictionary
             for r in assoc_sig:
-                del r['p_value']
+                del r["p_value"]
 
-            result = f"PheWAS identified {len(assoc_sig)} phecodes with association p<0.05."
-            phewas_results[variant] = {
-                "result": result,
-                "associations": assoc_sig
-            }
-            
+            result = (
+                f"PheWAS identified {len(assoc_sig)} phecodes with association p<0.05."
+            )
+            phewas_results[variant] = {"result": result, "associations": assoc_sig}
+
     except Exception:
         error_msg = traceback.format_exc()
         print(f"Error in background task: {error_msg}")
         phewas_results[variant] = {
             "result": f"Failed to get phecode-level stats for Variant {variant}, exception was <br> {error_msg}",
-            "associations": []
+            "associations": [],
         }
+
 
 # Endpoint to trigger the PheWAS task
 @variant_bp.route("/run-phewas/<string:variant>", methods=["POST"])
 def run_phewas(variant):
+    from flask import current_app
+
     # Get flush parameter from request
     flush = request.args.get("flush", default="0") == "1"
-    
+
     # Clear any existing results for this variant
     if variant in phewas_results:
         del phewas_results[variant]
-        
+
+    # Get services from the app context before starting the thread
+    services = current_app.extensions["nomaly_services"]
+
     # Start the background task using threading
-    task_thread = threading.Thread(target=background_task, args=(variant, flush))
+    task_thread = threading.Thread(
+        target=background_task, args=(variant, services, flush)
+    )
     task_thread.daemon = True
     task_thread.start()
     return jsonify({"status": "Task started"}), 202
+
 
 # Endpoint to get the PheWAS results
 @variant_bp.route("/phewas-result/<string:variant>", methods=["GET"])

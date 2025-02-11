@@ -1,0 +1,329 @@
+{% extends "data_base.html" %}
+
+{% block title %}Variant Scores - {{ data.phecode }} - {{ data.term }}{% endblock %}
+
+{% block extra_css %}
+{{ super() }}
+<style>
+    .variant-cell {
+        max-width: 400px;
+        display: inline-block;
+        word-break: normal;
+    }
+
+    .variant-cell a {
+        display: inline;
+        white-space: nowrap;
+    }
+
+    td .variant-cell {
+        width: 400px;
+    }
+
+    .numeric-cell {
+        text-align: right;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+
+    {% include 'partials/term_details.html' %}
+    {% include 'partials/phecode_details.html' %}
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="mb-0">Term to Disease Status Link Information</h2>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <strong>Criteria Type:</strong>
+                </div>
+                <div class="col-md-9">
+                    <select id="statsSelect" class="form-control">
+                        <option value="metric1">Metric 1</option>
+                        <option value="roc_stats_mcc">ROC MCC</option>
+                        <option value="roc_stats_yjs">ROC YJS</option>
+                        <option value="roc_stats_lrp">ROC LRP</option>
+                        <!-- <option value="roc_stats_lrn_protective">ROC LRN Protective</option> -->
+                    </select>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <strong>Meaning:</strong>
+                </div>
+                <div class="col-md-9" id="meaning-text">
+                    Loading...
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <strong>Threshold:</strong>
+                </div>
+                <div class="col-md-9" id="threshold-text">
+                    Loading...
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <strong>Fisher-exact P-value:</strong>
+                </div>
+                <div class="col-md-9">
+                    <span id="metric1_pvalue">{{ "%.2e"|format(data.metric1_pvalue|float)|default('Loading...')
+                        }}</span> (two-sided at threshold)
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header bg-light">
+                    <strong>Above the Threshold Statistics</strong>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h5>Cases (True Positive Rate (TP/Cases))</h5>
+                                <div class="h3"><span id="metric1_tpr">{{ data.metric1_tpr|default('Loading...')
+                                        }}</span>%</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h5>Controls (False Positive Rate (FP/Controls))</h5>
+                                <div class="h3"><span id="metric1_fpr">{{ data.metric1_fpr|default('Loading...')
+                                        }}</span>%</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h5>Ratio (Positive Likelihood Ratio (TPR/FPR))</h5>
+                                <div class="h3"><span id="metric1_lrp">{{ data.metric1_lrp|default('Loading...')
+                                        }}</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <p class="mb-0">
+                    <i class="fas fa-info-circle"></i> Variants are responsible for the prediction of these
+                    <span id="metric1_tp">{{ data.metric1_tp|default('Loading...') }}</span> people.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <h2>Top Variants for Disease {{ disease_code }} and Term {{ term }}</h2>
+
+    <div id="loading-box" class="alert alert-info">
+        <h4>Processing...</h4>
+        <div id="progress-messages" class="mt-2">
+            <pre id="log-output" style="max-height: 200px; overflow-y: auto; background: #f8f9fa; padding: 10px;"></pre>
+        </div>
+    </div>
+
+    <div id="results" style="display: none;">
+
+        <h3 class="mt-4">Top Variants</h3>
+        <div id="variants-tableContainer"></div>
+
+        <h3 class="mt-4">Top Gene Set</h3>
+        <div id="gene-set-tableContainer"></div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const logOutput = document.getElementById('log-output');
+        const loadingBox = document.getElementById('loading-box');
+        const results = document.getElementById('results');
+
+        function createVariantLink(variant) {
+            const urlVariant = variant.replace('/', '_');
+            return `<a href="/variant/${urlVariant}">${variant}</a>`;
+        }
+
+        // Connect to SSE endpoint
+        const source = new EventSource("{{url_for('prioritisation.stream_progress', disease_code = disease_code, term = term, flush = flush | int if flush else none)}}");
+
+        // Handle stats selection change
+        document.getElementById('statsSelect')?.addEventListener('change', function () {
+            const selectedMetric = this.value;
+            // Re-populate tables with selected stats
+            if (window.currentResultData) {
+                const metricData = window.currentResultData[selectedMetric];
+                updateStatsDisplay(metricData.stats);
+                initializeTables(metricData);
+            }
+        });
+
+        function updateStatsDisplay(stats) {
+            if (!stats) return;
+
+            document.getElementById('metric1_pvalue').textContent =
+                stats.pvalue.toExponential(2);
+            document.getElementById('metric1_tpr').textContent =
+                (stats.tpr * 100).toFixed(2);
+            document.getElementById('metric1_fpr').textContent =
+                (stats.fpr * 100).toFixed(2);
+            document.getElementById('metric1_lrp').textContent =
+                stats.lrp.toFixed(2);
+            document.getElementById('metric1_tp').textContent =
+                stats.tp.toString();
+            document.getElementById('meaning-text').textContent =
+                stats.meaning;
+            document.getElementById('threshold-text').textContent =
+                stats.threshold.toFixed(4);
+        }
+
+        function initializeTables(metricData) {
+            if (!metricData) return;
+
+            // Initialize gene set table
+            if (metricData.top_gene_set && metricData.top_gene_set.length > 0) {
+                const geneSetColumns = Object.keys(metricData.top_gene_set[0]).map(key => ({
+                    data: key,
+                    title: key.replace(/_/g, ' '),
+                    visible: !['VS00', 'VS01', 'VS11'].includes(key),
+                    className: ['VS00', 'VS01', 'VS11', 'hmm_score', 'total_vs'].includes(key) ? 'numeric-cell' : null,
+                    render: key === 'variant_id' ?
+                        (data, type) => {
+                            if (type === 'display' && data) {
+                                const links = data.split(', ').map(createVariantLink).join(', ');
+                                return `<div class="variant-cell" title="${data}">${links}</div>`;
+                            }
+                            return data;
+                        } :
+                        key === 'hmm_score' || key === 'total_vs' ?
+                            (data, type) => {
+                                if (type === 'display') {
+                                    return Number(data).toFixed(2);
+                                }
+                                return data;
+                            } :
+                            ['VS00', 'VS01', 'VS11'].includes(key) ?
+                                (data, type) => {
+                                    if (type === 'display') {
+                                        return Number(data).toFixed(2);
+                                    }
+                                    return data;
+                                } :
+                                null
+                }));
+                const totalVsIndex = geneSetColumns.findIndex(col => col.data === 'total_vs');
+                initializeDataTable('gene-set-table', metricData.top_gene_set, geneSetColumns, {
+                    pageLength: 10,
+                    order: [[totalVsIndex, 'desc']],
+                    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
+                });
+            } else {
+                document.getElementById('gene-set-tableContainer').innerHTML = '<div class="alert alert-info">No gene set data available for the current criteria.</div>';
+            }
+
+            // Initialize variants table
+            if (metricData.top_variants && metricData.top_variants.length > 0) {
+                const variantColumns = Object.keys(metricData.top_variants[0]).map(key => ({
+                    data: key,
+                    title: key.replace(/_/g, ' '),
+                    visible: !['VS00', 'VS01', 'VS11'].includes(key),
+                    className: ['VS00', 'VS01', 'VS11', 'hmm_score', 'vs'].includes(key) ? 'numeric-cell' : null,
+                    render: key === 'variant_id' ?
+                        (data, type) => {
+                            if (type === 'display') {
+                                return `<div class="variant-cell" title="${data}">${createVariantLink(data)}</div>`;
+                            }
+                            return data;
+                        } :
+                        key === 'hmm_score' || key === 'vs' ?
+                            (data, type) => {
+                                if (type === 'display') {
+                                    return Number(data).toFixed(2);
+                                }
+                                return data;
+                            } :
+                            ['VS00', 'VS01', 'VS11'].includes(key) ?
+                                (data, type) => {
+                                    if (type === 'display') {
+                                        return Number(data).toFixed(3);
+                                    }
+                                    return data;
+                                } :
+                                null
+                }));
+                const vsIndex = variantColumns.findIndex(col => col.data === 'vs');
+                initializeDataTable('variants-table', metricData.top_variants, variantColumns, {
+                    pageLength: 10,
+                    order: [[vsIndex, 'desc']],
+                    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]]
+                });
+            } else {
+                document.getElementById('variants-tableContainer').innerHTML = '<div class="alert alert-info">No variant data available for the current criteria.</div>';
+            }
+        }
+
+        source.onmessage = function (event) {
+            try {
+                const message = JSON.parse(event.data);
+                console.log('Received message:', message);  // Debug logging
+
+                switch (message.type) {
+                    case 'progress':
+                        const time = new Date().toLocaleTimeString();
+                        logOutput.textContent += `[${time}] ${message.data}\n`;
+                        logOutput.scrollTop = logOutput.scrollHeight;
+                        break;
+
+                    case 'results':
+                        // Store the full result data
+                        window.currentResultData = message.data;
+
+                        // Get selected metric
+                        const selectedMetric = document.getElementById('statsSelect')?.value || 'metric1';
+                        const metricData = message.data[selectedMetric];
+
+                        if (!metricData) {
+                            console.error('No metric data found for:', selectedMetric);
+                            return;
+                        }
+
+                        // Update stats display
+                        updateStatsDisplay(metricData.stats);
+
+                        // Initialize tables with selected metric data
+                        initializeTables(metricData);
+
+                        // Show results section
+                        results.style.display = 'block';
+                        break;
+
+                    case 'error':
+                        logOutput.textContent += `ERROR: ${message.data}\n`;
+                        logOutput.scrollTop = logOutput.scrollHeight;
+                        break;
+
+                    case 'done':
+                        source.close();
+                        loadingBox.style.display = 'none';
+                        break;
+                }
+            } catch (e) {
+                console.error('Error processing message:', e, event.data);
+                logOutput.textContent += `Error processing message: ${e}\n`;
+            }
+        };
+
+        source.onerror = function (event) {
+            console.error('SSE error:', event);
+            source.close();
+            logOutput.textContent += 'Connection error occurred.\n';
+        };
+    });
+</script>
+{% endblock %}

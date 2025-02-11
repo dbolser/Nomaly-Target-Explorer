@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import abort
+from flask import abort, current_app
 from flask_login import current_user
 
 
@@ -16,8 +16,12 @@ def admin_required(f):
 def check_page_permission(current_user, path):
     """Check if user has permission to access the page."""
 
+    # If login is disabled (e.g. in unit tests), allow all access
+    if current_app.config.get("LOGIN_DISABLED", False):
+        return True
+
     # Define public endpoints that don't require authentication
-    public_paths = ["/", "/login", "/static", "/search", "/favicon.ico"]
+    public_paths = ["/", "/login", "/static", "/favicon.ico"]
 
     # Skip authentication for public routes
     if path in public_paths or path.startswith("/static/"):
@@ -34,7 +38,7 @@ def check_page_permission(current_user, path):
     # Next we define what a non-admin user can access
 
     # Define basic routes that are always allowed once authenticated
-    basic_routes = ["/logout", "/disease-sets", "/diseasesearch"]
+    basic_routes = ["/logout", "/disease-sets", "/search", "/diseasesearch"]
     variant_routes = ["/variant", "/run-phewas", "/phewas-result"]
 
     # Check if the path starts with any of the basic or variant routes
@@ -48,6 +52,8 @@ def check_page_permission(current_user, path):
         "/phecode2/",
         "/nomaly-stats2/",
         "/run-task/",
+        "/variant_scores/",
+        "/stream_progress/",
     ]
 
     # Check if the path starts with any of the phecode-specific routes for the

@@ -9,32 +9,22 @@ class LoginForm(FlaskForm):
     password = PasswordField("Password", validators=[DataRequired()])
 
 
-def test_login_form_validation(app):
-    # Add secret key configuration for CSRF
-    app.config["WTF_CSRF_ENABLED"] = True  # Enable CSRF for testing
-    app.config["SECRET_KEY"] = "test-secret-key"
-    app.config["WTF_CSRF_SECRET_KEY"] = (
-        "test-csrf-secret-key"  # Optional but can be used for specific CSRF secret
-    )
-
-    with app.test_request_context():
+def test_login_form_validation(unit_test_app):
+    """Test form validation with CSRF enabled."""
+    with unit_test_app.test_request_context():
         form = LoginForm()
         assert not form.validate()
 
-        # Test with data
+        # Test with valid data
         form = LoginForm(
             data={
                 "username": "testuser",
                 "password": "testpass",
+                # Er... not test config or something?
                 "csrf_token": form.csrf_token.current_token,
             }
         )
-
-        # Print validation errors for debugging
-        if not form.validate():
-            print("Form errors:", form.errors)
-
-        assert form.validate()
+        assert form.validate(), f"Form validation failed: {form.errors}"
 
         # Test with missing data
         form = LoginForm(data={"username": "", "password": "testpass"})

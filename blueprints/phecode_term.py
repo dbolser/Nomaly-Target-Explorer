@@ -1,29 +1,23 @@
-from flask import Blueprint, render_template, jsonify, request
+import logging
+import traceback
+from typing import Optional
 
 import pandas as pd
-import traceback
+from flask import Blueprint, current_app, jsonify, render_template, request
 
-from blueprints.gwas import run_gwas, format_gwas_results
-
-from db import (
-    get_term_variants,
-    get_term_domains,
-    get_term_names,
-    get_term_genes,
-    get_phecode_info,
-)
-
+from blueprints.gwas import format_gwas_results, run_gwas
 from blueprints.nomaly import pharos, pp
 
-from blueprints.nomaly import nomaly_genotype
-
-from errors import DataNotFoundError
-import logging
-
 # from blueprints.phewas import get_formatted_phewas_data
-
 from blueprints.phecode_term_helper import load_cached_results, save_results
-
+from db import (
+    get_phecode_info,
+    get_term_domains,
+    get_term_genes,
+    get_term_names,
+    get_term_variants,
+)
+from errors import DataNotFoundError
 
 # Create the blueprint
 phecode_term_bp = Blueprint("phecode_term", __name__, template_folder="../templates")
@@ -69,7 +63,41 @@ def show_phecode_term(phecode, term):
     "/phecode/<string:phecode>/term/<string:term>/tableVariantDetail",
     methods=["GET", "POST"],
 )
-def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = False):
+def show_phecode_term_variant_detail(
+    phecode: str,
+    term: str,
+    sex: Optional[str] = None,
+    ancestry: Optional[str] = None,
+    flush: bool = False,
+):
+    flush = request.args.get("flush", "false").lower() == "true"  # Handle URL parameter
+    if request.is_json:
+        flush = request.get_json().get(
+            "flush", flush
+        )  # POST body overrides URL parameter if present
+
+    try:
+        result = calculate_phecode_term_variant_detail(
+            phecode, term, sex, ancestry, flush
+        )
+    except Exception as e:
+        logger.error(f"Error in show_phecode_term_variant_detail: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(result)
+
+
+def calculate_phecode_term_variant_detail(
+    phecode: str,
+    term: str,
+    sex: Optional[str] = None,
+    ancestry: Optional[str] = None,
+    flush: bool = False,
+) -> dict:
+    services = current_app.extensions["nomaly_services"]
+    genotype_service = services.genotype
+    assert genotype_service is not None
+
     logger.info(
         f"Starting variant detail processing for phecode {phecode}, term {term}"
     )
@@ -114,15 +142,6 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
     numeric_columns = ["HMM_Score", "vs00", "vs01", "vs11", "GWAS_P", "GWAS_OR"]
 
     try:
-        # Get flush parameter from POST body or URL query parameter
-        flush = (
-            request.args.get("flush", "false").lower() == "true"
-        )  # Handle URL parameter
-        if request.is_json:
-            flush = request.get_json().get(
-                "flush", flush
-            )  # POST body overrides URL parameter if present
-
         logger.info(f"Flush parameter received: {flush}")
 
         # Check cache
@@ -130,14 +149,12 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
 
         if cached_data is not None and "data" in cached_data:
             logger.info(f"Using cached data for phecode {phecode}, term {term}")
-            return jsonify(
-                {
-                    "data": cached_data["data"],
-                    "columns": columns,
-                    "defaultColumns": default_columns,
-                    "numColumns": numeric_columns,
-                }
-            )
+            return {
+                "data": cached_data["data"],
+                "columns": columns,
+                "defaultColumns": default_columns,
+                "numColumns": numeric_columns,
+            }
 
         logger.warning(
             f"Cache miss or flush requested for phecode {phecode}, term {term}"
@@ -154,17 +171,6 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
         term_df = term_df.merge(pp, on="gene", how="left").fillna("None")
         print(f"After merges shape: {term_df.shape}")
 
-        if term_df.empty:
-            print("No variants found for this term!")
-            return jsonify(
-                {
-                    "data": [],
-                    "columns": columns,
-                    "defaultColumns": default_columns,
-                    "numColumns": numeric_columns,
-                }
-            )
-
         # Load GWAS data
         gwas_data = run_gwas(phecode)
         formatted_gwas = pd.DataFrame(
@@ -174,28 +180,17 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
             logger.info(f"Formatted GWAS data shape: {formatted_gwas.shape}")
             logger.info(f"Formatted GWAS columns: {formatted_gwas.columns.tolist()}")
 
-        # Load genotype counts
-        genotype_counts = nomaly_genotype.get_variant_counts()
-
         data_records = []
         for _, row in term_df.iterrows():
-            variant_id = str(row["variant_id"])
-            genotype_variant_id = variant_id.replace("_", ":").replace("/", ":")
-            logger.info(f"\nProcessing variant: {variant_id} ({genotype_variant_id})")
-
-            # Try both allele orientations for genotype counts
-            if genotype_variant_id not in genotype_counts.index:
-                alleles = genotype_variant_id.split(":")
-                alleles[-1], alleles[-2] = alleles[-2], alleles[-1]
-                genotype_variant_id = ":".join(alleles)
-                if genotype_variant_id not in genotype_counts.index:
-                    logger.warning(f"Variant {variant_id} not found in genotype counts")
-                    continue
+            nomaly_variant_id = str(row["variant_id"])
+            logger.info(f"\nProcessing variant: {nomaly_variant_id}")
 
             try:
                 # Calculate genotype frequencies
-                counts = genotype_counts.loc[genotype_variant_id]
-                total = int(float(counts.sum()))
+                counts = genotype_service._hdf.get_variant_counts(
+                    nomaly_variant_id=nomaly_variant_id
+                )
+                total = counts["total"]
                 f00 = float(counts["homozygous_alt"]) / total
                 f01 = float(counts["heterozygous"]) / total
                 f11 = float(counts["homozygous_ref"]) / total
@@ -208,7 +203,7 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
 
                 # Build record with explicit type conversion
                 record = {
-                    "Variant": variant_id,
+                    "Variant": nomaly_variant_id,
                     "Gene": str(row["gene"]),
                     "AA_Change": str(row["aa"]),
                     "HMM_Score": f"{float(row['hmm_score']):.2f}",
@@ -221,9 +216,9 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
                     "vs00": f"{vs00:.2f}",
                     "vs01": f"{vs01:.2f}",
                     "vs11": f"{vs11:.2f}",
-                    "hmoz_alt": int(float(counts["homozygous_alt"])),
-                    "hmoz_ref": int(float(counts["homozygous_ref"])),
-                    "htrz": int(float(counts["heterozygous"])),
+                    "hmoz_alt": counts["homozygous_alt"],
+                    "hmoz_ref": counts["homozygous_ref"],
+                    "htrz": counts["heterozygous"],
                     # Initialize GWAS fields with default values
                     "GWAS_P": "",
                     "GWAS_OR": "",
@@ -236,7 +231,7 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
 
                 if not formatted_gwas.empty:
                     gwas_row = formatted_gwas[
-                        formatted_gwas["nomaly_variant"] == variant_id
+                        formatted_gwas["nomaly_variant"] == nomaly_variant_id
                     ]
                     if not gwas_row.empty:
                         gwas_data = gwas_row.iloc[0].to_dict()
@@ -253,7 +248,7 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
                 logger.debug(f"Final record GWAS fields: {record}")
                 data_records.append(record)
             except (ValueError, TypeError) as e:
-                logger.error(f"Error processing variant {variant_id}: {e}")
+                logger.error(f"Error processing variant {nomaly_variant_id}: {e}")
                 continue
 
         # Cache and return results
@@ -267,13 +262,13 @@ def show_phecode_term_variant_detail(phecode: str, term: str, flush: bool = Fals
             "numColumns": numeric_columns,
         }
 
-        return jsonify(result)
+        return result
 
     except Exception as e:
         error_msg = f"Error processing phecode {phecode}, term {term}: {str(e)}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
-        return jsonify({"error": error_msg}), 500
+        raise e
 
 
 def main():
@@ -284,14 +279,19 @@ def main():
     term = "HP:0000789"
     term = "KW:0544"
 
-    gwas_data = run_gwas(phecode)
-    term_data = get_term_variants(term)
+    from app import create_app
 
-    print(f"GWAS data found: {gwas_data is not None}")
+    app = create_app("development")
 
-    result = show_phecode_term_variant_detail(phecode, term, flush=True)
+    with app.app_context():
+        gwas_data = run_gwas(phecode)
+        print(gwas_data)
 
-    print(result)
+        term_data = get_term_variants(term)
+        print(term_data)
+
+        result = calculate_phecode_term_variant_detail(phecode, term, flush=True)
+        print(result)
 
 
 if __name__ == "__main__":
