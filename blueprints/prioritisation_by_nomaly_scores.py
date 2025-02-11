@@ -163,8 +163,7 @@ def process_individual_variants(sel_genotypes, term_variant_scores):
         top_variants = individual_variant_prioritisation(
             individual, term_variant_scores
         )
-        fucking_unique_variants = top_variants.index.unique()
-        for variant, vs in zip(fucking_unique_variants, top_variants["vs"]):
+        for variant, vs in zip(top_variants.index, top_variants["vs"]):
             ind_top_variants[variant] += 1
             ind_top_variants_scores[variant] += vs
 
@@ -182,13 +181,22 @@ def term_variant_prioritisation(
     """For each term, prioritise the variants for selected individuals."""
     term_variants = get_term_variants(term)
 
-    # Filter but get the largest hmm_score of duplicated variants.. OR NOT
-    # TODO: DECIDE!
-    # term_variants = (
-    #     term_variants.sort_values(by="hmm_score", ascending=False)
-    #     .drop_duplicates(subset="variant_id", keep="first")
-    #     .reset_index(drop=True)
-    # )
+    # Remove the duplicate aa column but keep the largest hmm_score
+    term_variants = (
+        term_variants.drop(columns=["aa"])
+        .sort_values(by="hmm_score", ascending=False)
+        .drop_duplicates(subset=["variant_id", "gene"], keep="first")
+        .reset_index(drop=True)
+    )
+
+    # Group by variant_id, colapse duplicate genes into a list and select the largest hmm_score
+    term_variants_genes = (
+        term_variants.groupby("variant_id")["gene"].apply(list).reset_index()
+    )
+    term_variants_hmmsc = (
+        term_variants.groupby("variant_id")["hmm_score"].max().reset_index()
+    )
+    term_variants = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
 
     if stream_logger:
         stream_logger.info(f"Reading genotypes for {len(term_variants)} variants")
@@ -220,14 +228,20 @@ def term_variant_prioritisation(
         ["VS00", "VS01", "VS11"]
     ]
 
+    print(
+        f"We read {len(term_variant_scores)} variant scores for our {len(term_variants)} variants"
+    )
+
     ind_top_variants_df = process_individual_variants(
         sel_genotypes, term_variant_scores
     )
 
-    # NOTE, if we keep 'duplicate' variants above, I think we lose them here!
+    print(
+        f"For some reason, we get just {len(ind_top_variants_df)} top variants for {len(sel_genotypes['row_eids'])} individuals"
+    )
+
     top_variants = term_variants.join(ind_top_variants_df, on="variant_id", how="right")
     top_variants = top_variants.join(term_variant_scores, on="variant_id")
-    top_variants = top_variants.sort_values(by="hmm_score", ascending=False)
 
     if stream_logger:
         stream_logger.info(f"Term variants: {len(term_variants)}")
@@ -235,8 +249,8 @@ def term_variant_prioritisation(
         stream_logger.info(f"Individual top variants: {len(ind_top_variants_df)}")
     else:
         logger.info(f"Term variants: {len(term_variants)}")
-        logger.info(f"Top variants: {len(top_variants)}")
         logger.info(f"Individual top variants: {len(ind_top_variants_df)}")
+        logger.info(f"Top variants: {len(top_variants)}")
 
     return top_variants
 
@@ -315,7 +329,7 @@ def get_top_variants(
     )
 
     print(
-        f"Got {len(eids)} cases for {disease_code} with population {population} and sex {biological_sex}"
+        f"Got {len(eids)} cases for phecode {disease_code} with population {population} and sex {biological_sex}"
     )
 
     # cases_info = read_cases_for_disease_code(disease_code)
@@ -332,12 +346,11 @@ def get_top_variants(
 
     case_eids_sorted = np.sort(case_eids)
 
-    # TODO: FILTER BY SCORE HERE!
-    # WE WANT HIGH SCORING AFFECTED INDIVIDUALS
-
     case_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
         case_eids_sorted, terms=[term]
     )
+
+    assert len(case_eids_sorted) == len(case_scores)
 
     stats = stats_service.get_stats_by_term_phecode(
         term=term,
@@ -408,16 +421,14 @@ def get_top_variants(
         "roc_stats_lrp",
         # "roc_stats_lrn_protective",
     ]:
-        selected_eids = case_eids_sorted[
-            case_scores - np.float16(stats[f"{stat}_threshold"]) > -0.001
-        ]
+        selected_eids = case_eids_sorted[case_scores >= stats[f"{stat}_threshold"]]
 
         print(f"Selected for statistic {stat}: {len(selected_eids)}")
 
         if len(selected_eids) != stats[f"{stat}_tp"]:
             logger.warning(
-                f"Phecode {disease_code} has {len(selected_eids)} cases from nomaly scores"
-                + f" but {stats[f'{stat}_tp']} cases from stats service!"
+                f"Phecode {disease_code} has {len(selected_eids)} True Positives for {stat} from "
+                + f"nomaly scores but {stats[f'{stat}_tp']} True Positives from stats service!"
             )
 
         top_variants = term_variant_prioritisation(
@@ -438,16 +449,19 @@ def get_top_variants(
 
         # Tables
 
-        stats[f"{stat}_top_variants"] = top_variants.drop(
-            columns=["term", "aa"]
-        ).to_dict(orient="records")
+        # So do we explode gene here first or what?
+        top_variants_per_gene = top_variants.explode("gene")
 
-        # Create gene set with properly formatted variant lists
-        gene_variants = top_variants.groupby("gene")["variant_id"].agg(list)
-        gene_hmm_score = top_variants.groupby("gene")["hmm_score"].sum()
-        gene_total_vs = top_variants.groupby("gene")["vs"].sum()
-        gene_num_individual = top_variants.groupby("gene")["num_individuals"].sum()
-        gene_num_variants = top_variants.groupby("gene").size()
+        # Only now can we format these fuckers
+        top_variants["gene"] = top_variants["gene"].map(lambda x: ", ".join(x))
+
+        gene_variants = top_variants_per_gene.groupby("gene")["variant_id"].agg(list)
+        gene_hmm_score = top_variants_per_gene.groupby("gene")["hmm_score"].sum()
+        gene_total_vs = top_variants_per_gene.groupby("gene")["vs"].sum()
+        gene_num_individual = top_variants_per_gene.groupby("gene")[
+            "num_individuals"
+        ].sum()
+        gene_num_variants = top_variants_per_gene.groupby("gene").size()
 
         top_gene_set = pd.DataFrame(
             {
@@ -458,6 +472,7 @@ def get_top_variants(
                 "num_individuals": gene_num_individual,
             }
         )
+        # top_gene_set["avg_individuals_per_variant"] = top_gene_set["num_individuals"] / top_gene_set["variant_num"]
         top_gene_set = top_gene_set.sort_values("hmm_score", ascending=False)
 
         # Create gene set data without tuple wrapping
@@ -466,6 +481,9 @@ def get_top_variants(
             .rename(columns={"index": "gene"})
             .to_dict(orient="records")
         )
+
+        # Do this last
+        stats[f"{stat}_top_variants"] = top_variants.to_dict(orient="records")
         stats[f"{stat}_top_gene_set"] = gene_set_data
 
     # Ensure NaN values are converted to None

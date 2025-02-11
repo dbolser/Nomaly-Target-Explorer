@@ -114,7 +114,27 @@
             <div class="mt-3">
                 <p class="mb-0">
                     <i class="fas fa-info-circle"></i> Variants are responsible for the prediction of these
-                    <span id="metric1_tp">{{ data.metric1_tp|default('Loading...') }}</span> people.
+                    <span id="metric1_tp">{{ data.metric1_tp|default('Loading...') }}</span>-ish people.
+
+                <div class="small text-muted">
+                    <ul class="mb-0">
+                        <li>
+                            <strong>Classification:</strong>
+                            <ul>
+                                <li>True Positive (TP) for: MCC ratio > 1, YJS, Metric1</li>
+                                <li>False Positive (FP) for: MCC ratio < 1, LRP protective, LRN protective</li>
+                            </ul>
+                        </li>
+                        <li>
+                            <strong>Variant Selection Criteria:</strong>
+                            <ul>
+                                <li>Primary: Variants with VS genotype score > 1</li>
+                                <li>Secondary: If no variants have VS > 1, top 5 variants are selected</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+
                 </p>
             </div>
         </div>
