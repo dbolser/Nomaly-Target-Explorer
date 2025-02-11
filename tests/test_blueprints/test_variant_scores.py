@@ -1,4 +1,3 @@
-import pytest
 from flask import template_rendered
 from contextlib import contextmanager
 
@@ -17,9 +16,9 @@ def captured_templates(integration_app):
         template_rendered.disconnect(record, integration_app)
 
 
-def test_variant_scores_template(integration_app_client):
-    with captured_templates(integration_app_client.application) as templates:
-        response = integration_app_client.get("/variant_scores/290.11/GO:0016861")
+def test_variant_scores_template(auth_integration_app_client):
+    with captured_templates(auth_integration_app_client.application) as templates:
+        response = auth_integration_app_client.get("/variant_scores/290.11/GO:0016861")
         assert response.status_code == 200
 
         # Check that the correct template was rendered

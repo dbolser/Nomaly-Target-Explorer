@@ -5,14 +5,13 @@ from typing import Any, List, NamedTuple
 
 import numpy as np
 import pandas as pd
+from flask import current_app
 from scipy.stats import fisher_exact
 from tqdm import tqdm
 
 from config import Config
 from data_services.phenotype import PhenotypeService
 from db import get_all_phecodes, get_all_variants
-
-from flask import current_app
 
 logger = logging.getLogger(__name__)
 
@@ -150,17 +149,24 @@ class PhecodeCounts:
         return string
 
 
-def get_genotype_data(variant: str) -> tuple[np.ndarray, np.ndarray] | None:
+def get_genotype_data(
+    variant: str, services=None
+) -> tuple[np.ndarray, np.ndarray] | None:
     """
     Get genotype data for a variant.
 
     Args:
         variant (str): Variant ID in format "CHR:POS:REF:ALT"
+        services: Service registry containing required services
 
     Returns:
         tuple: (sorted_eids, sorted_genotypes) or None if error
     """
-    services = current_app.extensions["nomaly_services"]
+    if services is None:
+        from flask import current_app
+
+        services = current_app.extensions["nomaly_services"]
+
     genotype_service = services.genotype
     if genotype_service is None:
         raise ValueError("Genotype service is not initialized!")
@@ -253,13 +259,13 @@ def process_phecode(
     }
 
 
-def phecode_level_assoc(variant: str) -> pd.DataFrame:
+def phecode_level_assoc(variant: str, services=None) -> pd.DataFrame:
     """
     Run PheWAS analysis for a variant and save results to file.
     Returns the DataFrame of results.
     """
     # Get genotype data and handle failure case
-    genotype_result = get_genotype_data(variant)
+    genotype_result = get_genotype_data(variant, services)
     if genotype_result is None:
         print(f"No genotype data found for variant {variant}")
         return pd.DataFrame()
@@ -268,7 +274,7 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
 
     all_phecodes = get_all_phecodes()
 
-    services = current_app.extensions["nomaly_services"]
+    services = services if services else current_app.extensions["nomaly_services"]
     phenotype_data = services.phenotype
     assert phenotype_data is not None
 
@@ -305,7 +311,7 @@ def phecode_level_assoc(variant: str) -> pd.DataFrame:
 
 
 def get_phewas_results(
-    variant: str, phecode: str | None = None, flush_cache: bool = False
+    variant: str, phecode: str | None = None, flush_cache: bool = False, services=None
 ) -> pd.DataFrame:
     """
     Get PheWAS results for a variant, either from cache or by running analysis.
@@ -314,6 +320,8 @@ def get_phewas_results(
     Args:
         variant (str): Variant ID in format "CHR:POS:REF:ALT"
         phecode (str | None): Optional phecode to analyze
+        flush_cache (bool): Whether to ignore cached results
+        services: Service registry containing required services
 
     Returns:
         pd.DataFrame | None: DataFrame with PheWAS results or None if analysis fails
@@ -342,15 +350,14 @@ def get_phewas_results(
                 f"Running single-phecode analysis for variant {variant} and phecode {phecode}"
             )
             # Get genotype data
-            genotype_result = get_genotype_data(variant)
+            genotype_result = get_genotype_data(variant, services)
             if genotype_result is None:
                 return pd.DataFrame()
 
             sorted_genotype_eids, sorted_genotypes = genotype_result
             all_phecodes = get_all_phecodes()
 
-            services = current_app.extensions["nomaly_services"]
-            phenotype_data = services.phenotype
+            phenotype_data = services.phenotype if services else None
             assert phenotype_data is not None
 
             # Process just the requested phecode
@@ -374,7 +381,7 @@ def get_phewas_results(
 
     # No cached results and no specific phecode - run full analysis
     try:
-        results_df = phecode_level_assoc(variant)
+        results_df = phecode_level_assoc(variant, services)
         if results_df is None or results_df.empty:
             print(f"PheWAS analysis returned no results for variant {variant}")
             return pd.DataFrame()
@@ -408,7 +415,7 @@ def format_phewas_row_for_display(row: pd.Series) -> dict:
 
 
 def get_formatted_phewas_data(
-    variant_id: str, phecode: str | None = None
+    variant_id: str, phecode: str | None = None, services=None
 ) -> List[dict[str, Any]]:
     """
     Get formatted PheWAS data for a variant, optionally filtered by phecode.
@@ -416,11 +423,12 @@ def get_formatted_phewas_data(
     Args:
         variant_id (str): Variant ID
         phecode (str | None): Optional phecode to filter results
+        services: Service registry containing required services
 
     Returns:
         List[dict]: List of formatted PheWAS results (one dict per row)
     """
-    phewas_df = get_phewas_results(variant_id, phecode)
+    phewas_df = get_phewas_results(variant_id, phecode, services=services)
 
     if phewas_df is None or phewas_df.empty:
         print(f"No PheWAS results available for variant {variant_id}")
@@ -464,7 +472,9 @@ def main():
     with app.app_context():
         # Quick test of single variant/phecode
         test_variant = "19:15373898:C:T"
-        results = get_phewas_results(test_variant, "642.1")
+        test_variant = "5:33951588:C:G"
+        # results = get_phewas_results(test_variant, "642.1")
+        results = get_phewas_results(test_variant, None)
         print(results)
 
         # Optionally run full analysis
