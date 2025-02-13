@@ -42,6 +42,9 @@ class GenotypesHDF5:
 
             genotype_variant_id = self.f["bim"]
             nomaly_variant_id = self.f["nomaly_variant_id"]
+            plink_variant_id = self.f["plink_variant_id"]
+
+            genotype_counts = self.f["genotype_counts"]
 
             assert isinstance(genotype_matrix, h5py.Dataset)
             assert isinstance(individual, h5py.Dataset)
@@ -50,6 +53,9 @@ class GenotypesHDF5:
 
             assert isinstance(genotype_variant_id, h5py.Dataset)
             assert isinstance(nomaly_variant_id, h5py.Dataset)
+            assert isinstance(plink_variant_id, h5py.Dataset)
+
+            assert isinstance(genotype_counts, h5py.Dataset)
 
             # Sanity checks (TODO: Move these to integration tests)
             try:
@@ -60,6 +66,8 @@ class GenotypesHDF5:
                 assert ancestry.shape[0] == individual.shape[0]
 
                 assert nomaly_variant_id.shape[0] == genotype_variant_id.shape[0]
+
+                assert genotype_counts.shape[0] == genotype_variant_id.shape[0]
             except Exception as e:
                 print(f"Error in sanity checks: {str(e)}")
                 raise
@@ -71,6 +79,9 @@ class GenotypesHDF5:
 
             self.genotype_variant_id: np.ndarray = genotype_variant_id[...].astype(str)
             self.nomaly_variant_id: np.ndarray = nomaly_variant_id[...].astype(str)
+            self.plink_variant_id: np.ndarray = plink_variant_id[...].astype(str)
+
+            self.genotype_counts: np.ndarray = genotype_counts[...].astype(int)
 
             # TODO: Convert genotype matrix to np.memmap here? (Currently we
             # assume that the corresponding .npy file already exists.)
@@ -117,6 +128,57 @@ class GenotypesHDF5:
             self._genotype_variant_sorted = self.genotype_variant_id[
                 self._genotype_variant_argsort
             ]
+
+        self.allele_flipped_in_genotype_file_relative_to_nomaly_variant_id = (
+            self._calculate_allele_flips(
+                self.nomaly_variant_id, self.genotype_variant_id
+            )
+        )
+
+    @staticmethod
+    def _calculate_allele_flips(
+        nomaly_variant_id: np.ndarray,
+        genotype_variant_id: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Returns an array indicating whether the alleles are flipped in the
+        genotype file relative to the nominal variant ID.
+
+        True = alleles are flipped, e.g.
+          - 3:122257322:A:G (genotype file)            or 3:122257322:A/G (plink
+            file) vs.
+          - 3_122257322_G/A (Nomaly variant ID... ish) or 3_122257322_G_A
+            (Nomaly variant ID).
+
+            Isn't it fun to be alive?
+
+        False = alleles are not flipped.
+
+        None = There is no Nomaly variant ID for this particular variant in the
+        genotype file.
+
+        """
+
+        result = np.full(len(nomaly_variant_id), None)
+
+        for i in range(len(nomaly_variant_id)):
+            if nomaly_variant_id[i] == "Missing":
+                continue
+
+            ref_match = nomaly_variant_id[i][-3] == genotype_variant_id[i][-3]
+            alt_match = nomaly_variant_id[i][-1] == genotype_variant_id[i][-1]
+
+            if ref_match and alt_match:
+                result[i] = False  # alleles are not flipped
+            elif not ref_match and not alt_match:
+                result[i] = True  # alleles are flipped
+            else:
+                # Fuck knows!
+                raise ValueError(
+                    f"Variant {nomaly_variant_id[i]} has different alleles in the genotype file and the nominal variant ID"
+                )
+
+        return result
 
     def get_genotypes(
         self,
@@ -346,6 +408,16 @@ class GenotypesHDF5:
         except Exception as e:
             logger.error(f"Error in _single_variant_mask: {str(e)}")
             raise
+
+    @property
+    def num_variants(self) -> int:
+        """
+        Returns the number of variants in the genotype matrix.
+
+        Returns:
+            int: The number of variants
+        """
+        return self.genotype_matrix.shape[0]
 
     def query_variantID_genotypes(
         self, variant: str
