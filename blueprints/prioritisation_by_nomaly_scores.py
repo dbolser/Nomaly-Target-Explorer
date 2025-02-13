@@ -88,45 +88,69 @@ def read_cases_for_disease_code(phecode: str) -> dict:
     return cases
 
 
-def read_nomaly_filtered_genotypes(
-    sorted_eids, short_listed_variants, genotype_service
-) -> dict:
-    """Read genotypes for the individuals and variants."""
+def read_nomaly_filtered_genotypes_new(eids, vids, genotype_service) -> dict:
+    genotypes = genotype_service.get_genotypes(eids=eids, vids=vids, nomaly_ids=True)
+
+    # FUCK ME!
+    genotypes = genotypes.T
+
+    return {
+        "row_eids": eids,
+        "col_variants": vids,
+        "data": genotypes,
+        "error_variants": [],
+    }
+
+
+def read_nomaly_filtered_genotypes(eids, vids, genotype_service) -> dict:
+    """Read genotypes for the individuals and variants.
+
+    TODO:
+        1) All EIDs are now already sorted, so we can remove the 'alignment'
+           step.
+        2) Instead of the messy id mapping, we can use the new
+           nomaly_variant_id index.
+        3) Essentially this entire function should be replaced with a
+           single call to the genotype service.
+    """
 
     genotype_eids = genotype_service.individual
-    assert np.all(genotype_eids[:-1] <= genotype_eids[1:])
 
-    # sort the genotype eids (actually, they should be sorted already...)
+    # Because we need to 'align' the eids with genotype eids, we need to jump
+    # through a few hoops here ...
+
+    # 1) Get the sort order of the genotype eids
     sorted_indices = np.argsort(genotype_eids)
-    sorted_genotype_eids = genotype_eids[sorted_indices]
 
-    # search
-    indices = np.searchsorted(sorted_genotype_eids, sorted_eids)
-    valid_indices = indices[indices < len(sorted_genotype_eids)]
-    matched_eids = sorted_genotype_eids[valid_indices]
+    # 2) Remove eids that are not found in the genotype data
+    eids = eids[np.isin(eids, genotype_eids)]
 
-    rows = len(matched_eids)
-    columns = len(short_listed_variants)
-    geno_matrix = np.empty((rows, columns))
-    error_variants = []
+    # 3) Use searchsorted (fast) to find the indices of the eids in the
+    #    sorted genotype eids
+    eidx = np.searchsorted(genotype_eids[sorted_indices], eids)
 
-    for vindex, variant_id in enumerate(short_listed_variants):
-        genotype_result = genotype_service.query_variantID_genotypes(variant_id)
+    geno_matrix = np.empty((len(eids), len(vids)))
+    failed_variants = []
+
+    for v, nomaly_variant_id in enumerate(vids):
+        genotype_result = genotype_service.query_variantID_genotypes(nomaly_variant_id)
         if genotype_result is None:
-            logger.warning(f"No genotype data found for variant {variant_id}")
-            error_variants.append(variant_id)
+            logger.warning(f"No genotype data found for variant {nomaly_variant_id}")
+            failed_variants.append(nomaly_variant_id)
             continue
 
         sorted_genotype_eids, sorted_genotypes = genotype_result
-        matched_genotypes = sorted_genotypes[valid_indices]
-        assert (sorted_genotype_eids[valid_indices] == matched_eids).all()
-        geno_matrix[:, vindex] = matched_genotypes
+
+        # HOrrible code!
+        assert np.all(sorted_genotype_eids[eidx] == eids)
+
+        geno_matrix[:, v] = sorted_genotypes[eidx]
 
     return {
-        "row_eids": matched_eids,
-        "col_variants": short_listed_variants,
+        "row_eids": genotype_eids[eidx],
+        "col_variants": vids,
         "data": geno_matrix,
-        "error_variants": error_variants,
+        "error_variants": failed_variants,
     }
 
 
@@ -175,36 +199,41 @@ def process_individual_variants(sel_genotypes, term_variant_scores):
     )
 
 
-def term_variant_prioritisation(
-    sorted_eids, variant_scores, term, genotype_service, stream_logger=None
-):
-    """For each term, prioritise the variants for selected individuals."""
-    term_variants = get_term_variants(term)
+def term_variant_prioritisation(vids, eids, genotype_service, stream_logger=None):
+    """Prioritise a set of variants from a set of eids and their genotypes.
+
+    Typically we're looking at the set of variants for a given term
+    (term-variants) and a set of 'high scoring' *cases* (True Positives).
+
+    Genotypes are 'scored' using background data from Nomaly (HMM Score and
+    Nomaly Score for the given eids).
+
+    """
 
     # Remove the duplicate aa column but keep the largest hmm_score
-    term_variants = (
-        term_variants.drop(columns=["aa"])
+    vids = (
+        vids.drop(columns=["aa"])
         .sort_values(by="hmm_score", ascending=False)
         .drop_duplicates(subset=["variant_id", "gene"], keep="first")
         .reset_index(drop=True)
     )
 
     # Group by variant_id, colapse duplicate genes into a list and select the largest hmm_score
-    term_variants_genes = (
-        term_variants.groupby("variant_id")["gene"].apply(list).reset_index()
-    )
-    term_variants_hmmsc = (
-        term_variants.groupby("variant_id")["hmm_score"].max().reset_index()
-    )
-    term_variants = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
+    term_variants_genes = vids.groupby("variant_id")["gene"].apply(list).reset_index()
+    term_variants_hmmsc = vids.groupby("variant_id")["hmm_score"].max().reset_index()
+    vids = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
 
     if stream_logger:
-        stream_logger.info(f"Reading genotypes for {len(term_variants)} variants")
+        stream_logger.info(f"Reading genotypes for {len(vids)} variants")
     else:
-        logger.info(f"Reading genotypes for {len(term_variants)} variants")
+        logger.info(f"Reading genotypes for {len(vids)} variants")
+
+    # sel_genotypes2 = read_nomaly_filtered_genotypes_new(
+    #     eids, vids["variant_id"], genotype_service
+    # )
 
     sel_genotypes = read_nomaly_filtered_genotypes(
-        sorted_eids, term_variants["variant_id"], genotype_service
+        eids, vids["variant_id"], genotype_service
     )
 
     if stream_logger:
@@ -213,7 +242,7 @@ def term_variant_prioritisation(
         )
         if len(sel_genotypes["error_variants"]) > 0:
             stream_logger.warning(
-                f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants for term {term}."
+                f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants."
             )
     else:
         logger.info(
@@ -221,17 +250,17 @@ def term_variant_prioritisation(
         )
         if len(sel_genotypes["error_variants"]) > 0:
             logger.warning(
-                f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants for term {term}."
+                f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants."
             )
 
-    term_variant_scores = variant_scores.loc[sel_genotypes["col_variants"]][
-        ["VS00", "VS01", "VS11"]
-    ]
+    variant_scores_table = variant_scores.loc[sel_genotypes["col_variants"]]
+    term_variant_scores = variant_scores_table[["VS00", "VS01", "VS11"]]
 
     print(
-        f"We read {len(term_variant_scores)} variant scores for our {len(term_variants)} variants"
+        f"We read {len(term_variant_scores)} variant scores for our {len(vids)} variants"
     )
 
+    # TODO:This is now the bottleneck!
     ind_top_variants_df = process_individual_variants(
         sel_genotypes, term_variant_scores
     )
@@ -240,15 +269,15 @@ def term_variant_prioritisation(
         f"For some reason, we get just {len(ind_top_variants_df)} top variants for {len(sel_genotypes['row_eids'])} individuals"
     )
 
-    top_variants = term_variants.join(ind_top_variants_df, on="variant_id", how="right")
+    top_variants = vids.join(ind_top_variants_df, on="variant_id", how="right")
     top_variants = top_variants.join(term_variant_scores, on="variant_id")
 
     if stream_logger:
-        stream_logger.info(f"Term variants: {len(term_variants)}")
+        stream_logger.info(f"Term variants: {len(vids)}")
         stream_logger.info(f"Top variants: {len(top_variants)}")
         stream_logger.info(f"Individual top variants: {len(ind_top_variants_df)}")
     else:
-        logger.info(f"Term variants: {len(term_variants)}")
+        logger.info(f"Term variants: {len(vids)}")
         logger.info(f"Individual top variants: {len(ind_top_variants_df)}")
         logger.info(f"Top variants: {len(top_variants)}")
 
@@ -297,7 +326,7 @@ def save_results_to_cache(disease_code: str, term: str, data: dict):
 
 
 def get_top_variants(
-    disease_code: str,
+    phecode: str,
     term: str,
     phenotype_service,
     genotype_service,
@@ -306,13 +335,14 @@ def get_top_variants(
     population: str | None = None,
     biological_sex: str | None = None,
     stream_logger=None,
+    protective: bool = False,
     no_cache: bool = False,
 ) -> dict:
     """Get the top variants for the disease and term."""
 
     # Try to load from cache first (unless no_cache is True)
     if not no_cache:
-        cached_results = load_cached_results(disease_code, term)
+        cached_results = load_cached_results(phecode, term)
         if cached_results:
             if stream_logger:
                 stream_logger.info("Loaded results from cache")
@@ -321,16 +351,29 @@ def get_top_variants(
     # Compute results if not cached...
 
     if stream_logger:
-        stream_logger.info("Computing results (not found in cache)")
+        stream_logger.info(f"Computing results (not found in cache, flush={no_cache})")
 
     # Get phenotype data for the given phecode...
     eids, phenotypes = phenotype_service.get_cases_for_phecode(
-        disease_code, population, biological_sex
+        phecode, population, biological_sex
     )
 
-    print(
-        f"Got {len(eids)} cases for phecode {disease_code} with population {population} and sex {biological_sex}"
-    )
+    if stream_logger:
+        stream_logger.info(
+            f"Got {len(eids)} samples for phecode {phecode} with population {population} and sex {biological_sex}"
+        )
+    else:
+        logger.info(
+            f"Got {len(eids)} samples for phecode {phecode} with population {population} and sex {biological_sex}"
+        )
+
+    # Doing this outside the loop makes sense, but it doesn't save much time.
+    term_variant_ids = get_term_variants(term)
+
+    if stream_logger:
+        stream_logger.info(f"Got {len(term_variant_ids)} variants for term {term}")
+    else:
+        logger.info(f"Got {len(term_variant_ids)} variants for term {term}")
 
     # cases_info = read_cases_for_disease_code(disease_code)
     # cases_eids = list(cases_info["cases"])
@@ -340,21 +383,33 @@ def get_top_variants(
 
     assert len(eids) == len(case_eids) + len(control_eids) + len(exclude_eids)
 
-    print(
-        f"Got {len(case_eids)} cases for {disease_code} with population {population} and sex {biological_sex}"
-    )
+    if stream_logger:
+        stream_logger.info(
+            f"Got {len(case_eids)} cases for {phecode} with population {population} and sex {biological_sex}"
+        )
+    else:
+        logger.info(
+            f"Got {len(case_eids)} cases for {phecode} with population {population} and sex {biological_sex}"
+        )
 
-    case_eids_sorted = np.sort(case_eids)
+    # Assert that the case eids are sorted
+    assert np.all(np.diff(case_eids) > 0), "case_eids are not sorted!"
 
     case_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
-        case_eids_sorted, terms=[term]
+        case_eids, terms=[term]
     )
 
-    assert len(case_eids_sorted) == len(case_scores)
+    assert len(case_eids) == len(case_scores)
+
+    control_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
+        control_eids, terms=[term]
+    )
+
+    assert len(control_eids) == len(control_scores)
 
     stats = stats_service.get_stats_by_term_phecode(
         term=term,
-        phecode=disease_code,
+        phecode=phecode,
         statstype=[
             "num_rp",
             "num_rn",
@@ -364,6 +419,7 @@ def get_top_variants(
             "roc_stats_mcc_pvalue",
             "roc_stats_mcc_or",
             "roc_stats_mcc_threshold",
+            "roc_stats_mcc_all_index",
             "roc_stats_mcc_tp",
             "roc_stats_mcc_fp",
             "roc_stats_mcc_fn",
@@ -395,14 +451,29 @@ def get_top_variants(
         ],
     )
 
-    # Something is wrong...
+    # Quick cleanup of stats...
+
+    # Ensure NaN values are converted to None
+    if pd.isna(stats["metric1_pvalue"]):
+        stats["metric1_pvalue"] = 1
+
+    for key in stats.keys():
+        if key.endswith("_threshold"):
+            if stats[key] == float("inf"):
+                # Just ignore these!
+                stats[key] = 0
+        if key.endswith("_or"):
+            if stats[key] == float("nan"):
+                stats[key] = 1
+
+    # TODO: Something is wrong somewhere...
 
     if len(case_eids) != stats["num_rp"] or len(control_eids) != stats["num_rn"]:
         # TODO: DEBUG THIS!
         logger.warning(
-            f"Phecode {disease_code} has {len(case_eids)} / {len(control_eids)} cases and controls"
+            f"Phecode {phecode} has {len(case_eids)} / {len(control_eids)} cases and controls"
             + f" from phenotype service but {stats['num_rp']} / {stats['num_rn']} cases and controls"
-            + f" from stats service! (Excludes = {len(exclude_eids)})"
+            + f" from stats service! (Excludes = {len(exclude_eids)})."
         )
 
     # Fill in the 'missing' values for metric1
@@ -414,27 +485,38 @@ def get_top_variants(
     stats["metric1_fn"] = len(case_eids) - stats["metric1_tp"]
     stats["metric1_tn"] = len(control_eids) - stats["metric1_fp"]
 
-    for stat in [
+    stats_to_process = [
         "metric1",
         "roc_stats_mcc",
         "roc_stats_yjs",
         "roc_stats_lrp",
-        # "roc_stats_lrn_protective",
-    ]:
-        selected_eids = case_eids_sorted[case_scores >= stats[f"{stat}_threshold"]]
+    ]
 
-        print(f"Selected for statistic {stat}: {len(selected_eids)}")
+    if protective:
+        stats_to_process.append("roc_stats_lrn_protective")
 
-        if len(selected_eids) != stats[f"{stat}_tp"]:
+    for stat in stats_to_process:
+        case_eids_above_threshold = case_eids[case_scores >= stats[f"{stat}_threshold"]]
+
+        if stat.endswith("protective"):
+            case_eids_above_threshold = control_eids[
+                control_scores >= stats[f"{stat}_threshold"]
+            ]
+
+        print(f"Selected for statistic {stat}: {len(case_eids_above_threshold)}")
+
+        if len(case_eids_above_threshold) != stats[f"{stat}_tp"]:
+            # position_in_index = str(stats.get(f"{stat}_all_index", "Unknown"))
             logger.warning(
-                f"Phecode {disease_code} has {len(selected_eids)} True Positives for {stat} from "
+                f"Phecode {phecode} has {len(case_eids_above_threshold)} True Positives for {stat} from "
                 + f"nomaly scores but {stats[f'{stat}_tp']} True Positives from stats service!"
+                # TODO: The index looks wrong.
+                # + f"Note that the index is {position_in_index}."
             )
 
         top_variants = term_variant_prioritisation(
-            selected_eids,
-            variant_scores,
-            term,
+            term_variant_ids,
+            case_eids_above_threshold,
             genotype_service,
             stream_logger,
         )
@@ -486,12 +568,8 @@ def get_top_variants(
         stats[f"{stat}_top_variants"] = top_variants.to_dict(orient="records")
         stats[f"{stat}_top_gene_set"] = gene_set_data
 
-    # Ensure NaN values are converted to None
-    if pd.isna(stats["metric1_pvalue"]):
-        stats["metric1_pvalue"] = 1
-
     # Save to cache
-    save_results_to_cache(disease_code, term, stats)
+    save_results_to_cache(phecode, term, stats)
 
     return stats
 
@@ -504,6 +582,9 @@ def show_variant_scores(disease_code: str, term: str):
     """Show the variant scores page."""
     # Get flush parameter
     flush = bool(request.args.get("flush", False))
+
+    # Get protecive parameter
+    protective = bool(request.args.get("protective", False))
 
     # Get phecode data
     data = get_phecode_data(disease_code)
@@ -522,32 +603,16 @@ def show_variant_scores(disease_code: str, term: str):
     data["genelen"] = len(genes)
     data["genes"] = ", ".join(genes) if len(genes) < 5 else f"{len(genes)} genes"
 
-    # Initialize empty stats values
-    data.update(
-        {
-            "metric1_pvalue": 1,
-            "metric1_tpr": 0,
-            "metric1_fpr": 0,
-            "metric1_lrp": 0,
-            "metric1_tp": 0,
-        }
-    )
-
     return render_template(
         "variant_scores.html",
         disease_code=disease_code,
         term=term,
         data=data,
         flush=flush,  # Pass to template
+        protective=protective,
         top_variants=pd.DataFrame(),
         top_gene_set=pd.DataFrame(),
     )
-
-
-def get_stats_data(stats_service: StatsHDF5, disease_code: str, term: str) -> dict:
-    """Get the stats data for the disease and term."""
-    stats_data = stats_service.get_stats_by_term_phecode(term, disease_code)
-    return stats_data
 
 
 @prioritisation_bp.route("/stream_progress/<disease_code>/<term>")
@@ -561,6 +626,9 @@ def stream_progress(
     # Get no_cache from the flush parameter
     no_cache = bool(request.args.get("flush", False))
 
+    # Get protective parameter
+    protective = bool(request.args.get("protective", False))
+
     def process_variants(
         disease_code,
         term,
@@ -571,6 +639,7 @@ def stream_progress(
         population,
         biological_sex,
         message_queue,
+        protective,
         no_cache,
     ):
         """Process variants using the thread pool."""
@@ -586,6 +655,7 @@ def stream_progress(
                 population,
                 biological_sex,
                 stream_logger,
+                protective,
                 no_cache,
             )
 
@@ -597,73 +667,98 @@ def stream_progress(
                         "top_variants": data["metric1_top_variants"],
                         "top_gene_set": data["metric1_top_gene_set"],
                         "stats": {
+                            "num_rp": int(data["num_rp"]),
+                            "num_rn": int(data["num_rn"]),
                             "pvalue": float(data["metric1_pvalue"]),
                             "tpr": float(data["metric1_tpr"]),
                             "fpr": float(data["metric1_fpr"]),
                             "lrp": float(data["metric1_lrp"]),
                             "tp": int(data["metric1_tp"]),
+                            "tn": int(data["metric1_tn"]),
+                            "fp": int(data["metric1_fp"]),
+                            "fn": int(data["metric1_fn"]),
                             "threshold": float(data["metric1_threshold"]),
-                            "meaning": "True Positives, True Negatives, False Positives and False Negatives determined using a specific nomaly score threshold",
+                            "meaning": "True Positives, True Negatives, False Positives and False Negatives determined using a specific, empirically determinedNomaly Score threshold (0.022).",
                         },
                     },
                     "roc_stats_mcc": {
                         "top_variants": data["roc_stats_mcc_top_variants"],
                         "top_gene_set": data["roc_stats_mcc_top_gene_set"],
                         "stats": {
+                            "num_rp": int(data["num_rp"]),
+                            "num_rn": int(data["num_rn"]),
                             "pvalue": float(data["roc_stats_mcc_pvalue"]),
                             "tpr": float(data["roc_stats_mcc_tpr"]),
                             "fpr": float(data["roc_stats_mcc_fpr"]),
                             "lrp": float(data["roc_stats_mcc_lrp"]),
                             "tp": int(data["roc_stats_mcc_tp"]),
+                            "tn": int(data["roc_stats_mcc_tn"]),
+                            "fp": int(data["roc_stats_mcc_fp"]),
+                            "fn": int(data["roc_stats_mcc_fn"]),
                             "threshold": float(data["roc_stats_mcc_threshold"]),
-                            "meaning": "Threshold determined by maximum 'best-separation' p-value (MCC). Note this is a two-sided P value. To see if people above the threshold have a predisposition to be affected or not-affected, check the TPR and FPR below.",
+                            "meaning": "Matthews Correlation Coefficient (MCC) selects the threshold that maximises the chi-square statistic, minimising the contingency table's p-value.",
                         },
                     },
                     "roc_stats_yjs": {
                         "top_variants": data["roc_stats_yjs_top_variants"],
                         "top_gene_set": data["roc_stats_yjs_top_gene_set"],
                         "stats": {
+                            "num_rp": int(data["num_rp"]),
+                            "num_rn": int(data["num_rn"]),
                             "pvalue": float(data["roc_stats_yjs_pvalue"]),
                             "tpr": float(data["roc_stats_yjs_tpr"]),
                             "fpr": float(data["roc_stats_yjs_fpr"]),
                             "lrp": float(data["roc_stats_yjs_lrp"]),
                             "tp": int(data["roc_stats_yjs_tp"]),
+                            "tn": int(data["roc_stats_yjs_tn"]),
+                            "fp": int(data["roc_stats_yjs_fp"]),
+                            "fn": int(data["roc_stats_yjs_fn"]),
                             "threshold": float(data["roc_stats_yjs_threshold"]),
-                            "meaning": "Threshold by maximum fraction of cases over threshold to that of controls.",
+                            "meaning": "Youden's J statistic (YJS) selects the threshold that maximises the difference between the true positive rate (TPR) and false positive rate FPR (TPR - FPR).",
                         },
                     },
                     "roc_stats_lrp": {
                         "top_variants": data["roc_stats_lrp_top_variants"],
                         "top_gene_set": data["roc_stats_lrp_top_gene_set"],
                         "stats": {
+                            "num_rp": int(data["num_rp"]),
+                            "num_rn": int(data["num_rn"]),
                             "pvalue": float(data["roc_stats_lrp_pvalue"]),
                             "tpr": float(data["roc_stats_lrp_tpr"]),
                             "fpr": float(data["roc_stats_lrp_fpr"]),
                             "lrp": float(data["roc_stats_lrp_lrp"]),
                             "tp": int(data["roc_stats_lrp_tp"]),
+                            "tn": int(data["roc_stats_lrp_tn"]),
+                            "fp": int(data["roc_stats_lrp_fp"]),
+                            "fn": int(data["roc_stats_lrp_fn"]),
                             "threshold": float(data["roc_stats_lrp_threshold"]),
+                            "meaning": "Likelihood Ratio for being Positive (LRP) selects a threshold that maximises the ratio of true positive rate over false positive rate (TPR/FPR).",
+                        },
+                    },
+                    "roc_stats_lrn_protective": {
+                        "top_variants": data["roc_stats_lrn_protective_top_variants"],
+                        "top_gene_set": data["roc_stats_lrn_protective_top_gene_set"],
+                        "stats": {
+                            "num_rp": int(data["num_rp"]),
+                            "num_rn": int(data["num_rn"]),
+                            "pvalue": float(data["roc_stats_lrn_protective_pvalue"]),
+                            "tpr": float(data["roc_stats_lrn_protective_tpr"]),
+                            "fpr": float(data["roc_stats_lrn_protective_fpr"]),
+                            "lrp": float(data["roc_stats_lrn_protective_lrp"]),
+                            "tp": int(data["roc_stats_lrn_protective_tp"]),
+                            "tn": int(data["roc_stats_lrn_protective_tn"]),
+                            "fp": int(data["roc_stats_lrn_protective_fp"]),
+                            "fn": int(data["roc_stats_lrn_protective_fn"]),
+                            "threshold": float(
+                                data["roc_stats_lrn_protective_threshold"]
+                            ),
                             "meaning": "Threshold by maximum fraction of cases over threshold to that of controls.",
                         },
                     },
-                    # "roc_stats_lrn_protective": {
-                    #     "top_variants": data["roc_stats_lrn_protective_top_variants"],
-                    #     "top_gene_set": data["roc_stats_lrn_protective_top_gene_set"],
-                    #     "stats": {
-                    #         "pvalue": float(data["roc_stats_lrn_protective_pvalue"]),
-                    #         "tpr": float(data["roc_stats_lrn_protective_tpr"]),
-                    #         "fpr": float(data["roc_stats_lrn_protective_fpr"]),
-                    #         "lrp": float(data["roc_stats_lrn_protective_lrp"]),
-                    #         "tp": int(data["roc_stats_lrn_protective_tp"]),
-                    #         "threshold": float(
-                    #             data["roc_stats_lrn_protective_threshold"]
-                    #         ),
-                    #         "meaning": "Threshold by maximum fraction of cases over threshold to that of controls.",
-                    #     },
-                    # },
                 },
             }
 
-            print(json.dumps(message_data, indent=2, sort_keys=True))
+            # print(json.dumps(message_data, indent=2, sort_keys=True))
 
             # Add debug print to see the stats values
             print("Stats values being sent:")
@@ -703,6 +798,7 @@ def stream_progress(
                 population,
                 biological_sex,
                 message_queue,
+                protective,
                 no_cache,
             )
             print("Submitted to thread pool")
@@ -738,8 +834,8 @@ def main():
     # disease_code = "290.11"
     # term = "GO:0016861"
 
-    disease_code = "290.11"
-    term = "CD:MESH:D009139"
+    # disease_code = "290.11"
+    # term = "CD:MESH:D009139"
 
     # disease_code = "334.2"
     # term = "GO:0044559"
@@ -752,6 +848,9 @@ def main():
 
     disease_code = "332"
     term = "GO:0030800"
+
+    # disease_code = "300.13"
+    # term = "GO:1901136"
 
     from app import create_app
 
@@ -767,6 +866,7 @@ def main():
             services.nomaly_score._hdf,
             services.stats._hdf,
             no_cache=True,
+            protective=True,
         )
 
         # Convert NumPy types to native Python types
