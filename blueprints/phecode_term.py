@@ -213,9 +213,9 @@ def calculate_phecode_term_variant_detail(
                     "Drug_Program_Indication": str(
                         row.get("drug_program_indication", "None")
                     ),
-                    "vs00": f"{vs00:.2f}",
-                    "vs01": f"{vs01:.2f}",
-                    "vs11": f"{vs11:.2f}",
+                    "vs00": f"{vs00:.4f}",
+                    "vs01": f"{vs01:.4f}",
+                    "vs11": f"{vs11:.4f}",
                     "hmoz_alt": counts["homozygous_alt"],
                     "hmoz_ref": counts["homozygous_ref"],
                     "htrz": counts["heterozygous"],
@@ -274,10 +274,12 @@ def calculate_phecode_term_variant_detail(
 def main():
     phecode = "561"
     phecode = "564.1"
+    phecode = "338"
 
     term = "MP:0004957"
     term = "HP:0000789"
     term = "KW:0544"
+    term = "MP:0000948"
 
     from app import create_app
 
