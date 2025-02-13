@@ -52,6 +52,106 @@ def test_genotype_matrix_shape():
     assert nomaly_genotype.genotype_matrix.shape == (NUM_VARIANTS, NUM_INDIVIDUALS)
 
 
+def test_get_genotypes_to_hell():
+    """Test the get_genotypes method."""
+    eids = nomaly_genotype.individual
+    vids = nomaly_genotype.genotype_variant_id
+
+    rand_eid = np.random.choice(eids, size=1000, replace=True)
+    rand_vid = np.random.choice(vids, size=100, replace=True)
+
+    # Find the indices of the random eids and vids
+    rand_eid_idx = np.where(np.isin(eids, rand_eid))[0]
+    rand_vid_idx = np.where(np.isin(vids, rand_vid))[0]
+
+    # Note that the indexes as found above (using np.where) are in the
+    # 'original' order, as found in the original eids and vids arrays.
+
+    # Get genotypes in 'original' order
+    selected_genotypes_original_order = nomaly_genotype.get_genotypes(
+        eids=eids[rand_eid_idx], vids=vids[rand_vid_idx]
+    )
+
+    # Get genotypes in 'reverse' order
+    selected_genotypes_reverse_order = nomaly_genotype.get_genotypes(
+        eids=eids[rand_eid_idx[::-1]], vids=vids[rand_vid_idx[::-1]]
+    )
+
+    # The results are different, but we can check that they are the same by
+    # simply reversing the reversed matrix...
+    assert np.array_equal(
+        selected_genotypes_original_order,
+        selected_genotypes_reverse_order[::-1, ::-1],
+    )
+
+    # Now lets shuffle the eids and vids and check that the results are the same
+    rand_eid_idx_idx = np.random.permutation(np.arange(len(rand_eid_idx)))
+    rand_vid_idx_idx = np.random.permutation(np.arange(len(rand_vid_idx)))
+
+    selected_genotypes_random_order = nomaly_genotype.get_genotypes(
+        eids=eids[rand_eid_idx[rand_eid_idx_idx]],
+        vids=vids[rand_vid_idx[rand_vid_idx_idx]],
+    )
+
+    # The results are different, but we can check that they are the same by
+    # simply re-ordering the original matrix using the shuffled indexes...
+    assert np.array_equal(
+        selected_genotypes_original_order[rand_vid_idx_idx, :][:, rand_eid_idx_idx],
+        selected_genotypes_random_order,
+    )
+
+    double_eids = np.concatenate([eids[rand_eid_idx], eids[rand_eid_idx]])
+    double_vids = np.concatenate([vids[rand_vid_idx], vids[rand_vid_idx]])
+
+    # Double check that duplicates are handled 'correctly'...
+    selected_genotypes_duplicate_eids = nomaly_genotype.get_genotypes(
+        eids=double_eids, vids=double_vids
+    )
+
+    assert np.array_equal(
+        np.tile(selected_genotypes_original_order, (2, 2)),
+        selected_genotypes_duplicate_eids,
+    )
+
+    # Check with just 10 eids
+    selected_10_eids1 = nomaly_genotype.get_genotypes(eids=eids[rand_eid_idx[:10]])
+    assert selected_10_eids1.shape == (NUM_VARIANTS, 10)
+
+    selected_10_eids2 = nomaly_genotype.get_genotypes(
+        eids=eids[rand_eid_idx[:10][::-1]]
+    )
+    assert selected_10_eids2.shape == (NUM_VARIANTS, 10)
+
+    assert np.array_equal(selected_10_eids1, selected_10_eids2[:, ::-1])
+
+    # Check with just 10 vids
+    selected_10_vids1 = nomaly_genotype.get_genotypes(vids=vids[rand_vid_idx[:10]])
+    assert selected_10_vids1.shape == (10, NUM_INDIVIDUALS)
+
+    selected_10_vids2 = nomaly_genotype.get_genotypes(
+        vids=vids[rand_vid_idx[:10][::-1]]
+    )
+    assert selected_10_vids2.shape == (10, NUM_INDIVIDUALS)
+
+    assert np.array_equal(selected_10_vids1, selected_10_vids2[::-1, :])
+
+    # Check with garbage eids and vids
+    # Currently we're fucked...
+    garbage = np.array(["foo", "bar", "baz"])
+
+    with pytest.raises(IndexError):
+        _ = nomaly_genotype.get_genotypes(eids=garbage)
+
+    # This is like the least best result we could expect... other than what we currently do...
+    # assert selected_garbage_eids.shape == (NUM_VARIANTS, 0)
+
+    with pytest.raises(IndexError):
+        _ = nomaly_genotype.get_genotypes(vids=garbage)
+
+    # This is like the least best result we could expect... other than what we currently do...
+    # assert selected_garbage_vids.shape == (0, NUM_INDIVIDUALS)
+
+
 def test_known_variant_genotype_distribution():
     """Test the distribution of genotypes for a known variant."""
     # Known variant with expected distribution

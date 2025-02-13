@@ -30,8 +30,8 @@ class GenotypesHDF5:
     """
 
     def __init__(self, hdf5_file):
-        try:
-            self.f = h5py.File(hdf5_file, "r")
+        with h5py.File(hdf5_file, "r") as f:
+            self.f = f
 
             # Jumping through hoops to fix the type checker...
             # TODO: Fix the naming of the fields!
@@ -104,18 +104,66 @@ class GenotypesHDF5:
             self.genotype_matrix_h5 = self.genotype_matrix
             self.genotype_matrix = self.genotype_matrix_mm
 
-        except Exception as e:
-            print(f"Error initializing GenotypesHDF5: {str(e)}")
-            raise
+            # Precompute sorted indices for faster lookups
+            self._individual_argsort = np.argsort(self.individual)
+            self._individual_sorted = self.individual[self._individual_argsort]
 
-    # TODO: Is this needed?
-    def __del__(self):
-        """Cleanup method to ensure file is closed."""
-        try:
-            if hasattr(self, "f"):
-                self.f.close()
-        except Exception as e:
-            print(f"Error closing genotype file: {str(e)}")
+            self._nomaly_variant_argsort = np.argsort(self.nomaly_variant_id)
+            self._nomaly_variant_sorted = self.nomaly_variant_id[
+                self._nomaly_variant_argsort
+            ]
+
+            self._genotype_variant_argsort = np.argsort(self.genotype_variant_id)
+            self._genotype_variant_sorted = self.genotype_variant_id[
+                self._genotype_variant_argsort
+            ]
+
+    def get_genotypes(
+        self,
+        eids: np.ndarray = np.array([]),
+        vids: np.ndarray = np.array([]),
+        nomaly_ids: bool = False,
+    ) -> np.ndarray:
+        """
+        Get genotypes for a list of eids and variant IDs.
+
+        Args:
+            eids: List of eids to get genotypes for
+            vids: List of variant IDs to get genotypes for.
+            genotype_ids:
+                If True, the variant IDs will be 'Genotype Format' variant IDs.
+                If False, the variant IDs will be 'Nomaly Format' variant IDs.
+
+        Returns:
+            np.ndarray: Array of genotypes with shape (n_variants, n_eids) in the order of the
+                provided eids and variant IDs.
+        """
+
+        if eids.size == 0 and vids.size == 0:
+            return (
+                self.genotype_matrix
+            )  # This linting error will be fixed when we switch to memmap
+
+        if eids.size > 0:
+            # Vectorized index lookup using precomputed sorted arrays
+            eid_pos = np.searchsorted(self._individual_sorted, eids)
+            eid_idx = self._individual_argsort[eid_pos]
+
+        if vids.size > 0:
+            if nomaly_ids:
+                vid_pos = np.searchsorted(self._nomaly_variant_sorted, vids)
+                vid_idx = self._nomaly_variant_argsort[vid_pos]
+            else:
+                vid_pos = np.searchsorted(self._genotype_variant_sorted, vids)
+                vid_idx = self._genotype_variant_argsort[vid_pos]
+
+        if eids.size == 0:
+            return self.genotype_matrix[vid_idx, :]
+
+        if vids.size == 0:
+            return self.genotype_matrix[:, eid_idx]
+
+        return self.genotype_matrix[vid_idx, :][:, eid_idx]
 
     # TODO: Refactor away (we now have this data in the HDF5 file)
     def _flip_alleles(self, variant: str) -> str:
