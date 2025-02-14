@@ -61,7 +61,9 @@
                         <option value="roc_stats_mcc">ROC MCC</option>
                         <option value="roc_stats_yjs">ROC YJS</option>
                         <option value="roc_stats_lrp">ROC LRP</option>
+                        {% if protective %}
                         <option value="roc_stats_lrn_protective">ROC LRN Protective</option>
+                        {% endif %}
                     </select>
                 </div>
             </div>
@@ -91,10 +93,11 @@
                 <div class="col-md-9">
                     <span id="stat_pvalue">{% if data.stat_pvalue %}{{ "%.2e"|format(data.stat_pvalue|float)
                         }}{% else %}Loading...{% endif %}</span>
-                    <p>Note: This is a two-sided P value. To see if people
-                        above the threshold have a predisposition to be cases or controls, check the TPR and FPR
-                        below. <a href="#" data-bs-toggle="collapse" data-bs-target="#contingencyTableRow"
-                            class="text-primary">Details...</a></p>
+                    <p>Note: This is a two-sided P value. Check the TPR and FPR (below) to see if people
+                        above the threshold have a predisposition to be cases or controls.
+                        <a href="#" data-bs-toggle="collapse" data-bs-target="#contingencyTableRow"
+                            class="text-primary">Details...</a>
+                    </p>
                 </div>
             </div>
 
@@ -226,13 +229,14 @@
             return `<a href="/variant/${urlVariant}">${variant}</a>`;
         }
 
-        // Connect to SSE endpoint
-        const source = new EventSource("{{url_for('prioritisation.stream_progress', 
-            disease_code = disease_code,
-            term = term,
-            flush = flush | int if flush else none,
-                protective = protective | int if protective else none
-        )}}");
+        const streamUrl = "{{url_for('prioritisation.stream_progress', 
+            disease_code=disease_code,
+            term=term,
+            flush=(1 if flush else none),
+            protective=(1 if protective else none)
+        ) | safe}}";
+        console.log('Stream URL:', streamUrl);
+        const source = new EventSource(streamUrl);
 
     // Handle stats selection change
     document.getElementById('statsSelect')?.addEventListener('change', function () {
@@ -248,32 +252,27 @@
     function updateStatsDisplay(stats) {
         if (!stats) return;
 
-        document.getElementById('stat_num_rp').textContent =
-            stats.num_rp.toLocaleString();
-        document.getElementById('stat_num_rn').textContent =
-            stats.num_rn.toLocaleString();
-        document.getElementById('stat_pvalue').textContent =
-            stats.pvalue.toExponential(2);
-        document.getElementById('stat_tpr').textContent =
-            (stats.tpr * 100).toFixed(2);
-        document.getElementById('stat_fpr').textContent =
-            (stats.fpr * 100).toFixed(2);
-        document.getElementById('stat_lrp').textContent =
-            stats.lrp.toFixed(2);
-        document.getElementById('stat_tp').textContent =
-            stats.tp.toLocaleString();
-        document.getElementById('stat_tp_count').textContent =
-            stats.tp.toLocaleString();
-        document.getElementById('stat_fp').textContent =
-            stats.fp.toLocaleString();
-        document.getElementById('stat_fn').textContent =
-            stats.fn.toLocaleString();
-        document.getElementById('stat_tn').textContent =
-            stats.tn.toLocaleString();
-        document.getElementById('meaning-text').textContent =
-            stats.meaning;
-        document.getElementById('stat_threshold').textContent =
-            stats.threshold.toFixed(4);
+        // Helper function to safely update element text
+        const safeUpdateElement = (id, value, formatter = null) => {
+            const element = document.getElementById(id);
+            if (element && value !== undefined && value !== null) {
+                element.textContent = formatter ? formatter(value) : value;
+            }
+        };
+
+        safeUpdateElement('stat_num_rp', stats.num_rp, val => val.toLocaleString());
+        safeUpdateElement('stat_num_rn', stats.num_rn, val => val.toLocaleString());
+        safeUpdateElement('stat_pvalue', stats.pvalue, val => val.toExponential(2));
+        safeUpdateElement('stat_tpr', stats.tpr, val => (val * 100).toFixed(2));
+        safeUpdateElement('stat_fpr', stats.fpr, val => (val * 100).toFixed(2));
+        safeUpdateElement('stat_lrp', stats.lrp, val => val.toFixed(2));
+        safeUpdateElement('stat_tp', stats.tp, val => val.toLocaleString());
+        safeUpdateElement('stat_tp_count', stats.tp, val => val.toLocaleString());
+        safeUpdateElement('stat_fp', stats.fp, val => val.toLocaleString());
+        safeUpdateElement('stat_fn', stats.fn, val => val.toLocaleString());
+        safeUpdateElement('stat_tn', stats.tn, val => val.toLocaleString());
+        safeUpdateElement('meaning-text', stats.meaning);
+        safeUpdateElement('stat_threshold', stats.threshold, val => val.toFixed(4));
     }
 
     function initializeTables(metricData) {
@@ -378,7 +377,17 @@
                     window.currentResultData = message.data;
 
                     // Get selected metric
-                    const selectedMetric = document.getElementById('statsSelect')?.value || 'metric1';
+                    const statsSelect = document.getElementById('statsSelect');
+                    let selectedMetric = statsSelect?.value || 'metric1';
+
+                    // If the selected metric doesn't exist in the data, fall back to metric1
+                    if (!message.data[selectedMetric]) {
+                        selectedMetric = 'metric1';
+                        if (statsSelect) {
+                            statsSelect.value = selectedMetric;
+                        }
+                    }
+
                     const metricData = message.data[selectedMetric];
 
                     if (!metricData) {
