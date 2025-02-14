@@ -3,6 +3,8 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+from line_profiler import profile
+
 
 class PhenotypeService:
     def __init__(self, hdf5_file: Path | str):
@@ -74,6 +76,7 @@ class PhenotypesHDF5:
     def get_affected_sex_mask(self, affected_sex):
         return self.affected_sex == affected_sex
 
+    @profile
     def get_cases_for_phecode(
         self, phecode, population: str | None = None, biological_sex: str | None = None
     ):
