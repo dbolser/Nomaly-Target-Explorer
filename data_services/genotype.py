@@ -129,6 +129,7 @@ class GenotypesHDF5:
                 self._genotype_variant_argsort
             ]
 
+        # Hopefully we never need to use this...
         self.allele_flipped_in_genotype_file_relative_to_nomaly_variant_id = (
             self._calculate_allele_flips(
                 self.nomaly_variant_id, self.genotype_variant_id
@@ -180,10 +181,21 @@ class GenotypesHDF5:
 
         return result
 
+    # Example class property method:
+    @property
+    def num_variants(self) -> int:
+        """
+        Returns the number of variants in the genotype matrix.
+
+        Returns:
+            int: The number of variants
+        """
+        return self.genotype_matrix.shape[0]
+
     def get_genotypes(
         self,
-        eids: np.ndarray = np.array([]),
-        vids: np.ndarray = np.array([]),
+        eids: Optional[np.ndarray] = None,
+        vids: Optional[np.ndarray] = None,
         nomaly_ids: bool = False,
     ) -> np.ndarray:
         """
@@ -201,17 +213,17 @@ class GenotypesHDF5:
                 provided eids and variant IDs.
         """
 
-        if eids.size == 0 and vids.size == 0:
+        if eids is None and vids is None:
             return (
                 self.genotype_matrix
             )  # This linting error will be fixed when we switch to memmap
 
-        if eids.size > 0:
+        if eids is not None:
             # Vectorized index lookup using precomputed sorted arrays
             eid_pos = np.searchsorted(self._individual_sorted, eids)
             eid_idx = self._individual_argsort[eid_pos]
 
-        if vids.size > 0:
+        if vids is not None:
             if nomaly_ids:
                 vid_pos = np.searchsorted(self._nomaly_variant_sorted, vids)
                 vid_idx = self._nomaly_variant_argsort[vid_pos]
@@ -219,15 +231,16 @@ class GenotypesHDF5:
                 vid_pos = np.searchsorted(self._genotype_variant_sorted, vids)
                 vid_idx = self._genotype_variant_argsort[vid_pos]
 
-        if eids.size == 0:
+        if eids is None:
             return self.genotype_matrix[vid_idx, :]
 
-        if vids.size == 0:
+        if vids is None:
             return self.genotype_matrix[:, eid_idx]
 
         return self.genotype_matrix[vid_idx, :][:, eid_idx]
 
     # TODO: Refactor away (we now have this data in the HDF5 file)
+    @DeprecationWarning
     def _flip_alleles(self, variant: str) -> str:
         """
         Flip the ref and alt alleles in a variant ID.
@@ -242,6 +255,7 @@ class GenotypesHDF5:
         return f"{chrom}:{pos}:{alt}:{ref}"
 
     # TODO: Refactor away (we now have this data in the HDF5 file)
+    @DeprecationWarning
     def _standardize_variant_format(self, variant: str) -> str:
         """
         Convert any variant format to CHR:POS:REF:ALT format.
@@ -275,6 +289,7 @@ class GenotypesHDF5:
         except Exception as e:
             raise ValueError(f"Error standardizing variant format {variant}: {str(e)}")
 
+    @DeprecationWarning
     def get_variant_counts(
         self,
         nomaly_variant_id: str,
@@ -337,6 +352,7 @@ class GenotypesHDF5:
             "missing": int(np.sum(filtered_genotypes == -1)),
         }
 
+    @DeprecationWarning
     def query_variants(self, variant: str) -> np.ndarray:
         """
         Query genotypes for a variant, trying flipped alleles if original not found.
@@ -409,16 +425,7 @@ class GenotypesHDF5:
             logger.error(f"Error in _single_variant_mask: {str(e)}")
             raise
 
-    @property
-    def num_variants(self) -> int:
-        """
-        Returns the number of variants in the genotype matrix.
-
-        Returns:
-            int: The number of variants
-        """
-        return self.genotype_matrix.shape[0]
-
+    @DeprecationWarning
     def query_variantID_genotypes(
         self, variant: str
     ) -> tuple[np.ndarray, np.ndarray] | None:
