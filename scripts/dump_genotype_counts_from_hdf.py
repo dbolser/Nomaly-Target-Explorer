@@ -110,14 +110,13 @@ def main():
     SELECT
       nomaly_variant_id,
       hmm_score,
-      @hmm2 := hmm_score * hmm_score AS hmm2,
       htrz,
       ref_hmoz,
       alt_hmoz,
       freq_01, freq_00, freq_11,
-      CAST(@hmm2 * (freq_00 + freq_11)           AS FLOAT) AS vs01,
-      CAST(@hmm2 * freq_01 + @hmm2 * 4 * freq_11 AS FLOAT) AS vs00,
-      CAST(@hmm2 * freq_01 + @hmm2 * 4 * freq_00 AS FLOAT) AS vs11
+      CAST(hmm_score*hmm_score * freq_01 + hmm_score*hmm_score * 4 * freq_11 AS FLOAT) AS vs00,
+      CAST(hmm_score*hmm_score * freq_01 + hmm_score*hmm_score * 4 * freq_00 AS FLOAT) AS vs11,
+      CAST(hmm_score*hmm_score * (freq_00 + freq_11)                         AS FLOAT) AS vs01
     FROM
       hmm_score
     INNER JOIN
