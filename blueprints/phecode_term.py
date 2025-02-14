@@ -8,7 +8,6 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 from blueprints.gwas import format_gwas_results, run_gwas
 from blueprints.nomaly import pharos, pp
 
-# from blueprints.phewas import get_formatted_phewas_data
 from blueprints.phecode_term_helper import load_cached_results, save_results
 from db import (
     get_phecode_info,
@@ -18,6 +17,8 @@ from db import (
     get_term_variants,
 )
 from errors import DataNotFoundError
+
+# from line_profiler import profile
 
 # Create the blueprint
 phecode_term_bp = Blueprint("phecode_term", __name__, template_folder="../templates")
@@ -87,6 +88,7 @@ def show_phecode_term_variant_detail(
     return jsonify(result)
 
 
+# @profile
 def calculate_phecode_term_variant_detail(
     phecode: str,
     term: str,
@@ -191,15 +193,17 @@ def calculate_phecode_term_variant_detail(
                     nomaly_variant_id=nomaly_variant_id
                 )
                 total = counts["total"]
-                f00 = float(counts["homozygous_alt"]) / total
+                f00 = float(counts["homozygous_ref"]) / total
+                f11 = float(counts["homozygous_alt"]) / total
                 f01 = float(counts["heterozygous"]) / total
-                f11 = float(counts["homozygous_ref"]) / total
 
                 # Calculate variant scores
                 HMM_score = float(row["hmm_score"])
-                vs00 = HMM_score * f01 + (HMM_score**2 * f11)
-                vs01 = HMM_score**2 * (f00 + f01)
-                vs11 = HMM_score * f01 + (HMM_score**2 * f00)
+                hmm2 = HMM_score * HMM_score
+
+                vs00 = hmm2 * f01 + hmm2 * 4 * f11
+                vs11 = hmm2 * f01 + hmm2 * 4 * f00
+                vs01 = hmm2 * (f00 + f11)
 
                 # Build record with explicit type conversion
                 record = {
@@ -216,8 +220,8 @@ def calculate_phecode_term_variant_detail(
                     "vs00": f"{vs00:.4f}",
                     "vs01": f"{vs01:.4f}",
                     "vs11": f"{vs11:.4f}",
-                    "hmoz_alt": counts["homozygous_alt"],
                     "hmoz_ref": counts["homozygous_ref"],
+                    "hmoz_alt": counts["homozygous_alt"],
                     "htrz": counts["heterozygous"],
                     # Initialize GWAS fields with default values
                     "GWAS_P": "",
