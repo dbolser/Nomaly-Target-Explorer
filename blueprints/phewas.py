@@ -13,6 +13,8 @@ from config import Config
 from data_services.phenotype import PhenotypeService
 from db import get_all_phecodes, get_all_variants
 
+from line_profiler import profile
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,6 +51,7 @@ class PhecodeCounts:
         if genotype >= 0:  # Ignore -1 (missing)
             self.counts[PheWASItem(case, genotype)] += count
 
+    # @profile
     def get_stats(self) -> dict:
         """Calculate the odds ratio and p-value for the PheWAS results
 
@@ -149,6 +152,7 @@ class PhecodeCounts:
         return string
 
 
+# @profile
 def get_genotype_data(
     variant: str, services=None
 ) -> tuple[np.ndarray, np.ndarray] | None:
@@ -199,6 +203,7 @@ def get_genotype_data(
         return None
 
 
+@profile
 def process_phecode(
     phecode: str,
     sorted_genotype_eids: np.ndarray,
@@ -259,6 +264,7 @@ def process_phecode(
     }
 
 
+@profile
 def phecode_level_assoc(variant: str, services=None) -> pd.DataFrame:
     """
     Run PheWAS analysis for a variant and save results to file.
@@ -310,8 +316,9 @@ def phecode_level_assoc(variant: str, services=None) -> pd.DataFrame:
     return results_df
 
 
+@profile
 def get_phewas_results(
-    variant: str, phecode: str | None = None, flush_cache: bool = False, services=None
+    variant: str, phecode: str | None = None, no_cache: bool = False, services=None
 ) -> pd.DataFrame:
     """
     Get PheWAS results for a variant, either from cache or by running analysis.
@@ -320,7 +327,7 @@ def get_phewas_results(
     Args:
         variant (str): Variant ID in format "CHR:POS:REF:ALT"
         phecode (str | None): Optional phecode to analyze
-        flush_cache (bool): Whether to ignore cached results
+        no_cache (bool): Whether to ignore cached results
         services: Service registry containing required services
 
     Returns:
@@ -331,7 +338,7 @@ def get_phewas_results(
     phewas_file = PHEWAS_PHENO_DIR / f"variant_{variant_underscore}.assoc_nomaly.tsv"
 
     # Check if full results already exist
-    if os.path.exists(phewas_file):
+    if os.path.exists(phewas_file) and not no_cache:
         try:
             df = pd.read_csv(phewas_file, sep="\t", dtype={"phecode": str})
             if phecode is not None:
@@ -391,6 +398,7 @@ def get_phewas_results(
         return pd.DataFrame()
 
 
+# @profile
 def format_phewas_row_for_display(row: pd.Series) -> dict:
     """
     Format a PheWAS result row for display.
@@ -464,17 +472,112 @@ def run_full_analysis():
         p.map(process_variant, variants_df.variant_id_standard)
 
 
+def try_simplified_verssion(variant: str):
+    # 1) Data loading:
+
+    from data_services import ServiceRegistry, GenotypeService, PhenotypeService
+
+    registry = ServiceRegistry.from_config(Config)
+
+    genotype_service = registry.genotype
+    assert isinstance(genotype_service, GenotypeService)
+
+    phenotype_service = registry.phenotype
+    assert isinstance(phenotype_service, PhenotypeService)
+
+    genotype_service = registry.genotype._hdf
+    phenotype_service = registry.phenotype._hdf
+
+    genotype_matrix = genotype_service.get_genotypes(vids=np.array([variant]))
+    phenotype_matrix = phenotype_service.phenotype_data
+
+    print(genotype_matrix.shape)  # (1, 487950)
+    print(phenotype_matrix.shape)  #   (486145, 1855)
+
+    # 2) Data munging:
+
+    # We have to trim the genotype matrix to just the phenotype eids
+    genotype_eids = genotype_service.individual
+    phenotype_eids = phenotype_service.eids
+
+    # Confirm that at least the genotype eids are sorted (only the longer of the
+    # two lists needs to be sorted for searchsorted to work as expected below).
+    assert np.all(np.diff(genotype_eids) > 0)
+    assert np.all(np.diff(phenotype_eids) > 0), "Not strictly necessary!"
+
+    # Find the genotype indices where a corresponding phenotype eid exists
+    genotype_indices = np.searchsorted(genotype_eids, phenotype_eids)
+    assert len(genotype_indices) == phenotype_matrix.shape[0]
+    assert np.all(genotype_eids[genotype_indices] == phenotype_eids)
+
+    # Trim (and flip) the genotype matrix to just the phenotype eids
+    genotype_matrix_trimmed = genotype_matrix[:, genotype_indices].T
+
+    # 3) Data processing:
+
+    # Convert to float and handle missing values
+    geno = genotype_matrix_trimmed.astype(float)
+    pheno = phenotype_matrix[...].astype(float)
+
+    geno[geno == -1] = np.nan
+    pheno[pheno == 9] = np.nan
+
+    # Calculate ref allele counts in cases (core calculation)
+    n_ref_case = np.nansum(geno * pheno, axis=0)
+
+    # Calculate total valid samples and alleles
+    is_valid_geno = ~np.isnan(geno)
+    is_valid_pheno = ~np.isnan(pheno)
+    is_valid_sample = is_valid_geno & is_valid_pheno
+
+    n_alleles_total = 2 * np.sum(is_valid_sample, axis=0)
+    n_ref_total = np.nansum(geno, axis=0)
+    n_cases = np.sum(pheno == 1, axis=0)
+
+    # Derive remaining counts
+    n_ref_ctrl = n_ref_total - n_ref_case
+    n_alt_case = 2 * n_cases - n_ref_case
+    n_alt_ctrl = n_alleles_total - n_ref_total - n_alt_case
+
+    odds_ratios1 = (n_ref_case * n_alt_ctrl) / (n_alt_case * n_ref_ctrl)
+    odds_ratios2 = (n_ref_case / n_alt_case) / (n_ref_ctrl / n_alt_ctrl)
+
+    np.allclose(
+        odds_ratios1[~np.isnan(odds_ratios1)], odds_ratios2[~np.isnan(odds_ratios2)]
+    )
+
+    # Now use vecttorized fishers exact...
+    # https://stackoverflow.com/questions/34947578/how-to-vectorize-fishers-exact-test
+
+    return {
+        "odds_ratios": odds_ratios1,
+        "p_values": p_values,
+        "counts": {
+            "ref_case": n_ref_case,
+            "alt_case": n_alt_case,
+            "ref_ctrl": n_ref_ctrl,
+            "alt_ctrl": n_alt_ctrl,
+        },
+    }
+
+
+@profile
 def main():
     """Debug entry point for blueprint development."""
+
+    test_variant = "19:15373898:C:T"
+    test_variant = "5:33951588:C:G"
+
+    _ = try_simplified_verssion(test_variant)
+
     from app import create_app
 
     app = create_app("development")
     with app.app_context():
         # Quick test of single variant/phecode
-        test_variant = "19:15373898:C:T"
-        test_variant = "5:33951588:C:G"
         # results = get_phewas_results(test_variant, "642.1")
-        results = get_phewas_results(test_variant, None)
+
+        results = get_phewas_results(test_variant, phecode=None, no_cache=True)
         print(results)
 
         # Optionally run full analysis
