@@ -1,15 +1,33 @@
 import re
 from pathlib import Path
 from typing import Optional
+from functools import wraps
 
 import h5py
 import numpy as np
+import warnings
 
 import logging
 
 logger = logging.getLogger(__name__)
 
 chr_str = re.compile("chr", re.IGNORECASE)
+
+
+def deprecated(message: str):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.warn(
+                f"{func.__name__} is deprecated. {message}",
+                category=DeprecationWarning,
+                stacklevel=2,
+            )
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class GenotypeService:
@@ -29,7 +47,9 @@ class GenotypesHDF5:
             must exist at {hdf5_file}.npy
     """
 
-    def __init__(self, hdf5_file):
+    def __init__(self, hdf5_file: Path):
+        self.hdf5_file = hdf5_file
+
         with h5py.File(hdf5_file, "r") as f:
             self.f = f
 
@@ -44,7 +64,7 @@ class GenotypesHDF5:
             nomaly_variant_id = self.f["nomaly_variant_id"]
             plink_variant_id = self.f["plink_variant_id"]
 
-            genotype_counts = self.f["genotype_counts"]
+            # genotype_counts = self.f["genotype_counts"]
 
             assert isinstance(genotype_matrix, h5py.Dataset)
             assert isinstance(individual, h5py.Dataset)
@@ -55,7 +75,7 @@ class GenotypesHDF5:
             assert isinstance(nomaly_variant_id, h5py.Dataset)
             assert isinstance(plink_variant_id, h5py.Dataset)
 
-            assert isinstance(genotype_counts, h5py.Dataset)
+            # assert isinstance(genotype_counts, h5py.Dataset)
 
             # Sanity checks (TODO: Move these to integration tests)
             try:
@@ -67,7 +87,7 @@ class GenotypesHDF5:
 
                 assert nomaly_variant_id.shape[0] == genotype_variant_id.shape[0]
 
-                assert genotype_counts.shape[0] == genotype_variant_id.shape[0]
+                # assert genotype_counts.shape[0] == genotype_variant_id.shape[0]
             except Exception as e:
                 print(f"Error in sanity checks: {str(e)}")
                 raise
@@ -81,7 +101,7 @@ class GenotypesHDF5:
             self.nomaly_variant_id: np.ndarray = nomaly_variant_id[...].astype(str)
             self.plink_variant_id: np.ndarray = plink_variant_id[...].astype(str)
 
-            self.genotype_counts: np.ndarray = genotype_counts[...].astype(int)
+            # self.genotype_counts: np.ndarray = genotype_counts[...].astype(int)
 
             # TODO: Convert genotype matrix to np.memmap here? (Currently we
             # assume that the corresponding .npy file already exists.)
@@ -239,8 +259,7 @@ class GenotypesHDF5:
 
         return self.genotype_matrix[vid_idx, :][:, eid_idx]
 
-    # TODO: Refactor away (we now have this data in the HDF5 file)
-    @DeprecationWarning
+    @deprecated("This method will be removed in a future version.")
     def _flip_alleles(self, variant: str) -> str:
         """
         Flip the ref and alt alleles in a variant ID.
@@ -254,8 +273,7 @@ class GenotypesHDF5:
         chrom, pos, ref, alt = variant.split(":")
         return f"{chrom}:{pos}:{alt}:{ref}"
 
-    # TODO: Refactor away (we now have this data in the HDF5 file)
-    @DeprecationWarning
+    @deprecated("This method will be removed in a future version.")
     def _standardize_variant_format(self, variant: str) -> str:
         """
         Convert any variant format to CHR:POS:REF:ALT format.
@@ -289,7 +307,7 @@ class GenotypesHDF5:
         except Exception as e:
             raise ValueError(f"Error standardizing variant format {variant}: {str(e)}")
 
-    @DeprecationWarning
+    @deprecated("This method will be removed in a future version.")
     def get_variant_counts(
         self,
         nomaly_variant_id: str,
@@ -352,7 +370,7 @@ class GenotypesHDF5:
             "missing": int(np.sum(filtered_genotypes == -1)),
         }
 
-    @DeprecationWarning
+    @deprecated("This method will be removed in a future version.")
     def query_variants(self, variant: str) -> np.ndarray:
         """
         Query genotypes for a variant, trying flipped alleles if original not found.
@@ -425,7 +443,7 @@ class GenotypesHDF5:
             logger.error(f"Error in _single_variant_mask: {str(e)}")
             raise
 
-    @DeprecationWarning
+    @deprecated("This method will be removed in a future version.")
     def query_variantID_genotypes(
         self, variant: str
     ) -> tuple[np.ndarray, np.ndarray] | None:

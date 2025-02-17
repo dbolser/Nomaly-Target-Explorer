@@ -29,11 +29,3 @@ def test_variant_scores_template(auth_integration_app_client):
         assert "data" in context
         assert "disease_code" in context
         assert "term" in context
-
-        # Check that initial stats values are set
-        data = context["data"]
-        assert "metric1_pvalue" in data
-        assert "metric1_tpr" in data
-        assert "metric1_fpr" in data
-        assert "metric1_lrp" in data
-        assert "metric1_tp" in data

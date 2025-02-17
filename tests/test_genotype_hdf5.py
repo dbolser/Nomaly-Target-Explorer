@@ -3,7 +3,7 @@ import numpy as np
 import h5py
 import os
 import tempfile
-
+from pathlib import Path
 from data_services.genotype import GenotypesHDF5
 
 
@@ -36,7 +36,7 @@ def test_init_with_invalid_file():
             f.create_dataset("some_other_data", data=[1, 2, 3])
 
         with pytest.raises(KeyError):
-            GenotypesHDF5(tmp.name)
+            GenotypesHDF5(Path(tmp.name))
 
         os.unlink(tmp.name)
 
@@ -116,6 +116,9 @@ def test_large_dataset_handling():
             )
             f.create_dataset("bim", data=[f"{i}:100:A:T".encode() for i in range(1000)])
             f.create_dataset(
+                "plink_variant_id", data=[f"{i}:100:A:T".encode() for i in range(1000)]
+            )
+            f.create_dataset(
                 "nomaly_variant_id", data=[f"{i}:100:A:T".encode() for i in range(1000)]
             )
 
@@ -123,14 +126,14 @@ def test_large_dataset_handling():
         np.save(f"{tmp.name}.npy", genotype_data)
 
         try:
-            geno = GenotypesHDF5(tmp.name)
+            geno = GenotypesHDF5(Path(tmp.name))
             result = geno.query_variants("0:100:A:T")
             assert result is not None
             assert result.shape == (1, 1000)
         finally:
             # Clean up the .npy file
-            if os.path.exists(f"{tmp.name}.npy"):
-                os.unlink(f"{tmp.name}.npy")
+            if Path(f"{tmp.name}.npy").exists():
+                Path(f"{tmp.name}.npy").unlink()
 
 
 def test_error_handling_corrupted_data():
@@ -148,7 +151,7 @@ def test_error_handling_corrupted_data():
             )
             f.create_dataset("bim", data=np.array([b"1:100:A:T"]))  # 1 variant
             f.create_dataset("nomaly_variant_id", data=np.array([b"1:100:A:T"]))
-
+            f.create_dataset("plink_variant_id", data=np.array([b"1:100:A:T"]))
         with pytest.raises(AssertionError) as excinfo:
             _ = GenotypesHDF5(tmp.name)
             assert "Error in sanity checks" in str(excinfo.value)

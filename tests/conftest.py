@@ -77,11 +77,23 @@ def mock_genotype_hdf5_file():
                     b"1:100:A:T",
                     b"2:200:C:G",
                     b"1:186977737:A:G",
-                    b"1:186977780:G:A",
+                    b"1:186977780:A:G",
                     b"1:46813503:C:T",
                 ]
             )
             hdf.create_dataset("bim", data=bim)
+            hdf.create_dataset("genotype_variant_id", data=bim)
+
+            plink_variant_id = np.array(
+                [
+                    b"1:100_A/T",
+                    b"2:200_C/G",
+                    b"1:186977737_A/G",
+                    b"1:186977780_A/G",
+                    b"1:46813503_C/T",
+                ]
+            )
+            hdf.create_dataset("plink_variant_id", data=plink_variant_id)
 
             # Use underscore format for nomaly_variant_ids
             nomaly_variant_id = np.array(
@@ -89,8 +101,8 @@ def mock_genotype_hdf5_file():
                     b"1_100_A/T",
                     b"2_200_C/G",
                     b"1_186977737_A/G",
-                    b"1_186977780_G/A",
-                    b"1_46813503_C/T",
+                    b"1_186977780_G/A",  # Note that it's flipped
+                    b"Missing",
                 ]
             )
             hdf.create_dataset("nomaly_variant_id", data=nomaly_variant_id)

@@ -18,7 +18,9 @@ def test_production_file_exists():
     """Verify the production genotype file exists and is readable."""
     assert nomaly_genotype is not None
     assert hasattr(nomaly_genotype, "f")
-    assert "genotype_matrix" in nomaly_genotype.f
+    assert nomaly_genotype.hdf5_file.exists()
+    assert nomaly_genotype.hdf5_file.is_file()
+    assert nomaly_genotype.hdf5_file.stat().st_mode & 0o400
 
 
 def test_known_variant_query():

@@ -258,10 +258,10 @@ def test_phecode_page_structure(auth_integration_app_client):
     assert "Diabetes or abnormal glucose tolerance complicating pregnancy" in html
     assert f"Phecode: {phecode} (Run v1)" in html
     assert "Sex: Female" in html
-    assert "Population: EUR" in html
-    assert "Affected: <strong>29</strong>" in html
-    assert "Control: 22845" in html
-    assert "Excluded: 18597 (649-649.99)" in html
+    assert "Population: All" in html
+    assert "Affected: <strong>300</strong>" in html
+    assert "Control: 263177" in html
+    assert "Excluded: 222668 (649-649.99)" in html
     assert "Disease: pregnancy complications" in html
 
     # Test Nomaly Results section

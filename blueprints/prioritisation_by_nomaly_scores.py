@@ -7,6 +7,7 @@ Genes are prioritised by the sum of Nomaly scores of their variants.
 import json
 import logging
 import pickle
+import warnings
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -22,12 +23,11 @@ from flask import (
     request,
     stream_with_context,
 )
+from line_profiler import profile
 
 from blueprints.phecode import get_phecode_data
 from config import Config
 from db import get_term_domains, get_term_genes, get_term_names, get_term_variants
-
-from line_profiler import profile
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,6 @@ def read_nomaly_filtered_genotypes_new(eids, vids, genotype_service) -> dict:
     }
 
 
-@DeprecationWarning
 def read_nomaly_filtered_genotypes(eids, vids, genotype_service) -> dict:
     """Read genotypes for the individuals and variants.
 
