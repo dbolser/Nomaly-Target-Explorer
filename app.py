@@ -37,6 +37,7 @@ from config import config
 from db import get_db_connection
 from errors import DatabaseConnectionError, DataNotFoundError
 from flask_session import Session
+from dotenv import load_dotenv
 
 # Initialize extensions
 mysql = MySQL()
@@ -45,7 +46,7 @@ login_manager = LoginManager()
 cors = CORS()
 
 
-def create_app(config_name="default"):
+def create_app(config_name=None):
     """Create and configure the Flask application.
 
     Args:
@@ -53,8 +54,16 @@ def create_app(config_name="default"):
     """
     app = Flask(__name__)
 
-    # Load configuration
+    # Use FLASK_ENV if config_name not provided
+    if config_name is None:
+        config_name = os.getenv("FLASK_ENV", "development")
+
     app.config.from_object(config[config_name])
+
+    # Optionally load environment-specific .env file
+    env_file = f".env.{config_name}"
+    if os.path.exists(env_file):
+        load_dotenv(env_file)
 
     # Initialize extensions
     mysql.init_app(app)

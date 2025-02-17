@@ -64,4 +64,8 @@ def check_page_permission(current_user, path):
             if phecode in current_user.allowed_paths:
                 return True
 
+    # Add environment-specific path prefixes?
+    # env_prefix = current_app.config.get("ENV_PREFIX", "")
+    # full_path = f"/{env_prefix}{path.lstrip('/')}"
+
     return False

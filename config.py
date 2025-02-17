@@ -17,11 +17,14 @@ class Config:
     HOST = "0.0.0.0"
     PORT = 8756
 
-    # Session settings
+    # Session settings - common across all environments
     SESSION_TYPE = "filesystem"
-    SECRET_KEY = os.environ.get("SECRET_KEY", "your-default-secret-key")
+    SESSION_PROTECTION = "basic"
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SECURE = True  # HTTPS only by default
+    SESSION_COOKIE_SAMESITE = "Lax"
 
-    # Database settings
+    # Database settings from environment variables
     MYSQL_HOST = os.getenv("MYSQL_HOST")
     MYSQL_PORT = os.getenv("MYSQL_PORT", 3306)
     MYSQL_USER = os.getenv("MYSQL_USER")
@@ -84,13 +87,23 @@ class TestingConfig(Config):
 
     TESTING = True
     DEBUG = True
-    WTF_CSRF_ENABLED = False
-    # Use in-memory database for testing
+
+    # Session/Cookie settings
+    SESSION_COOKIE_NAME = "session-test"
+    SESSION_COOKIE_SECURE = False  # Allow HTTP for testing
+    SESSION_COOKIE_DOMAIN = None  # Restrict to same domain
+    SECRET_KEY = os.getenv("TEST_SECRET_KEY", "testing-secret-key")
+
+    # Test database settings
     MYSQL_HOST = "localhost"
     MYSQL_PORT = 3306
     MYSQL_USER = "testuser"
     MYSQL_PASSWORD = "testpass"
     MYSQL_DB = "testdb"
+
+    # Other test settings
+    WTF_CSRF_ENABLED = False
+    LOGIN_DISABLED = False
 
 
 class DevelopmentConfig(Config):
@@ -98,16 +111,40 @@ class DevelopmentConfig(Config):
 
     DEBUG = True
 
+    # Session/Cookie settings
+    SESSION_COOKIE_NAME = "session-dev"
+    SESSION_COOKIE_SECURE = False  # Allow HTTP for development
+    SESSION_COOKIE_DOMAIN = None  # Restrict to same domain
+    SECRET_KEY = os.getenv("DEV_SECRET_KEY", "development-secret-key")
+
+    # Other development settings
+    WTF_CSRF_ENABLED = True
+
 
 class ProductionConfig(Config):
     """Production configuration"""
 
+    SESSION_COOKIE_NAME = "session-prod"
+    SESSION_COOKIE_DOMAIN = None  # Set to your domain in deployment
+    SECRET_KEY = os.getenv("PROD_SECRET_KEY")  # Must be set in production
+
+    # Security settings
     WTF_CSRF_ENABLED = True
 
 
+class StagingConfig(Config):
+    """Staging configuration"""
+
+    SESSION_COOKIE_NAME = "session-staging"
+    SESSION_COOKIE_DOMAIN = None  # Set to your staging domain in deployment
+    SECRET_KEY = os.getenv("STAGING_SECRET_KEY")  # Must be set in staging
+
+
+# Configuration dictionary
 config = {
-    "default": DevelopmentConfig,
     "development": DevelopmentConfig,
     "testing": TestingConfig,
     "production": ProductionConfig,
+    "staging": StagingConfig,
+    "default": DevelopmentConfig,
 }
