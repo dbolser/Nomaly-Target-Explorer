@@ -3,7 +3,13 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from line_profiler import profile
+# Create a 'dummy' profile decorator if we don't have line_profiler installed
+try:
+    from line_profiler import profile
+except ImportError:
+
+    def profile(func):
+        return func
 
 
 class PhenotypeService:

@@ -18,7 +18,14 @@ from db import (
 )
 from errors import DataNotFoundError
 
-# from line_profiler import profile
+# Create a 'dummy' profile decorator if we don't have line_profiler installed
+try:
+    from line_profiler import profile
+except ImportError:
+
+    def profile(func):
+        return func
+
 
 # Create the blueprint
 phecode_term_bp = Blueprint("phecode_term", __name__, template_folder="../templates")

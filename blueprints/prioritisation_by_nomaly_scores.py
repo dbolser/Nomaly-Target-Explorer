@@ -7,7 +7,6 @@ Genes are prioritised by the sum of Nomaly scores of their variants.
 import json
 import logging
 import pickle
-import warnings
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -23,7 +22,15 @@ from flask import (
     request,
     stream_with_context,
 )
-from line_profiler import profile
+
+# Create a 'dummy' profile decorator if we don't have line_profiler installed
+try:
+    from line_profiler import profile
+except ImportError:
+
+    def profile(func):
+        return func
+
 
 from blueprints.phecode import get_phecode_data
 from config import Config
