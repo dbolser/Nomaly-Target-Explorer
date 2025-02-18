@@ -82,7 +82,7 @@ class Config:
 class DevelopmentConfig(Config):
     """Development configuration"""
 
-    TESTING = True
+    TESTING = False
     DEBUG = True
 
     # Session/Cookie settings

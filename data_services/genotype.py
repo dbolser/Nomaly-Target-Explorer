@@ -334,12 +334,12 @@ class GenotypesHDF5:
         # Get variant index
         variant_idx = np.where(self.nomaly_variant_id == nomaly_variant_id)
 
-        if len(variant_idx) == 0:
+        if len(variant_idx[0]) == 0:
             raise ValueError(f"Variant {nomaly_variant_id} not found")
 
-        if len(variant_idx) != 1:
+        if len(variant_idx[0]) != 1:
             raise ValueError(
-                f"Expected exactly one variant index for {nomaly_variant_id}, got {len(variant_idx)}"
+                f"Expected exactly one variant index for {nomaly_variant_id}, got {len(variant_idx[0])}"
             )
 
         # Get genotypes for this variant

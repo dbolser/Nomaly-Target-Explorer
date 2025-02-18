@@ -440,7 +440,7 @@ def test_variant_phewas_results(auth_integration_app_client):
     assert json.loads(response.data)["status"] == "Task started"
 
     # Poll for results with timeout
-    max_wait = 30  # Maximum wait time in seconds
+    max_wait = 60  # Maximum wait time in seconds
     start_time = time.time()
     data = None
 

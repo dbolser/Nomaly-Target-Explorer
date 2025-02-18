@@ -489,11 +489,11 @@ def get_top_variants(
                 # Just ignore these!
                 stats[key] = 0
         if key.endswith("_or"):
-            if stats[key] == float("nan"):
+            if np.isnan(stats[key]):
+                # This is probably the wrong thing to do...
                 stats[key] = 1
 
     # TODO: Something is wrong somewhere...
-
     if len(case_eids) != stats["num_rp"] or len(control_eids) != stats["num_rn"]:
         # TODO: DEBUG THIS!
         logger.warning(
@@ -524,8 +524,8 @@ def get_top_variants(
     for stat in stats_to_process:
         # FUCK... How did this happen?
         if stats[f"{stat}_threshold"] <= 0 and stats[f"{stat}_tp"] == 0:
-            # I think this should have been set this way!
-            stats[f"{stat}_threshold"] = np.inf
+            # I think this should have been set this way?
+            stats[f"{stat}_threshold"] = 1e308
 
         case_eids_above_threshold = case_eids[case_scores >= stats[f"{stat}_threshold"]]
 
@@ -774,24 +774,44 @@ def stream_progress(
             }
 
             if protective:
-                message_data["data"]["roc_stats_lrn_protective"] = {
-                    "top_variants": data["roc_stats_lrn_protective_top_variants"],
-                    "top_gene_set": data["roc_stats_lrn_protective_top_gene_set"],
-                    "stats": {
-                        "num_rp": int(data["num_rp"]),
-                        "num_rn": int(data["num_rn"]),
-                        "pvalue": float(data["roc_stats_lrn_protective_pvalue"]),
-                        "tpr": float(data["roc_stats_lrn_protective_tpr"]),
-                        "fpr": float(data["roc_stats_lrn_protective_fpr"]),
-                        "lrp": float(data["roc_stats_lrn_protective_lrp"]),
-                        "tp": int(data["roc_stats_lrn_protective_tp"]),
-                        "tn": int(data["roc_stats_lrn_protective_tn"]),
-                        "fp": int(data["roc_stats_lrn_protective_fp"]),
-                        "fn": int(data["roc_stats_lrn_protective_fn"]),
-                        "threshold": float(data["roc_stats_lrn_protective_threshold"]),
-                        "meaning": "Threshold by maximum fraction of cases over threshold to that of controls.",
-                    },
-                }
+                try:
+                    message_data["data"]["roc_stats_lrn_protective"] = {
+                        "top_variants": data["roc_stats_lrn_protective_top_variants"],
+                        "top_gene_set": data["roc_stats_lrn_protective_top_gene_set"],
+                        "stats": {
+                            "num_rp": int(data["num_rp"]),
+                            "num_rn": int(data["num_rn"]),
+                            "pvalue": float(data["roc_stats_lrn_protective_pvalue"]),
+                            "tpr": float(data["roc_stats_lrn_protective_tpr"]),
+                            "fpr": float(data["roc_stats_lrn_protective_fpr"]),
+                            "lrp": float(data["roc_stats_lrn_protective_lrp"]),
+                            "tp": int(data["roc_stats_lrn_protective_tp"]),
+                            "tn": int(data["roc_stats_lrn_protective_tn"]),
+                            "fp": int(data["roc_stats_lrn_protective_fp"]),
+                            "fn": int(data["roc_stats_lrn_protective_fn"]),
+                            "threshold": float(
+                                data["roc_stats_lrn_protective_threshold"]
+                            ),
+                            "meaning": "Threshold by maximum fraction of cases over threshold to that of controls.",
+                        },
+                    }
+                except KeyError as e:
+                    logger.error(f"KeyError in protective message: {e}")
+                    if not no_cache:
+                        # Try again but with no cache set to true...
+                        process_variants(
+                            disease_code,
+                            term,
+                            phenotype_service,
+                            genotype_service,
+                            nomaly_scores_service,
+                            stats_service,
+                            population,
+                            biological_sex,
+                            message_queue,
+                            protective,
+                            no_cache=True,
+                        )
 
             message_queue.put(message_data)
             print("Results message sent")
@@ -832,7 +852,7 @@ def stream_progress(
             while True:
                 try:
                     print("Waiting for message...")
-                    msg = message_queue.get(timeout=60)  # 1 minute timeout
+                    msg = message_queue.get(timeout=600)  # 10 minute timeout
                     print(f"Got message of type: {msg.get('type')}")
                     yield f"data: {json.dumps(msg)}\n\n"
                     if msg["type"] == "done":
@@ -880,6 +900,10 @@ def main():
     disease_code = "334.2"
     term = "CD:MESH:D009139"
 
+    disease_code = "705"
+    term = "GO:0034081"
+    term = "GO:0003960"
+
     from app import create_app
 
     app = create_app("development")
@@ -893,7 +917,7 @@ def main():
             services.genotype._hdf,
             services.nomaly_score._hdf,
             services.stats._hdf,
-            no_cache=True,
+            # no_cache=True,
             protective=True,
         )
 
