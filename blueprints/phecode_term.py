@@ -3,11 +3,8 @@ import traceback
 from typing import Optional
 
 import pandas as pd
-from flask import Blueprint, current_app, jsonify, render_template, request
-
 from blueprints.gwas import format_gwas_results, run_gwas
 from blueprints.nomaly import pharos, pp
-
 from blueprints.phecode_term_helper import load_cached_results, save_results
 from db import (
     get_phecode_info,
@@ -17,6 +14,7 @@ from db import (
     get_term_variants,
 )
 from errors import DataNotFoundError
+from flask import Blueprint, current_app, jsonify, render_template, request
 
 # Create a 'dummy' profile decorator if we don't have line_profiler installed
 try:

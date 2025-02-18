@@ -10,19 +10,16 @@ load_dotenv()
 class Config:
     """Base configuration"""
 
-    TESTING = False
-    DEBUG = False
+    # FLASK SETTINGS
 
-    # Flask settings
-    HOST = "0.0.0.0"
-    PORT = 8756
-
-    # Session settings - common across all environments
+    # Session settings (common across all environments)
     SESSION_TYPE = "filesystem"
     SESSION_PROTECTION = "basic"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SECURE = True  # HTTPS only by default
     SESSION_COOKIE_SAMESITE = "Lax"
+
+    # NOMALY SETTINGS
 
     # Database settings from environment variables
     MYSQL_HOST = os.getenv("MYSQL_HOST")
@@ -82,11 +79,27 @@ class Config:
     VARIANT_SCORES_DIR = Path("/data/personal/danbolser/ukbb/cache/variant_scores")
 
 
+class DevelopmentConfig(Config):
+    """Development configuration"""
+
+    TESTING = True
+    DEBUG = True
+
+    # Session/Cookie settings
+    SESSION_COOKIE_NAME = "session-dev"
+    SESSION_COOKIE_SECURE = False  # Allow HTTP for development
+    SESSION_COOKIE_DOMAIN = None  # Restrict to same domain
+    SECRET_KEY = os.getenv("DEV_SECRET_KEY", "development-secret-key")
+
+    # Other development settings
+    WTF_CSRF_ENABLED = True
+
+
 class TestingConfig(Config):
     """Testing configuration"""
 
     TESTING = True
-    DEBUG = True
+    DEBUG = False
 
     # Session/Cookie settings
     SESSION_COOKIE_NAME = "session-test"
@@ -106,25 +119,13 @@ class TestingConfig(Config):
     LOGIN_DISABLED = False
 
 
-class DevelopmentConfig(Config):
-    """Development configuration"""
-
-    DEBUG = True
-
-    # Session/Cookie settings
-    SESSION_COOKIE_NAME = "session-dev"
-    SESSION_COOKIE_SECURE = False  # Allow HTTP for development
-    SESSION_COOKIE_DOMAIN = None  # Restrict to same domain
-    SECRET_KEY = os.getenv("DEV_SECRET_KEY", "development-secret-key")
-
-    # Other development settings
-    WTF_CSRF_ENABLED = True
-
-
 class ProductionConfig(Config):
     """Production configuration"""
 
-    SESSION_COOKIE_NAME = "session-prod"
+    TESTING = False
+    DEBUG = False
+
+    SESSION_COOKIE_NAME = "session"
     SESSION_COOKIE_DOMAIN = None  # Set to your domain in deployment
     SECRET_KEY = os.getenv("PROD_SECRET_KEY")  # Must be set in production
 
@@ -142,9 +143,9 @@ class StagingConfig(Config):
 
 # Configuration dictionary
 config = {
+    "default": DevelopmentConfig,
     "development": DevelopmentConfig,
     "testing": TestingConfig,
     "production": ProductionConfig,
     "staging": StagingConfig,
-    "default": DevelopmentConfig,
 }
