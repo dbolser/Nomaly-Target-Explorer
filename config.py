@@ -125,7 +125,7 @@ class ProductionConfig(Config):
     TESTING = False
     DEBUG = False
 
-    SESSION_COOKIE_NAME = "session"
+    SESSION_COOKIE_NAME = "session-live"
     SESSION_COOKIE_DOMAIN = None  # Set to your domain in deployment
     SECRET_KEY = os.getenv("PROD_SECRET_KEY")  # Must be set in production
 
