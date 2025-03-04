@@ -282,21 +282,23 @@ def calculate_phecode_term_variant_detail(
 
 
 def main():
-    phecode = "561"
-    phecode = "564.1"
-    phecode = "338"
+    # phecode = "561"
+    # phecode = "564.1"
+    # phecode = "338"
+    phecode = "332"
 
-    term = "MP:0004957"
-    term = "HP:0000789"
-    term = "KW:0544"
-    term = "MP:0000948"
+    # term = "MP:0004957"
+    # term = "HP:0000789"
+    # term = "KW:0544"
+    # term = "MP:0000948"
+    term = "MP:0004986"
 
     from app import create_app
 
     app = create_app("development")
 
     with app.app_context():
-        gwas_data = run_gwas(phecode)
+        gwas_data = run_gwas(phecode, no_cache=True)
         print(gwas_data)
 
         term_data = get_term_variants(term)

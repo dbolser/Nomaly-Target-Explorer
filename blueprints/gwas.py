@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_gwas(
-    phecode: str, sex: str = "both", ancestry: str = "ALL", flush_cache: bool = False
+    phecode: str, sex: str = "both", ancestry: str = "ALL", no_cache: bool = False
 ) -> pd.DataFrame:
     """Run GWAS for a phecode if not already done and return results."""
 
@@ -28,19 +28,18 @@ def run_gwas(
     nomaly_file = GWAS_PHENO_DIR / f"{output_suffix}.assoc_nomaly.tsv"
     fam_file = GWAS_PHENO_DIR / f"{output_suffix}.fam"
 
-    # Return cached results if they exist
-    if nomaly_file.exists():
+    # Return cached results if they exist and no_cache is False
+    if not no_cache and nomaly_file.exists():
         logger.info(f"Loading cached GWAS results for {phecode}")
         return pd.read_csv(nomaly_file, sep="\t")
 
     # Create FAM file if needed
-    if not fam_file.exists():
+    if not no_cache and not fam_file.exists():
         create_fam_file(
             fam_file=fam_file,
             phecode=phecode,
             sex=sex,
             ancestry=ancestry,
-            flush_cache=flush_cache,
         )
 
     # Run PLINK if needed
@@ -113,7 +112,6 @@ def create_fam_file(
     phecode: str,
     sex: str = "both",
     ancestry: str = "ALL",
-    flush_cache: bool = False,
 ) -> None:
     """Create FAM file for GWAS."""
 

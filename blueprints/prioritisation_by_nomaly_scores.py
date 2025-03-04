@@ -893,16 +893,17 @@ def main():
 
     disease_code = "332"
     term = "GO:0030800"
+    term = "MP:0004986"
 
-    disease_code = "300.13"
-    term = "GO:1901136"
+    # disease_code = "300.13"
+    # term = "GO:1901136"
 
-    disease_code = "334.2"
-    term = "CD:MESH:D009139"
+    # disease_code = "334.2"
+    # term = "CD:MESH:D009139"
 
-    disease_code = "705"
-    term = "GO:0034081"
-    term = "GO:0003960"
+    # disease_code = "705"
+    # term = "GO:0034081"
+    # term = "GO:0003960"
 
     from app import create_app
 
@@ -917,8 +918,8 @@ def main():
             services.genotype._hdf,
             services.nomaly_score._hdf,
             services.stats._hdf,
-            # no_cache=True,
-            protective=True,
+            no_cache=True,
+            # protective=True,
         )
 
         # Search for values that will cause problems in JavaScript JSON parsing
