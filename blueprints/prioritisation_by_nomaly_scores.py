@@ -507,7 +507,7 @@ def get_top_variants(
     stats["metric1_threshold"] = 0.022
 
     stats["metric1_tp"] = np.sum(case_scores >= stats["metric1_threshold"])
-    stats["metric1_fp"] = np.sum(case_scores < stats["metric1_threshold"])
+    stats["metric1_fp"] = np.sum(control_scores < stats["metric1_threshold"])
     stats["metric1_fn"] = len(case_eids) - stats["metric1_tp"]
     stats["metric1_tn"] = len(control_eids) - stats["metric1_fp"]
 
@@ -891,7 +891,7 @@ def main():
     # disease_code = "324.1"
     # term = "GO:0009225"
 
-    disease_code = "332"
+    phecode = "332"
     term = "GO:0030800"
     term = "MP:0004986"
 
@@ -905,6 +905,9 @@ def main():
     # term = "GO:0034081"
     # term = "GO:0003960"
 
+    phecode = "256"
+    term = "MP:0004819"
+
     from app import create_app
 
     app = create_app("development")
@@ -912,7 +915,7 @@ def main():
         services = current_app.extensions["nomaly_services"]
 
         data = get_top_variants(
-            disease_code,
+            phecode,
             term,
             services.phenotype._hdf,
             services.genotype._hdf,
