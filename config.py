@@ -114,6 +114,14 @@ class TestingConfig(Config):
     MYSQL_PASSWORD = "testpass"
     MYSQL_DB = "testdb"
 
+    # Mock file paths for testing - these should be overridden in tests
+    GENOTYPES_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    PHENOTYPES_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    NOMALY_SCORES_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    STATS_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    NOMALY_SCORES_H5_V2 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    STATS_H5_V2 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    
     # Other test settings
     WTF_CSRF_ENABLED = False
     LOGIN_DISABLED = False

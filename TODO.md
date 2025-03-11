@@ -3,8 +3,6 @@
 
 ## Migration plan
 
-
-
 1. **Data Services First**
 ```python
 class VariantDataService:

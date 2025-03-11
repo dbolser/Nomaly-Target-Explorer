@@ -6,16 +6,23 @@ from config import Config
 
 import pytest
 
-config = Config()
-nomaly_genotype = GenotypesHDF5(config.GENOTYPES_H5)
+# config = Config()
 
 NUM_INDIVIDUALS = 488377
 NUM_INDIVIDUALS = 487950  # Removed 427 individuals with negative eids
 NUM_VARIANTS = 83011
 
 
-def test_production_file_exists():
+
+@pytest.fixture(scope="session")
+def nomaly_genotype(integration_app):
+    return integration_app.extensions["nomaly_services"].genotype._hdf
+
+
+def test_production_file_exists(nomaly_genotype):
     """Verify the production genotype file exists and is readable."""
+
+
     assert nomaly_genotype is not None
     assert hasattr(nomaly_genotype, "f")
     assert nomaly_genotype.hdf5_file.exists()
@@ -23,7 +30,7 @@ def test_production_file_exists():
     assert nomaly_genotype.hdf5_file.stat().st_mode & 0o400
 
 
-def test_known_variant_query():
+def test_known_variant_query(nomaly_genotype):
     """Test querying a known variant from production data."""
     # Known variant that should exist
     variant = "11:69083946:T:C"
@@ -38,23 +45,23 @@ def test_known_variant_query():
     assert all(g in [-1, 0, 1, 2] for g in result[0])  # Valid genotype values
 
 
-def test_individual_count():
+def test_individual_count(nomaly_genotype):
     """Verify the expected number of individuals in the dataset."""
     assert len(nomaly_genotype.individual) == NUM_INDIVIDUALS
 
 
-def test_variant_count():
+def test_variant_count(nomaly_genotype):
     """Verify the expected number of variants in the dataset."""
     assert len(nomaly_genotype.genotype_variant_id) == NUM_VARIANTS
     assert len(nomaly_genotype.nomaly_variant_id) == NUM_VARIANTS
 
 
-def test_genotype_matrix_shape():
+def test_genotype_matrix_shape(nomaly_genotype):
     """Verify the shape of the genotype matrix."""
     assert nomaly_genotype.genotype_matrix.shape == (NUM_VARIANTS, NUM_INDIVIDUALS)
 
 
-def test_get_genotypes_to_hell():
+def test_get_genotypes_to_hell(nomaly_genotype):
     """Test the get_genotypes method."""
     eids = nomaly_genotype.individual
     vids = nomaly_genotype.genotype_variant_id
@@ -154,7 +161,7 @@ def test_get_genotypes_to_hell():
     # assert selected_garbage_vids.shape == (0, NUM_INDIVIDUALS)
 
 
-def test_known_variant_genotype_distribution():
+def test_known_variant_genotype_distribution(nomaly_genotype):
     """Test the distribution of genotypes for a known variant."""
     # Known variant with expected distribution
     variant = "19:44908684:C:T"
@@ -190,7 +197,7 @@ def test_known_variant_genotype_distribution():
     assert np.sum(genotypes == 2) == expected_alt_homozygous
 
 
-def test_genotype_variant_id_format_in_file():
+def test_genotype_variant_id_format_in_file(nomaly_genotype):
     """Test that variants in the file follow the expected format."""
     # Sample first 1000 variants
     sample_variants = nomaly_genotype.genotype_variant_id[:1000]
@@ -204,7 +211,7 @@ def test_genotype_variant_id_format_in_file():
         assert len(parts[3]) >= 1, f"Invalid alt allele: {parts[3]}"
 
 
-def test_nomaly_variant_id_format_in_file():
+def test_nomaly_variant_id_format_in_file(nomaly_genotype):
     """Test that variants in the file follow the expected format."""
     # Sample first 1000 variants
     sample_variants = nomaly_genotype.nomaly_variant_id[:1000]
@@ -226,7 +233,7 @@ def test_nomaly_variant_id_format_in_file():
     assert missing_count < 1000, "There should be less than 1000 missing variants"
 
 
-def test_individual_id_format():
+def test_individual_id_format(nomaly_genotype):
     """Test that individual IDs are in the expected format."""
     sample_ids = nomaly_genotype.individual[:1000]
 
@@ -252,7 +259,7 @@ def test_individual_id_format():
         assert len(str(id_num)) >= 5  # Example: Expecting at least 5-digit IDs
 
 
-def test_missing_data_handling():
+def test_missing_data_handling(nomaly_genotype):
     """Test handling of missing genotype data."""
     # Find a variant with some missing data (genotype = -1)
     variant = "11:69083946:T:C"
@@ -264,7 +271,7 @@ def test_missing_data_handling():
     assert missing_count < len(genotypes) * 0.1  # Less than 10% missing
 
 
-def test_flipped_allele_query():
+def test_flipped_allele_query(nomaly_genotype):
     """Test querying variants with flipped alleles."""
     # Original variant
     variant = "8_6870776_C/T"
@@ -286,7 +293,7 @@ def test_flipped_allele_query():
     assert result_flipped is not None, "Flipped variant should be found"
 
 
-def test_variant_format_standardization():
+def test_variant_format_standardization(nomaly_genotype):
     """Test variant format standardization."""
     geno = nomaly_genotype
 
@@ -320,7 +327,7 @@ def test_variant_format_standardization():
             geno._standardize_variant_format(invalid_variant)
 
 
-def test_query_with_different_formats():
+def test_query_with_different_formats(nomaly_genotype):
     """Test querying variants in different formats."""
     # Same variant in different formats
     variants = [
@@ -341,7 +348,7 @@ def test_query_with_different_formats():
         )
 
 
-def test_genotype_flipping():
+def test_genotype_flipping(nomaly_genotype):
     """Test that genotypes are correctly flipped when alleles are flipped."""
     # Example variants where we know one is the flipped version of the other
     # These are placeholders - replace with actual variants from the data
@@ -387,7 +394,7 @@ def test_genotype_flipping():
     )
 
 
-def test_variant_counts():
+def test_variant_counts(nomaly_genotype):
     """Test the variant counts for specific variants."""
     # Test a variant with known distribution
     variant = "19_44908684_T/C"

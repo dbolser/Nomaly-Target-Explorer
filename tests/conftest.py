@@ -5,11 +5,11 @@ import numpy as np
 import h5py
 import tempfile
 from pathlib import Path
+import os
 
 from app import create_app
 from data_services.registry import ServiceRegistry
 from db import get_db_connection
-import os
 
 
 """ Our lovely fixtures:
@@ -44,15 +44,19 @@ But for now, let's add the integration test and call it a day! Would you like me
 @pytest.fixture(scope="session")
 def test_app():
     """Base Flask app for all tests with common configuration."""
-    _app = create_app()  # NOTE: Services get create as normal here!
-    _app.config.update(
-        {
-            "TESTING": True,
-            "SERVER_NAME": "localhost.localdomain",
-            "PREFERRED_URL_SCHEME": "http",
-            "APPLICATION_ROOT": "/",
-        }
-    )
+    # Override the environment to use TestingConfig
+    os.environ["FLASK_ENV"] = "testing"
+    
+    # Create app with testing config
+    _app = create_app("testing")
+    
+    # Additional test-specific configuration
+    _app.config.update({
+        "SERVER_NAME": "localhost.localdomain",
+        "PREFERRED_URL_SCHEME": "http",
+        "APPLICATION_ROOT": "/",
+    })
+    
     return _app
 
 
@@ -187,7 +191,12 @@ def mock_phenotype_file():
 def unit_test_app(test_app, mock_genotype_hdf5_file_with_npy, mock_phenotype_file):
     """App configured for unit tests with mocked services."""
 
-    test_app.config["LOGIN_DISABLED"] = True
+    # Override config paths with actual mock files
+    test_app.config.update({
+        "LOGIN_DISABLED": True,
+        "GENOTYPES_H5": mock_genotype_hdf5_file_with_npy,
+        "PHENOTYPES_H5": mock_phenotype_file,
+    })
 
     with test_app.app_context():
         from data_services.genotype import GenotypeService

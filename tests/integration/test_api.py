@@ -1,5 +1,10 @@
 import json
 
+# TODO: WHY DOES THE unit_test_app_client NEED .../genotypes_with_metadata.h5 TO EXISTS?
+# TODO: WHY DOES THE unit_test_app_client NEED .../phecode_cases_excludes_with_metadata.h5 TO EXISTS?
+# TODO: WHY DOES THE unit_test_app_client NEED .../stats-All-2025-02-10.h5 TO EXISTS?
+# TODO: WHY DOES THE unit_test_app_client NEED .../float16_scores.h5 TO EXISTS?
+# NOTE: This is 'filed' as an INTEGRATION test?
 
 def test_variant_api(unit_test_app_client):
     """Test the variant API endpoints."""
