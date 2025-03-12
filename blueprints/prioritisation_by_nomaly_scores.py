@@ -506,9 +506,18 @@ def get_top_variants(
 
     stats["metric1_threshold"] = 0.022
 
+    # It's hard being this dumb...
+
+    # True positives are cases above the threshold
     stats["metric1_tp"] = np.sum(case_scores >= stats["metric1_threshold"])
-    stats["metric1_fp"] = np.sum(control_scores < stats["metric1_threshold"])
+
+    # False positives are controls above the threshold
+    stats["metric1_fp"] = np.sum(control_scores >= stats["metric1_threshold"])
+
+    # False negatives are cases below the threshold (or, all the other cases)
     stats["metric1_fn"] = len(case_eids) - stats["metric1_tp"]
+
+    # True negatives are controls below the threshold (or, all the other controls)
     stats["metric1_tn"] = len(control_eids) - stats["metric1_fp"]
 
     stats_to_process = [
