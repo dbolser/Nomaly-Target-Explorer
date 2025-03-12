@@ -41,7 +41,7 @@
 
         // Generate dbSNP URL from variant ID
         toDbSnpUrl: function (variantId) {
-            const parts = variantId.split('_');
+            const parts = variantId.split(/:|_/);
             if (parts.length >= 2) {
                 return `https://www.ncbi.nlm.nih.gov/snp/?term=${parts[0]}:${parts[1]}`;
             }

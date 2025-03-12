@@ -272,8 +272,7 @@
                         data: 'Variant',
                         render: function (data, type, row) {
                             if (type === 'display' && data) {
-                                const formattedVariant = data.replace(':', '_').replace('/', '_');
-                                return `<a href="/variant/${formattedVariant}" target="_blank">${data}</a>`;
+                                return variantUtils.createLink(data);
                             }
                             return data || '';
                         }
