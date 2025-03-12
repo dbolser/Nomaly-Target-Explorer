@@ -32,7 +32,23 @@ def deprecated(message: str):
 
 class GenotypeService:
     def __init__(self, hdf5_file: Path | str):
+        # Convert string to Path if needed
+        if isinstance(hdf5_file, str):
+            hdf5_file = Path(hdf5_file)
         self._hdf = GenotypesHDF5(hdf5_file)  # Existing implementation
+
+    @property
+    def individual(self):
+        """Delegate to the underlying HDF5 file's individual property."""
+        return self._hdf.individual
+
+    def query_variantID_genotypes(self, variant: str) -> tuple[np.ndarray, np.ndarray] | None:
+        """Delegate to the underlying HDF5 file's query_variantID_genotypes method."""
+        return self._hdf.query_variantID_genotypes(variant)
+
+    def get_genotypes(self, eids=None, vids=None, nomaly_ids=False):
+        """Delegate to the underlying HDF5 file's get_genotypes method."""
+        return self._hdf.get_genotypes(eids=eids, vids=vids, nomaly_ids=nomaly_ids)
 
 
 class GenotypesHDF5:

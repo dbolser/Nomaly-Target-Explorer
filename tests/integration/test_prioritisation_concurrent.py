@@ -117,7 +117,7 @@ def test_cache_concurrency(unit_test_app_client_with_cache):
         assert result == first_result, "Cache returned different results"
 
 
-def test_error_recovery(unit_test_app_client_with_cache):
+def test_error_recovery(integration_app_client):
     """Test error handling and recovery during concurrent requests."""
     # Mix of valid and invalid requests
     test_cases = [
@@ -127,7 +127,7 @@ def test_error_recovery(unit_test_app_client_with_cache):
     ]
 
     def make_request(disease_code, term):
-        response = unit_test_app_client_with_cache.get(
+        response = integration_app_client.get(
             f"/stream_progress/{disease_code}/{term}", follow_redirects=True
         )
         messages = []

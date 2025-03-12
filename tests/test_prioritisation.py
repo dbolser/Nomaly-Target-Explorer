@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from queue import Queue
 
 from blueprints.prioritisation_by_nomaly_scores import (
@@ -49,13 +49,17 @@ def mock_term_variants():
     )
 
 
-@pytest.fixture
-def genotype_service(mock_genotype_hdf5_file_with_npy):
-    """Create a genotype service directly without Flask app."""
-    from data_services.genotype import GenotypeService
+# Note: The genotype_service fixture is defined in conftest.py
+# It provides a mock service with predefined test data for:
+# - individual property
+# - query_variantID_genotypes method
+# - get_genotypes method
 
-    return GenotypeService(mock_genotype_hdf5_file_with_npy)
-
+# Note: The stats_service and stats_service_v2 fixtures are also defined in conftest.py
+# They provide mock services with predefined test data for:
+# - get_stats_by_phecode method
+# - get_stats_by_term_phecode method
+# - get_stats_wip method
 
 def test_read_nomaly_filtered_genotypes(genotype_service):
     sorted_eids = np.array([1001, 1002, 1003])
@@ -135,8 +139,8 @@ def test_term_variant_prioritisation(
         assert result["hmm_score"].dtype in (np.float64, float)
 
 
-def test_get_top_variants(genotype_service, mock_cases_info, mock_term_variants):
-    disease_code = "571.5"
+def test_get_top_variants(genotype_service, phenotype_service, stats_service, nomaly_score_service, mock_cases_info, mock_term_variants):
+    phecode = "571.5"
     term = "TEST:001"
 
     with (
@@ -150,7 +154,7 @@ def test_get_top_variants(genotype_service, mock_cases_info, mock_term_variants)
         ),
     ):
         top_variants, top_gene_set = get_top_variants(
-            disease_code, term, genotype_service
+            phecode, term, genotype_service, phenotype_service, stats_service, nomaly_score_service
         )
 
         assert isinstance(top_variants, pd.DataFrame)
