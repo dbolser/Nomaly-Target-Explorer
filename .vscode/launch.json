@@ -13,7 +13,7 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             },
-            "justMyCode": false
+            //"justMyCode": false
         },
         {
             "name": "Python Debugger: Flask",
@@ -32,7 +32,7 @@
             ],
             "jinja": true,
             "autoStartBrowser": false,
-            "justMyCode": false
+            //"justMyCode": false
         }
     ]
 }

@@ -83,9 +83,10 @@ def show_variant(variant):
 # Background task function
 def background_task(variant: str, services, flush: bool = False):
     try:
+
         # Get formatted PheWAS results using injected services
         results = get_formatted_phewas_data(
-            variant, None, services
+            variant, services, no_cache=flush
         )  # None to get all phecodes
 
         if not results:

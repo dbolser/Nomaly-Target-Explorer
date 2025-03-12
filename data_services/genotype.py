@@ -228,6 +228,7 @@ class GenotypesHDF5:
         """
         return self.genotype_matrix.shape[0]
 
+    # TODO: Add sex and ancestry here!
     def get_genotypes(
         self,
         eids: Optional[np.ndarray] = None,
@@ -496,5 +497,7 @@ class GenotypesHDF5:
             return sorted_genotype_eids, sorted_genotypes
 
         except Exception as e:
-            logger.error(f"Error in get_genotype_data for variant {variant}: {str(e)}")
+            logger.error(
+                f"Error in get_genotype_data for variant (query_variantID_genotypes) {variant}: {str(e)}"
+            )
             return None
