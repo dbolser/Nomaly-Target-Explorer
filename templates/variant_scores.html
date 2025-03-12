@@ -287,9 +287,13 @@
                 className: ['VS00', 'VS01', 'VS11', 'hmm_score', 'total_vs'].includes(key) ? 'numeric-cell' : null,
                 render: key === 'variant_id' ?
                     (data, type) => {
-                        if (type === 'display' && data) {
-                            const links = data.split(', ').map(createVariantLink).join(', ');
-                            return `<div class="variant-cell" title="${data}">${links}</div>`;
+                        if (type === 'display') {
+                            if (data.includes(', ')) {
+                                const links = data.split(', ').map(v => variantUtils.createLink(v)).join(', ');
+                                return `<div class="variant-cell" title="${data}">${links}</div>`;
+                            } else {
+                                return `<div class="variant-cell" title="${data}">${variantUtils.createLink(data)}</div>`;
+                            }
                         }
                         return data;
                     } :
@@ -329,7 +333,12 @@
                 render: key === 'variant_id' ?
                     (data, type) => {
                         if (type === 'display') {
-                            return `<div class="variant-cell" title="${data}">${createVariantLink(data)}</div>`;
+                            if (data.includes(', ')) {
+                                const links = data.split(', ').map(v => variantUtils.createLink(v)).join(', ');
+                                return `<div class="variant-cell" title="${data}">${links}</div>`;
+                            } else {
+                                return `<div class="variant-cell" title="${data}">${variantUtils.createLink(data)}</div>`;
+                            }
                         }
                         return data;
                     } :

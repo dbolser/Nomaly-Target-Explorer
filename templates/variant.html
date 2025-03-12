@@ -10,7 +10,7 @@
         <div class="card-body">
             <h5 class="card-title">Basic Information</h5>
             <p class="card-text">
-                <strong>Variant ID:</strong> {{ data.variant_id }}<br>
+                <strong>Variant ID:</strong> <span id="variant-display">{{ data.variant_id }}</span><br>
                 <strong>Chromosome:</strong> {{ data.chromosome }}<br>
                 <strong>Position:</strong> {{ data.position }}<br>
                 <strong>Ref Allele:</strong> {{ data.allele1 }}<br />
@@ -77,6 +77,10 @@
 </style>
 <script>
     $(document).ready(function () {
+        // Format the variant ID display using variantUtils
+        const variantId = "{{ data.variant_id }}";
+        document.getElementById('variant-display').innerHTML = variantUtils.createLink(variantId);
+        
         // Event listener for the PheWAS button
         document.getElementById('runPheWASButton').addEventListener('click', function () {
             const resultDiv = document.getElementById('phewasResult');
