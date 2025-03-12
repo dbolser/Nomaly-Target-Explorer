@@ -9,12 +9,14 @@
     <div class="card mb-4">
         <div class="card-body">
             <h5 class="card-title">Basic Information</h5>
-            <p class="card-text">
-                <strong>Variant ID:</strong> <span id="variant-display">{{ data.variant_id }}</span><br>
+            <table class="table table-borderless"></table>
+            <strong>Variant ID:</strong> <span id="variant-display">{{ data.variant_id }}</span> / / {{ data.rsid }}<br>
                 <strong>Chromosome:</strong> {{ data.chromosome }}<br>
                 <strong>Position:</strong> {{ data.position }}<br>
-                <strong>Ref Allele:</strong> {{ data.allele1 }}<br />
-                <strong>Alt Allele:</strong> {{ data.allele2 }}
+                <strong>Gene:</strong> {{ data.gene }}<br>
+                <strong>Consequence:</strong> ye...<br>
+                <strong>Genotyping Ref Allele:</strong> {{ data.genotyping_allele1 }}<br>
+                <strong>Genotyping Alt Allele:</strong> {{ data.genotyping_allele2 }}<br>
             </p>
         </div>
     </div>
