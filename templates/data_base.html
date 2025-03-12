@@ -39,11 +39,24 @@
             return variantId.replace(/[:/]/g, '_');
         },
 
+        // Generate dbSNP URL from variant ID
+        toDbSnpUrl: function (variantId) {
+            const parts = variantId.split('_');
+            if (parts.length >= 2) {
+                return `https://www.ncbi.nlm.nih.gov/snp/?term=${parts[0]}:${parts[1]}`;
+            }
+            return '';
+        },
+
         // Create HTML link for variant
         createLink: function (variantId) {
             const displayText = this.toDisplayFormat(variantId);
             const urlFormat = this.toUrlFormat(variantId);
-            return `<a href="/variant/${urlFormat}" target="_blank">${displayText}</a>`;
+            const dbSnpUrl = this.toDbSnpUrl(variantId);
+
+            return `<a href="/variant/${urlFormat}" target="_blank">${displayText}</a>` +
+                `&nbsp;` +
+                `<a href="${dbSnpUrl}" target="_blank" class="ms-1" style="font-size: 0.5em;">[dbSNP]</a>`;
         },
 
         // Comparison function for sorting variants
