@@ -15,7 +15,7 @@ class ServiceRegistry:
         self.stats_v2 = None
         self.nomaly_score_v2 = None
 
-        # If TESTING is True, we don't want to initialise the services
+        # If TESTING is True, we don't want to initialise the data services
         if app is not None and not app.config.get("TESTING"):
             self.init_app(app)
 
