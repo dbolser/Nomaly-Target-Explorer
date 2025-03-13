@@ -25,7 +25,7 @@ from flask import (
 
 # Create a 'dummy' profile decorator if we don't have line_profiler installed
 try:
-    from line_profiler import profile
+    from line_profiler import profile  # type: ignore
 except ImportError:
 
     def profile(func):
