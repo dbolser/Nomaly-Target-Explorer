@@ -16,6 +16,12 @@ class PhenotypeService:
     def __init__(self, hdf5_file: Path | str):
         self._hdf = PhenotypesHDF5(hdf5_file)  # Existing implementation
 
+    def get_cases_for_phecode(
+        self, phecode, population: str | None = None, biological_sex: str | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Delegate to the underlying HDF5 file's get_cases_for_phecode method."""
+        return self._hdf.get_cases_for_phecode(phecode, population, biological_sex)
+
 
 class PhenotypesHDF5:
     """Handles access to phenotype data stored in HDF5 format."""
@@ -85,7 +91,8 @@ class PhenotypesHDF5:
     @profile
     def get_cases_for_phecode(
         self, phecode, population: str | None = None, biological_sex: str | None = None
-    ):
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Get the cases for a given phecode, population, and biological sex."""
         phecode_index = self.phecode_to_index[phecode]
 
         if biological_sex is not None:
