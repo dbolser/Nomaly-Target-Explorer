@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from queue import Queue
 
 from blueprints.prioritisation_by_nomaly_scores import (

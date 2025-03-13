@@ -189,73 +189,125 @@ def mock_phenotype_file():
 
 
 @pytest.fixture
-def unit_test_app(test_app, mock_genotype_hdf5_file_with_npy, mock_phenotype_file, stats_service, stats_service_v2):
+def unit_test_app(
+    test_app, phenotype_service, genotype_service, stats_service, nomaly_scores_service
+):
     """App configured for unit tests with mocked services."""
 
-    # Override config paths with actual mock files
-    test_app.config.update({
-        "LOGIN_DISABLED": True,
-        "GENOTYPES_H5": mock_genotype_hdf5_file_with_npy,
-        "PHENOTYPES_H5": mock_phenotype_file,
-    })
+    # Override config for testing
+    test_app.config.update(
+        {
+            "LOGIN_DISABLED": True,
+        }
+    )
 
     with test_app.app_context():
-        from data_services.genotype import GenotypeService
-        from data_services.phenotype import PhenotypeService
+        from data_services.registry import ServiceRegistry
 
-        from data_services.stats import StatsService
-        from data_services.nomaly_score import NomalyScoreService
-
-        # Create test services
+        # Create test services registry with our mock services
         services = ServiceRegistry()
 
-        services.genotype = GenotypeService(mock_genotype_hdf5_file_with_npy)
-        services.phenotype = PhenotypeService(mock_phenotype_file)
-
-        # Use the mock stats services
+        # Use our mock services instead of creating new ones
+        services.genotype = genotype_service
+        services.phenotype = phenotype_service
         services.stats = stats_service
-        services.stats_v2 = stats_service_v2
-        services.nomaly_score = MagicMock()
+        services.nomaly_score = nomaly_scores_service
 
+        # Register the services with the app
         test_app.extensions["nomaly_services"] = services
 
         yield test_app
 
 
 @pytest.fixture
-def phenotype_service(unit_test_app):
-    return unit_test_app.extensions["nomaly_services"].phenotype._hdf
+def phenotype_service():
+    """Mock phenotype service for unit tests."""
+    from unittest.mock import MagicMock
+    import numpy as np
+
+    mock_service = MagicMock()
+    mock_hdf = MagicMock()
+
+    # Define our standard test cohort
+    # 10 individuals: 3 cases, 5 controls, 2 excluded
+    test_eids = np.array([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010])
+    test_phenotypes = {
+        "250.2": np.array(
+            [1, 1, 1, 0, 0, 0, 0, 0, 9, 9]
+        ),  # 1=case, 0=control, 9=excluded
+        "290.11": np.array(
+            [0, 1, 1, 0, 0, 1, 0, 0, 9, 9]
+        ),  # Different pattern for another disease
+        "401.1": np.array(
+            [1, 0, 1, 1, 0, 0, 0, 0, 9, 9]
+        ),  # Different pattern for another disease
+    }
+
+    def mock_get_cases_for_phecode(phecode, population=None, biological_sex=None):
+        """Return test phenotype data for the given phecode."""
+        if phecode not in test_phenotypes:
+            # Return default pattern for unknown phecodes
+            return test_eids, test_phenotypes["250.2"]
+        return test_eids, test_phenotypes[phecode]
+
+    mock_hdf.get_cases_for_phecode = mock_get_cases_for_phecode
+    mock_service._hdf = mock_hdf
+
+    return mock_service
 
 
 @pytest.fixture
-def genotype_service(unit_test_app):
-    """Return the underlying GenotypesHDF5 object that has the individual property."""
+def genotype_service():
+    """Mock genotype service for unit tests."""
     from unittest.mock import MagicMock
     import numpy as np
-    
-    # Create a mock service with the necessary methods
+
     mock_service = MagicMock()
-    
-    # Mock the individual property
-    mock_service.individual = np.array([1001, 1002, 1003, 1004])
-    
-    # Mock the query_variantID_genotypes method
-    def mock_query_variantID_genotypes(variant):
-        # Return predefined results based on the variant
-        if variant == "1_186977737_A/G":
-            return np.array([1001, 1002, 1003, 1004]), np.array([2, 2, 2, 0])
-        elif variant == "1_186977780_G/A":
-            return np.array([1001, 1002, 1003, 1004]), np.array([-1, -1, 2, 1])
-        elif variant == "1_46813503_C/T":
-            return np.array([1001, 1002, 1003, 1004]), np.array([0, 1, 0, 2])
-        else:
-            return None
-    
-    mock_service.query_variantID_genotypes = mock_query_variantID_genotypes
-    
-    # Add any other methods that might be needed by tests
-    mock_service.get_genotypes = MagicMock(return_value=np.zeros((3, 3)))
-    
+    mock_hdf = MagicMock()
+
+    # Define our standard test cohort - must match phenotype_service
+    test_eids = np.array([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010])
+
+    # Define test genotypes for specific variants
+    # 0=homozygous ref, 1=heterozygous, 2=homozygous alt, -1=missing
+    test_genotypes = {
+        "1_186977737_A/G": np.array([2, 1, 0, 1, 0, 0, 1, 0, 0, 0]),  # Common variant
+        "1_186977780_G/A": np.array([1, 2, 0, 0, 1, 0, 0, 0, 0, 0]),  # Less common
+        "1_46813503_C/T": np.array([0, 1, 2, 0, 0, 1, 0, 0, 0, 0]),  # Rare variant
+        # Add more variants as needed for different test scenarios
+    }
+
+    def mock_query_variantID_genotypes(variant_id):
+        """Return genotypes for specific variants."""
+        if variant_id in test_genotypes:
+            return test_eids, test_genotypes[variant_id]
+        # Return None for unknown variants (matches real behavior)
+        return None
+
+    def mock_get_genotypes(eids=None, vids=None, nomaly_ids=True):
+        """Return a genotype matrix for the given eids and variants."""
+        if eids is None:
+            eids = test_eids
+        if vids is None:
+            return np.zeros((len(eids), 0))
+
+        # Create matrix with genotypes for requested variants
+        genotype_matrix = np.zeros((len(eids), len(vids)))
+        for i, vid in enumerate(vids):
+            if vid in test_genotypes:
+                # Find indices of requested eids in our test data
+                eid_indices = np.searchsorted(test_eids, eids)
+                genotype_matrix[:, i] = test_genotypes[vid][eid_indices]
+
+        return genotype_matrix
+
+    # Set up the mock
+    mock_hdf.query_variantID_genotypes = mock_query_variantID_genotypes
+    mock_hdf.get_genotypes = mock_get_genotypes
+    mock_hdf.individual = test_eids
+
+    mock_service._hdf = mock_hdf
+
     return mock_service
 
 
@@ -265,183 +317,147 @@ def stats_service():
     from unittest.mock import MagicMock
     import numpy as np
     import pandas as pd
-    
-    # Create a mock service with the necessary methods
+
     mock_service = MagicMock()
-    
-    # Create a mock _hdf attribute
     mock_hdf = MagicMock()
-    
-    # Set up properties on the mock HDF5 object
-    mock_hdf.phecodes = np.array(["250.2", "290.11", "401.1", "635.2", "601.1"])
-    mock_hdf.terms = np.array(["GO:0030800", "GO:0016403", "GO:0036265", "GO:0048712"])
-    mock_hdf.statistics = np.array(["num_rp", "num_rn", "mwu_pvalue", "tti_pvalue", "metric1_pvalue"])
-    
-    # Sample 3D data array (terms x phecodes x statistics)
-    mock_hdf.data = np.random.rand(4, 5, 5)  # 4 terms, 5 phecodes, 5 statistics
-    
-    # Mock get_stats_by_phecode method
-    def mock_get_stats_by_phecode(phecode, statstype=None):
-        if phecode not in mock_hdf.phecodes:
-            raise ValueError(f"Disease {phecode} not found in dataset")
-            
-        # Find the index of the phecode
-        phecode_idx = np.where(mock_hdf.phecodes == phecode)[0][0]
-        
-        if statstype is None:
-            # Return all statistics for this phecode
-            return pd.DataFrame(
-                mock_hdf.data[:, phecode_idx, :],
-                index=mock_hdf.terms.astype(str),
-                columns=mock_hdf.statistics
-            )
-        elif isinstance(statstype, str):
-            # Return specific statistic
-            stat_idx = np.where(mock_hdf.statistics == statstype)[0][0]
-            return mock_hdf.data[:, phecode_idx, stat_idx]
-        else:
-            # Return multiple statistics
-            stat_indices = [np.where(mock_hdf.statistics == s)[0][0] for s in statstype]
-            return mock_hdf.data[:, phecode_idx, stat_indices]
-    
-    # Mock get_stats_by_term_phecode method
+
+    # Define test statistics that match our phenotype data
+    # These values should align with the phenotype_service fixture
+    test_stats = {
+        ("GO:0030800", "250.2"): {
+            "num_rp": 3.0,  # 3 cases in phenotype data
+            "num_rn": 5.0,  # 5 controls in phenotype data
+            "metric1_pvalue": 0.0026,
+            "metric1_tp": 2,
+            "metric1_tn": 685,
+            "metric1_fp": 257045,
+            "metric1_fn": 532,
+            "metric1_threshold": 0.022,
+            # MCC stats
+            "roc_stats_mcc_pvalue": 0.0015,
+            "roc_stats_mcc_or": 2.5,
+            "roc_stats_mcc_threshold": 0.025,
+            "roc_stats_mcc_tp": 2,
+            "roc_stats_mcc_tn": 4,
+            "roc_stats_mcc_fp": 1,
+            "roc_stats_mcc_fn": 1,
+            # YJS stats
+            "roc_stats_yjs_pvalue": 0.045,
+            "roc_stats_yjs_or": 3.0,
+            "roc_stats_yjs_threshold": 0.02,
+            "roc_stats_yjs_tp": 2,
+            "roc_stats_yjs_tn": 3,
+            "roc_stats_yjs_fp": 2,
+            "roc_stats_yjs_fn": 1,
+            # LRP stats
+            "roc_stats_lrp_pvalue": 0.16,
+            "roc_stats_lrp_or": 2.0,
+            "roc_stats_lrp_threshold": 0.03,
+            "roc_stats_lrp_tp": 1,
+            "roc_stats_lrp_tn": 4,
+            "roc_stats_lrp_fp": 1,
+            "roc_stats_lrp_fn": 2,
+            # Protective stats
+            "roc_stats_lrn_protective_pvalue": 1.0,
+            "roc_stats_lrn_protective_or": 0.5,
+            "roc_stats_lrn_protective_threshold": 0.0303,
+            "roc_stats_lrn_protective_tp": 0,
+            "roc_stats_lrn_protective_tn": 247353,
+            "roc_stats_lrn_protective_fp": 84,
+            "roc_stats_lrn_protective_fn": 497,
+        }
+    }
+
     def mock_get_stats_by_term_phecode(term, phecode, statstype=None):
-        if term not in mock_hdf.terms:
-            raise ValueError(f"Term {term} not found in dataset")
-        if phecode not in mock_hdf.phecodes:
-            raise ValueError(f"Disease {phecode} not found in dataset")
-            
-        # Find indices
-        term_idx = np.where(mock_hdf.terms == term)[0][0]
-        phecode_idx = np.where(mock_hdf.phecodes == phecode)[0][0]
-        
+        """Return statistics for a specific term and phecode combination."""
+        key = (term, phecode)
+        if key not in test_stats:
+            raise ValueError(f"No test stats for term={term}, phecode={phecode}")
+
         if statstype is None:
-            statstype = mock_hdf.statistics
-        elif isinstance(statstype, str):
-            statstype = np.array([statstype])
-            
-        # Create result dictionary
-        result = {}
-        for stat in statstype:
-            stat_idx = np.where(mock_hdf.statistics == stat)[0][0]
-            result[stat] = mock_hdf.data[term_idx, phecode_idx, stat_idx]
-            
-        return result
-    
-    # Assign methods to mock
-    mock_hdf.get_stats_by_phecode = mock_get_stats_by_phecode
+            return test_stats[key]
+
+        if isinstance(statstype, str):
+            return {statstype: test_stats[key][statstype]}
+
+        return {
+            stat: test_stats[key][stat] for stat in statstype if stat in test_stats[key]
+        }
+
+    # Set up the mock
     mock_hdf.get_stats_by_term_phecode = mock_get_stats_by_term_phecode
-    
-    # Add get_stats_wip method if needed
-    def mock_get_stats_wip(phecode=None, term=None, statstype=None):
-        if not phecode and not term:
-            raise ValueError("At least one of phecode or term must be provided!")
-            
-        # For simplicity, just return a DataFrame with sample data
-        return pd.DataFrame(
-            np.random.rand(5, 5),
-            columns=mock_hdf.statistics
-        )
-    
-    mock_hdf.get_stats_wip = mock_get_stats_wip
-    
-    # Assign the mock HDF5 object to the service
+
+    # Add get_stats_by_phecode method for completeness
+    def mock_get_stats_by_phecode(phecode, statstype=None):
+        """Return statistics for a specific phecode."""
+        # Create a simple DataFrame with stats for all terms for this phecode
+        result = {}
+        for key in test_stats:
+            if key[1] == phecode:
+                result[key[0]] = test_stats[key]
+
+        if not result:
+            raise ValueError(f"No test stats for phecode={phecode}")
+
+        # Convert to DataFrame
+        df = pd.DataFrame(result).T
+
+        if statstype is None:
+            return df
+        elif isinstance(statstype, str):
+            return df[statstype]
+        else:
+            return df[statstype]
+
+    mock_hdf.get_stats_by_phecode = mock_get_stats_by_phecode
+
     mock_service._hdf = mock_hdf
-    
+
     return mock_service
 
 
 @pytest.fixture
-def stats_service_v2():
-    """Mock stats service V2 for unit tests."""
-    # Reuse the same implementation as stats_service for now
-    # In a real scenario, you might want to customize this for V2-specific behavior
+def nomaly_scores_service():
+    """Mock nomaly scores service for unit tests."""
     from unittest.mock import MagicMock
     import numpy as np
-    import pandas as pd
-    
+
     # Create a mock service with the necessary methods
     mock_service = MagicMock()
-    
+
     # Create a mock _hdf attribute
     mock_hdf = MagicMock()
-    
-    # Set up properties on the mock HDF5 object
-    mock_hdf.phecodes = np.array(["250.2", "290.11", "401.1", "635.2", "601.1"])
-    mock_hdf.terms = np.array(["GO:0030800", "GO:0016403", "GO:0036265", "GO:0048712"])
-    mock_hdf.statistics = np.array(["num_rp", "num_rn", "mwu_pvalue", "tti_pvalue", "metric1_pvalue"])
-    
-    # Sample 3D data array (terms x phecodes x statistics)
-    mock_hdf.data = np.random.rand(4, 5, 5)  # 4 terms, 5 phecodes, 5 statistics
-    
-    # Mock get_stats_by_phecode method
-    def mock_get_stats_by_phecode(phecode, statstype=None):
-        if phecode not in mock_hdf.phecodes:
-            raise ValueError(f"Disease {phecode} not found in dataset")
-            
-        # Find the index of the phecode
-        phecode_idx = np.where(mock_hdf.phecodes == phecode)[0][0]
-        
-        if statstype is None:
-            # Return all statistics for this phecode
-            return pd.DataFrame(
-                mock_hdf.data[:, phecode_idx, :],
-                index=mock_hdf.terms.astype(str),
-                columns=mock_hdf.statistics
-            )
-        elif isinstance(statstype, str):
-            # Return specific statistic
-            stat_idx = np.where(mock_hdf.statistics == statstype)[0][0]
-            return mock_hdf.data[:, phecode_idx, stat_idx]
-        else:
-            # Return multiple statistics
-            stat_indices = [np.where(mock_hdf.statistics == s)[0][0] for s in statstype]
-            return mock_hdf.data[:, phecode_idx, stat_indices]
-    
-    # Mock get_stats_by_term_phecode method
-    def mock_get_stats_by_term_phecode(term, phecode, statstype=None):
-        if term not in mock_hdf.terms:
-            raise ValueError(f"Term {term} not found in dataset")
-        if phecode not in mock_hdf.phecodes:
-            raise ValueError(f"Disease {phecode} not found in dataset")
-            
-        # Find indices
-        term_idx = np.where(mock_hdf.terms == term)[0][0]
-        phecode_idx = np.where(mock_hdf.phecodes == phecode)[0][0]
-        
-        if statstype is None:
-            statstype = mock_hdf.statistics
-        elif isinstance(statstype, str):
-            statstype = np.array([statstype])
-            
-        # Create result dictionary
-        result = {}
-        for stat in statstype:
-            stat_idx = np.where(mock_hdf.statistics == stat)[0][0]
-            result[stat] = mock_hdf.data[term_idx, phecode_idx, stat_idx]
-            
-        return result
-    
-    # Assign methods to mock
-    mock_hdf.get_stats_by_phecode = mock_get_stats_by_phecode
-    mock_hdf.get_stats_by_term_phecode = mock_get_stats_by_term_phecode
-    
-    # Add get_stats_wip method if needed
-    def mock_get_stats_wip(phecode=None, term=None, statstype=None):
-        if not phecode and not term:
-            raise ValueError("At least one of phecode or term must be provided!")
-            
-        # For simplicity, just return a DataFrame with sample data
-        return pd.DataFrame(
-            np.random.rand(5, 5),
-            columns=mock_hdf.statistics
-        )
-    
-    mock_hdf.get_stats_wip = mock_get_stats_wip
-    
+
+    # Define the test case and control scores as in the original test
+    case_scores = np.array([0.03, 0.025, 0.01])  # 2 out of 3 cases above threshold
+    control_scores = np.array(
+        [0.005, 0.015, 0.03, 0.01, 0.005]
+    )  # 1 out of 5 controls above threshold
+
+    # Map of eids to their scores - include all eids from our test cohort
+    eid_to_score = {
+        1001: 0.03,  # case
+        1002: 0.025,  # case
+        1003: 0.01,  # case
+        1004: 0.005,  # control
+        1005: 0.015,  # control
+        1006: 0.03,  # control
+        1007: 0.01,  # control
+        1008: 0.005,  # control
+        1009: 0.0,  # excluded - no score
+        1010: 0.0,  # excluded - no score
+    }
+
+    def mock_get_scores_by_eids_unsorted(eids, terms=None):
+        """Return scores for the given eids."""
+        return np.array([eid_to_score.get(eid, 0.0) for eid in eids])
+
+    # Assign method to mock
+    mock_hdf.get_scores_by_eids_unsorted = mock_get_scores_by_eids_unsorted
+
     # Assign the mock HDF5 object to the service
     mock_service._hdf = mock_hdf
-    
+
     return mock_service
 
 
@@ -454,7 +470,8 @@ def unit_test_app_client(unit_test_app):
 @pytest.fixture(scope="session")
 def integration_app():
     """App configured for integration tests with real services."""
-    _app = create_app()
+    # Use DEVELOPMENT instead of TESTING to allow ServiceRegistry to initialize
+    _app = create_app("development")
     _app.config.update(
         {
             "SERVER_NAME": "localhost.localdomain",
@@ -462,6 +479,32 @@ def integration_app():
             "APPLICATION_ROOT": "/",
         }
     )
+
+    # # Ensure the app context is active when initializing services
+    # with _app.app_context():
+    #     # We need to manually initialize services because ServiceRegistry
+    #     # doesn't initialize them when TESTING=True
+    #     from data_services.registry import ServiceRegistry
+
+    #     # Create service registry and force initialization
+    #     services = ServiceRegistry()
+
+    #     # Manually set up mock services for testing
+    #     services.genotype = MagicMock()
+    #     services.genotype._hdf = MagicMock()
+
+    #     services.phenotype = MagicMock()
+    #     services.phenotype._hdf = MagicMock()
+
+    #     services.stats = MagicMock()
+    #     services.stats._hdf = MagicMock()
+
+    #     services.nomaly_score = MagicMock()
+    #     services.nomaly_score._hdf = MagicMock()
+
+    #     # Register with the app
+    #     _app.extensions["nomaly_services"] = services
+
     return _app
 
 

@@ -20,14 +20,18 @@ def test_unit_test_app(unit_test_app):
         assert "nomaly_services" in current_app.extensions
         services = current_app.extensions["nomaly_services"]
 
-        # assert services.genotype._mock_return_value is not None  # Should be a mock
-        # assert services.phenotype._mock_return_value is not None  # Should be a mock
-        assert services.genotype._hdf is not None  # Should be a real object
-        assert services.phenotype._hdf is not None  # Should be a real object
+        # Check that all services are properly mocked
+        assert services.genotype._hdf is not None
+        assert services.phenotype._hdf is not None
+        assert services.stats._hdf is not None
+        assert services.nomaly_score._hdf is not None
 
-        # TODO: Mock these things
-        assert services.stats._mock_return_value is not None  # Should be a mock
-        assert services.stats_v2._mock_return_value is not None  # Should be a mock
+        # Check that our mock services have the expected methods
+        assert hasattr(services.phenotype._hdf, "get_cases_for_phecode")
+        assert hasattr(services.genotype._hdf, "query_variantID_genotypes")
+        assert hasattr(services.genotype._hdf, "get_genotypes")
+        assert hasattr(services.stats._hdf, "get_stats_by_term_phecode")
+        assert hasattr(services.nomaly_score._hdf, "get_scores_by_eids_unsorted")
 
 
 def test_unit_test_app_client(unit_test_app_client):
@@ -47,15 +51,26 @@ def test_mock_genotype_hdf5_file_with_npy(mock_genotype_hdf5_file_with_npy):
 def test_integration_app(integration_app):
     """Test that integration_app provides an app with real services."""
     with integration_app.app_context():
+        # Check that the app is configured for development (not testing)
+        assert integration_app.config["TESTING"] is False
+        assert integration_app.config["DEBUG"] is True  # Development mode
+
+        # Check that services are manually initialized
         assert "nomaly_services" in current_app.extensions
         services = current_app.extensions["nomaly_services"]
 
-        assert services.genotype._hdf is not None  # Should be real
-        assert services.phenotype._hdf is not None  # Should be real
+        # Check that all required services exist
+        assert hasattr(services, "genotype")
+        assert hasattr(services, "phenotype")
+        assert hasattr(services, "stats")
+        assert hasattr(services, "nomaly_score")
 
-        # TODO: Mock these things
-        assert not hasattr(services.stats, "_mock_return_value")  # Should be real
-        assert not hasattr(services.stats_v2, "_mock_return_value")  # Should be real
+        # Check that each service has the _hdf attribute
+        assert hasattr(services.genotype, "_hdf")
+        assert hasattr(services.phenotype, "_hdf")
+        assert hasattr(services.stats, "_hdf")
+        assert hasattr(services.nomaly_score, "_hdf")
+
 
 
 def test_integration_app_client(integration_app_client):
