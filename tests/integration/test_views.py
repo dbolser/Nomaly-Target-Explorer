@@ -290,7 +290,7 @@ def test_phecode_page_with_gwas(auth_integration_app_client):
 
     # Test GWAS results containers exist
     assert '<div id="taskResult"' in html
-    assert '<div id="GWAStableContainer"' in html
+    assert '<div id="GWASTableContainer"' in html
     assert '<table id="variantTable"' in html
 
     # Test GWAS table headers

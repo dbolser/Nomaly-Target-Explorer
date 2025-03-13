@@ -248,12 +248,23 @@ def get_column_display_names():
     }
 
 
-def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
+def prepare_nomaly_stats_response(disease_stats, plot_df, phecode, version=1):
     """Prepare the JSON response for nomaly stats."""
-    if diseasestats is None or plot_df is None:
+    if disease_stats is None or plot_df is None:
         return jsonify({"error": "Failed to get Nomaly stats"}), 500
 
+    # First get the term names to add descriptions
+    term_list = plot_df["term"].tolist()
+    term_name_dict = get_term_names(term_list)
+    # Add description column before plotting
+    plot_df = plot_df.assign(
+        description=plot_df["term"].map(lambda x: term_name_dict.get(x, "-"))
+    )
+
+    # Generate the plot with the enhanced data
     graph_html = make_qqplot_html(plot_df)
+
+    # Format data for table display
     plot_df = show_datatable_nomaly_stats(plot_df, phecode)
 
     plot_df["term"] = plot_df["term"].map(
@@ -270,8 +281,8 @@ def prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1):
 
     response = {
         "qqplot": graph_html,
-        "affected": diseasestats["num_rp"].values[0],
-        "control": diseasestats["num_rn"].values[0],
+        "affected": disease_stats["num_rp"].values[0],
+        "control": disease_stats["num_rn"].values[0],
         "data": plot_df.replace("nan", "1.00e+00").to_dict(orient="records"),
         "columns": base_columns + columns_pval,
         "columnNames": [

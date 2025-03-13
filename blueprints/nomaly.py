@@ -50,7 +50,10 @@ def qqstats(dfstats):
         melt_stats.loc[melt_stats["tag"] == tag, "-log10(expected)"] = -np.log10(
             np.linspace(0 + 1 / len_tag, 1 - 1 / len_tag, len_tag)
         )
-
+    # Merge description column if available
+    if "description" in dfstats.columns:
+        mapping = dfstats.set_index("term")["description"].to_dict()
+        melt_stats["description"] = melt_stats["term"].map(mapping)
     return melt_stats
 
 
@@ -86,6 +89,9 @@ def make_qqplot(plot_df):
         color_discrete_map=color_map,
         category_orders={"test": legend_order},
         hover_name="term",
+        hover_data={
+            "description": True if "description" in melt_stats.columns else False
+        },
         # title=f'{disease_select} QQ plot'
     )
     # add the diagonal line
@@ -98,10 +104,12 @@ def make_qqplot(plot_df):
         line=dict(color="gray", dash="dash"),
     )
 
-    # figure size
+    # figure size and make it responsive
     fig.update_layout(
         width=600,
         height=400,
+        autosize=True,
+        margin=dict(l=50, r=50, t=30, b=50),
     )
 
     return fig
