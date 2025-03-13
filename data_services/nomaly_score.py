@@ -9,6 +9,11 @@ class NomalyScoreService:
     def __init__(self, hdf5_file: Path):
         self._hdf = NomalyScoresHDF5(hdf5_file)  # Existing implementation
 
+    def get_scores_by_eids_unsorted(
+        self, eids: np.ndarray, terms: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        return self._hdf.get_scores_by_eids_unsorted(eids, terms)
+
 
 class NomalyScoresHDF5:
     """Handles access to nomaly score data stored in HDF5 format."""

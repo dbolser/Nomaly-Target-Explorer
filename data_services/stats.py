@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import h5py
 import numpy as np
@@ -8,6 +9,11 @@ import pandas as pd
 class StatsService:
     def __init__(self, hdf5_file: Path | str):
         self._hdf = StatsHDF5(hdf5_file)  # Existing implementation
+
+    def get_stats_by_term_phecode(
+        self, term: str, phecode: str, statstype: Optional[str] = None
+    ) -> np.ndarray:
+        return self._hdf.get_stats_by_term_phecode(term, phecode, statstype)
 
 
 class StatsHDF5:
