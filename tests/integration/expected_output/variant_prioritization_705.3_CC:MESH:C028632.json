@@ -1,0 +1,1103 @@
+{
+  "num_rp": 275.0,
+  "num_rn": 453498.0,
+  "metric1_pvalue": 0.5652501346896386,
+  "roc_stats_mcc_threshold": 0.0201,
+  "roc_stats_mcc_all_index": 2048.0,
+  "roc_stats_mcc_tp": 2.0,
+  "roc_stats_mcc_fp": 2046.0,
+  "roc_stats_mcc_fn": 273.0,
+  "roc_stats_mcc_tn": 451452.0,
+  "roc_stats_mcc_or": 1.6164910358458746,
+  "roc_stats_mcc_pvalue": 0.3524128536935249,
+  "roc_stats_yjs_threshold": 0.0108,
+  "roc_stats_yjs_tp": 5.0,
+  "roc_stats_yjs_fp": 6952.0,
+  "roc_stats_yjs_fn": 270.0,
+  "roc_stats_yjs_tn": 446546.0,
+  "roc_stats_yjs_or": 1.1894951625964283,
+  "roc_stats_yjs_pvalue": 0.6194278228625103,
+  "roc_stats_lrp_threshold": 0.0201,
+  "roc_stats_lrp_tp": 2.0,
+  "roc_stats_lrp_fp": 2046.0,
+  "roc_stats_lrp_fn": 273.0,
+  "roc_stats_lrp_tn": 451452.0,
+  "roc_stats_lrp_or": 1.6164910358458746,
+  "roc_stats_lrp_pvalue": 0.3524128536935249,
+  "roc_stats_lrn_protective_threshold": 0.0002,
+  "roc_stats_lrn_protective_tp": 8.0,
+  "roc_stats_lrn_protective_fp": 40820.0,
+  "roc_stats_lrn_protective_fn": 267.0,
+  "roc_stats_lrn_protective_tn": 412678.0,
+  "roc_stats_lrn_protective_or": 0.3029123933153132,
+  "roc_stats_lrn_protective_pvalue": 0.0001203224786873,
+  "metric1_threshold": 0.022,
+  "metric1_tp": 1,
+  "metric1_fp": 1386,
+  "metric1_fn": 281,
+  "metric1_tn": 470398,
+  "metric1_tpr": 0.0036363636363636364,
+  "metric1_fpr": 0.0030562428059219666,
+  "metric1_lrp": 1.1898149945207535,
+  "metric1_top_variants": [
+    {
+      "variant_id": "1_46817100_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 6.369330108165741,
+      "num_individuals": 1,
+      "vs": 131.064,
+      "vs00": 131.064,
+      "vs01": 31.1444,
+      "vs11": 12.3613
+    },
+    {
+      "variant_id": "1_46815212_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 4.001539826393127,
+      "num_individuals": 1,
+      "vs": 51.8624,
+      "vs00": 51.8624,
+      "vs01": 12.329,
+      "vs11": 4.82015
+    },
+    {
+      "variant_id": "11_125838398_T/G",
+      "gene": "PATE4",
+      "hmm_score": 5.988789793103933,
+      "num_individuals": 1,
+      "vs": 28.1279,
+      "vs00": 117.984,
+      "vs01": 28.1279,
+      "vs11": 10.0029
+    },
+    {
+      "variant_id": "19_15879621_C/T",
+      "gene": "CYP4F2",
+      "hmm_score": 2.220850110054016,
+      "num_individuals": 1,
+      "vs": 11.7739,
+      "vs00": 11.7739,
+      "vs01": 2.87413,
+      "vs11": 3.83871
+    },
+    {
+      "variant_id": "22_42130692_G/A",
+      "gene": "CYP2D6",
+      "hmm_score": 3.4199899435043335,
+      "num_individuals": 1,
+      "vs": 6.08309,
+      "vs00": 33.5309,
+      "vs01": 8.11066,
+      "vs11": 6.08309
+    },
+    {
+      "variant_id": "1_47143817_T/C",
+      "gene": "CYP4A22",
+      "hmm_score": 2.326900005340576,
+      "num_individuals": 1,
+      "vs": 5.46375,
+      "vs00": 11.2396,
+      "vs01": 2.93723,
+      "vs11": 5.46375
+    },
+    {
+      "variant_id": "10_94733301_C/T",
+      "gene": "CYP2C18",
+      "hmm_score": 2.4017601013183594,
+      "num_individuals": 1,
+      "vs": 4.27247,
+      "vs00": 18.0219,
+      "vs01": 4.27247,
+      "vs11": 2.05989
+    },
+    {
+      "variant_id": "19_15923904_A/G",
+      "gene": "CYP4F11",
+      "hmm_score": 2.784369945526123,
+      "num_individuals": 1,
+      "vs": 3.47905,
+      "vs00": 22.8012,
+      "vs01": 5.3874,
+      "vs11": 3.47905
+    },
+    {
+      "variant_id": "1_46813503_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 3.11568021774292,
+      "num_individuals": 1,
+      "vs": 2.9782,
+      "vs00": 31.3578,
+      "vs01": 7.46055,
+      "vs11": 2.9782
+    },
+    {
+      "variant_id": "19_40880231_A/C",
+      "gene": "CYP2A7",
+      "hmm_score": 1.0293300151824951,
+      "num_individuals": 1,
+      "vs": 1.55388,
+      "vs00": 1.65613,
+      "vs01": 0.545481,
+      "vs11": 1.55388
+    },
+    {
+      "variant_id": "10_94688163_C/T",
+      "gene": "CYP2C18",
+      "hmm_score": 6.455970138311386,
+      "num_individuals": 1,
+      "vs": 1.36529,
+      "vs00": 162.716,
+      "vs01": 40.3612,
+      "vs11": 1.36529
+    },
+    {
+      "variant_id": "19_15890405_C/A",
+      "gene": "CYP4F2",
+      "hmm_score": 3.621700167655945,
+      "num_individuals": 1,
+      "vs": 1.29212,
+      "vs00": 48.8334,
+      "vs01": 11.9461,
+      "vs11": 1.29212
+    },
+    {
+      "variant_id": "19_40880515_A/C",
+      "gene": "CYP2A7",
+      "hmm_score": 0.9385299682617188,
+      "num_individuals": 1,
+      "vs": 1.28963,
+      "vs00": 1.39068,
+      "vs01": 0.459314,
+      "vs11": 1.28963
+    }
+  ],
+  "metric1_top_gene_set": [
+    {
+      "gene": "CYP4B1",
+      "variant_id": "1_46817100_C/T, 1_46815212_C/T, 1_46813503_C/T",
+      "hmm_score": 13.486550152301788,
+      "total_vs": 185.9046,
+      "variant_num": 3,
+      "num_individuals": 3
+    },
+    {
+      "gene": "CYP2C18",
+      "variant_id": "10_94733301_C/T, 10_94688163_C/T",
+      "hmm_score": 8.857730239629745,
+      "total_vs": 5.63776,
+      "variant_num": 2,
+      "num_individuals": 2
+    },
+    {
+      "gene": "PATE4",
+      "variant_id": "11_125838398_T/G",
+      "hmm_score": 5.988789793103933,
+      "total_vs": 28.1279,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CYP4F2",
+      "variant_id": "19_15879621_C/T, 19_15890405_C/A",
+      "hmm_score": 5.842550277709961,
+      "total_vs": 13.06602,
+      "variant_num": 2,
+      "num_individuals": 2
+    },
+    {
+      "gene": "CYP2D6",
+      "variant_id": "22_42130692_G/A",
+      "hmm_score": 3.4199899435043335,
+      "total_vs": 6.08309,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CYP4F11",
+      "variant_id": "19_15923904_A/G",
+      "hmm_score": 2.784369945526123,
+      "total_vs": 3.47905,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CYP4A22",
+      "variant_id": "1_47143817_T/C",
+      "hmm_score": 2.326900005340576,
+      "total_vs": 5.46375,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CYP2A7",
+      "variant_id": "19_40880231_A/C, 19_40880515_A/C",
+      "hmm_score": 1.9678599834442139,
+      "total_vs": 2.84351,
+      "variant_num": 2,
+      "num_individuals": 2
+    }
+  ],
+  "roc_stats_mcc_tpr": 0.007272727272727273,
+  "roc_stats_mcc_fpr": 0.004511596523027665,
+  "roc_stats_mcc_lrp": 1.6120074289457764,
+  "roc_stats_mcc_top_variants": [
+    {
+      "variant_id": "1_46817100_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 6.369330108165741,
+      "num_individuals": 2,
+      "vs": 262.128,
+      "vs00": 131.064,
+      "vs01": 31.1444,
+      "vs11": 12.3613
+    },
+    {
+      "variant_id": "1_46815212_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 4.001539826393127,
+      "num_individuals": 2,
+      "vs": 103.7248,
+      "vs00": 51.8624,
+      "vs01": 12.329,
+      "vs11": 4.82015
+    },
+    {
+      "variant_id": "11_125838398_T/G",
+      "gene": "PATE4",
+      "hmm_score": 5.988789793103933,
+      "num_individuals": 2,
+      "vs": 38.1308,
+      "vs00": 117.984,
+      "vs01": 28.1279,
+      "vs11": 10.0029
+    },
+    {
+      "variant_id": "19_15879621_C/T",
+      "gene": "CYP4F2",
+      "hmm_score": 2.220850110054016,
+      "num_individuals": 2,
+      "vs": 14.648029999999999,
+      "vs00": 11.7739,
+      "vs01": 2.87413,
+      "vs11": 3.83871
+    },
+    {
+      "variant_id": "22_42130692_G/A",
+      "gene": "CYP2D6",
+      "hmm_score": 3.4199899435043335,
+      "num_individuals": 2,
+      "vs": 14.19375,
+      "vs00": 33.5309,
+      "vs01": 8.11066,
+      "vs11": 6.08309
+    },
+    {
+      "variant_id": "1_47143817_T/C",
+      "gene": "CYP4A22",
+      "hmm_score": 2.326900005340576,
+      "num_individuals": 2,
+      "vs": 16.70335,
+      "vs00": 11.2396,
+      "vs01": 2.93723,
+      "vs11": 5.46375
+    },
+    {
+      "variant_id": "10_94733301_C/T",
+      "gene": "CYP2C18",
+      "hmm_score": 2.4017601013183594,
+      "num_individuals": 2,
+      "vs": 8.54494,
+      "vs00": 18.0219,
+      "vs01": 4.27247,
+      "vs11": 2.05989
+    },
+    {
+      "variant_id": "19_15923904_A/G",
+      "gene": "CYP4F11",
+      "hmm_score": 2.784369945526123,
+      "num_individuals": 2,
+      "vs": 6.9581,
+      "vs00": 22.8012,
+      "vs01": 5.3874,
+      "vs11": 3.47905
+    },
+    {
+      "variant_id": "1_46813503_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 3.11568021774292,
+      "num_individuals": 2,
+      "vs": 5.9564,
+      "vs00": 31.3578,
+      "vs01": 7.46055,
+      "vs11": 2.9782
+    },
+    {
+      "variant_id": "19_40880231_A/C",
+      "gene": "CYP2A7",
+      "hmm_score": 1.0293300151824951,
+      "num_individuals": 2,
+      "vs": 3.10776,
+      "vs00": 1.65613,
+      "vs01": 0.545481,
+      "vs11": 1.55388
+    },
+    {
+      "variant_id": "10_94688163_C/T",
+      "gene": "CYP2C18",
+      "hmm_score": 6.455970138311386,
+      "num_individuals": 2,
+      "vs": 2.73058,
+      "vs00": 162.716,
+      "vs01": 40.3612,
+      "vs11": 1.36529
+    },
+    {
+      "variant_id": "19_15890405_C/A",
+      "gene": "CYP4F2",
+      "hmm_score": 3.621700167655945,
+      "num_individuals": 2,
+      "vs": 2.58424,
+      "vs00": 48.8334,
+      "vs01": 11.9461,
+      "vs11": 1.29212
+    },
+    {
+      "variant_id": "19_40880515_A/C",
+      "gene": "CYP2A7",
+      "hmm_score": 0.9385299682617188,
+      "num_individuals": 2,
+      "vs": 2.57926,
+      "vs00": 1.39068,
+      "vs01": 0.459314,
+      "vs11": 1.28963
+    },
+    {
+      "variant_id": "19_40877210_G/A",
+      "gene": "CYP2A7",
+      "hmm_score": 3.100450038909912,
+      "num_individuals": 1,
+      "vs": 9.09054,
+      "vs00": 36.8621,
+      "vs01": 9.09054,
+      "vs11": 0.544518
+    },
+    {
+      "variant_id": "19_41116300_T/C",
+      "gene": "CYP2F1",
+      "hmm_score": 1.9130901098251343,
+      "num_individuals": 1,
+      "vs": 3.33981,
+      "vs00": 13.6496,
+      "vs01": 3.33981,
+      "vs11": 0.349833
+    },
+    {
+      "variant_id": "1_46932824_A/G",
+      "gene": "CYP4A11",
+      "hmm_score": 1.3758902549743652,
+      "num_individuals": 1,
+      "vs": 1.42652,
+      "vs00": 6.00357,
+      "vs01": 1.42652,
+      "vs11": 0.635625
+    },
+    {
+      "variant_id": "19_40876571_T/A",
+      "gene": "CYP2A7",
+      "hmm_score": 2.825960159301758,
+      "num_individuals": 1,
+      "vs": 1.08308,
+      "vs00": 28.695,
+      "vs01": 6.90298,
+      "vs11": 1.08308
+    }
+  ],
+  "roc_stats_mcc_top_gene_set": [
+    {
+      "gene": "CYP4B1",
+      "variant_id": "1_46817100_C/T, 1_46815212_C/T, 1_46813503_C/T",
+      "hmm_score": 13.486550152301788,
+      "total_vs": 371.8092,
+      "variant_num": 3,
+      "num_individuals": 6
+    },
+    {
+      "gene": "CYP2C18",
+      "variant_id": "10_94733301_C/T, 10_94688163_C/T",
+      "hmm_score": 8.857730239629745,
+      "total_vs": 11.27552,
+      "variant_num": 2,
+      "num_individuals": 4
+    },
+    {
+      "gene": "CYP2A7",
+      "variant_id": "19_40880231_A/C, 19_40880515_A/C, 19_40877210_G/A, 19_40876571_T/A",
+      "hmm_score": 7.894270181655884,
+      "total_vs": 15.860640000000002,
+      "variant_num": 4,
+      "num_individuals": 6
+    },
+    {
+      "gene": "PATE4",
+      "variant_id": "11_125838398_T/G",
+      "hmm_score": 5.988789793103933,
+      "total_vs": 38.1308,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "CYP4F2",
+      "variant_id": "19_15879621_C/T, 19_15890405_C/A",
+      "hmm_score": 5.842550277709961,
+      "total_vs": 17.23227,
+      "variant_num": 2,
+      "num_individuals": 4
+    },
+    {
+      "gene": "CYP2D6",
+      "variant_id": "22_42130692_G/A",
+      "hmm_score": 3.4199899435043335,
+      "total_vs": 14.19375,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "CYP4F11",
+      "variant_id": "19_15923904_A/G",
+      "hmm_score": 2.784369945526123,
+      "total_vs": 6.9581,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "CYP4A22",
+      "variant_id": "1_47143817_T/C",
+      "hmm_score": 2.326900005340576,
+      "total_vs": 16.70335,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "CYP2F1",
+      "variant_id": "19_41116300_T/C",
+      "hmm_score": 1.9130901098251343,
+      "total_vs": 3.33981,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CYP4A11",
+      "variant_id": "1_46932824_A/G",
+      "hmm_score": 1.3758902549743652,
+      "total_vs": 1.42652,
+      "variant_num": 1,
+      "num_individuals": 1
+    }
+  ],
+  "roc_stats_yjs_tpr": 0.01818181818181818,
+  "roc_stats_yjs_fpr": 0.015329725820180023,
+  "roc_stats_yjs_lrp": 1.1860497882668384,
+  "roc_stats_yjs_top_variants": [
+    {
+      "variant_id": "1_46817100_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 6.369330108165741,
+      "num_individuals": 4,
+      "vs": 424.3364,
+      "vs00": 131.064,
+      "vs01": 31.1444,
+      "vs11": 12.3613
+    },
+    {
+      "variant_id": "1_46815212_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 4.001539826393127,
+      "num_individuals": 4,
+      "vs": 167.9162,
+      "vs00": 51.8624,
+      "vs01": 12.329,
+      "vs11": 4.82015
+    },
+    {
+      "variant_id": "11_125838398_T/G",
+      "gene": "PATE4",
+      "hmm_score": 5.988789793103933,
+      "num_individuals": 4,
+      "vs": 166.1177,
+      "vs00": 117.984,
+      "vs01": 28.1279,
+      "vs11": 10.0029
+    },
+    {
+      "variant_id": "22_42130692_G/A",
+      "gene": "CYP2D6",
+      "hmm_score": 3.4199899435043335,
+      "num_individuals": 4,
+      "vs": 26.359930000000002,
+      "vs00": 33.5309,
+      "vs01": 8.11066,
+      "vs11": 6.08309
+    },
+    {
+      "variant_id": "1_47143817_T/C",
+      "gene": "CYP4A22",
+      "hmm_score": 2.326900005340576,
+      "num_individuals": 4,
+      "vs": 33.4067,
+      "vs00": 11.2396,
+      "vs01": 2.93723,
+      "vs11": 5.46375
+    },
+    {
+      "variant_id": "19_15923904_A/G",
+      "gene": "CYP4F11",
+      "hmm_score": 2.784369945526123,
+      "num_individuals": 4,
+      "vs": 15.824550000000002,
+      "vs00": 22.8012,
+      "vs01": 5.3874,
+      "vs11": 3.47905
+    },
+    {
+      "variant_id": "19_15879621_C/T",
+      "gene": "CYP4F2",
+      "hmm_score": 2.220850110054016,
+      "num_individuals": 4,
+      "vs": 21.360870000000002,
+      "vs00": 11.7739,
+      "vs01": 2.87413,
+      "vs11": 3.83871
+    },
+    {
+      "variant_id": "1_46813503_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 3.11568021774292,
+      "num_individuals": 4,
+      "vs": 16.39515,
+      "vs00": 31.3578,
+      "vs01": 7.46055,
+      "vs11": 2.9782
+    },
+    {
+      "variant_id": "19_41004029_C/T",
+      "gene": "CYP2B6",
+      "hmm_score": 1.550570011138916,
+      "num_individuals": 1,
+      "vs": 2.39105,
+      "vs00": 9.57739,
+      "vs01": 2.39105,
+      "vs11": 0.0132531
+    },
+    {
+      "variant_id": "10_94733301_C/T",
+      "gene": "CYP2C18",
+      "hmm_score": 2.4017601013183594,
+      "num_individuals": 4,
+      "vs": 12.66472,
+      "vs00": 18.0219,
+      "vs01": 4.27247,
+      "vs11": 2.05989
+    },
+    {
+      "variant_id": "10_94688163_C/T",
+      "gene": "CYP2C18",
+      "hmm_score": 6.455970138311386,
+      "num_individuals": 4,
+      "vs": 5.46116,
+      "vs00": 162.716,
+      "vs01": 40.3612,
+      "vs11": 1.36529
+    },
+    {
+      "variant_id": "4_186199057_C/A",
+      "gene": "CYP4V2",
+      "hmm_score": 0.7936499118804932,
+      "num_individuals": 1,
+      "vs": 1.30713,
+      "vs00": 1.30713,
+      "vs01": 0.338575,
+      "vs11": 0.629783
+    },
+    {
+      "variant_id": "19_15890405_C/A",
+      "gene": "CYP4F2",
+      "hmm_score": 3.621700167655945,
+      "num_individuals": 4,
+      "vs": 5.16848,
+      "vs00": 48.8334,
+      "vs01": 11.9461,
+      "vs11": 1.29212
+    },
+    {
+      "variant_id": "19_40876571_T/A",
+      "gene": "CYP2A7",
+      "hmm_score": 2.825960159301758,
+      "num_individuals": 3,
+      "vs": 3.2492400000000004,
+      "vs00": 28.695,
+      "vs01": 6.90298,
+      "vs11": 1.08308
+    },
+    {
+      "variant_id": "19_40880231_A/C",
+      "gene": "CYP2A7",
+      "hmm_score": 1.0293300151824951,
+      "num_individuals": 3,
+      "vs": 4.66164,
+      "vs00": 1.65613,
+      "vs01": 0.545481,
+      "vs11": 1.55388
+    },
+    {
+      "variant_id": "19_40880515_A/C",
+      "gene": "CYP2A7",
+      "hmm_score": 0.9385299682617188,
+      "num_individuals": 3,
+      "vs": 3.8688900000000004,
+      "vs00": 1.39068,
+      "vs01": 0.459314,
+      "vs11": 1.28963
+    },
+    {
+      "variant_id": "19_41116300_T/C",
+      "gene": "CYP2F1",
+      "hmm_score": 1.9130901098251343,
+      "num_individuals": 2,
+      "vs": 6.67962,
+      "vs00": 13.6496,
+      "vs01": 3.33981,
+      "vs11": 0.349833
+    },
+    {
+      "variant_id": "19_15682425_C/T",
+      "gene": "CYP4F12",
+      "hmm_score": 1.2067699432373047,
+      "num_individuals": 1,
+      "vs": 2.40816,
+      "vs00": 2.40816,
+      "vs01": 0.729412,
+      "vs11": 1.96325
+    },
+    {
+      "variant_id": "19_41128075_C/T",
+      "gene": "CYP2F1",
+      "hmm_score": 1.4008500576019287,
+      "num_individuals": 1,
+      "vs": 1.68777,
+      "vs00": 6.98742,
+      "vs01": 1.68777,
+      "vs11": 0.312887
+    },
+    {
+      "variant_id": "1_47144902_C/T",
+      "gene": "CYP4A22",
+      "hmm_score": 1.249060034751892,
+      "num_individuals": 1,
+      "vs": 1.45936,
+      "vs00": 5.93823,
+      "vs01": 1.45936,
+      "vs11": 0.100792
+    },
+    {
+      "variant_id": "1_46932824_A/G",
+      "gene": "CYP4A11",
+      "hmm_score": 1.3758902549743652,
+      "num_individuals": 2,
+      "vs": 2.85304,
+      "vs00": 6.00357,
+      "vs01": 1.42652,
+      "vs11": 0.635625
+    },
+    {
+      "variant_id": "7_988812_C/T",
+      "gene": "CYP2W1",
+      "hmm_score": 1.2282600402832031,
+      "num_individuals": 1,
+      "vs": 1.02268,
+      "vs00": 4.33575,
+      "vs01": 1.02268,
+      "vs11": 0.72686
+    },
+    {
+      "variant_id": "19_40877210_G/A",
+      "gene": "CYP2A7",
+      "hmm_score": 3.100450038909912,
+      "num_individuals": 1,
+      "vs": 9.09054,
+      "vs00": 36.8621,
+      "vs01": 9.09054,
+      "vs11": 0.544518
+    }
+  ],
+  "roc_stats_yjs_top_gene_set": [
+    {
+      "gene": "CYP4B1",
+      "variant_id": "1_46817100_C/T, 1_46815212_C/T, 1_46813503_C/T",
+      "hmm_score": 13.486550152301788,
+      "total_vs": 608.6477500000001,
+      "variant_num": 3,
+      "num_individuals": 12
+    },
+    {
+      "gene": "CYP2C18",
+      "variant_id": "10_94733301_C/T, 10_94688163_C/T",
+      "hmm_score": 8.857730239629745,
+      "total_vs": 18.125880000000002,
+      "variant_num": 2,
+      "num_individuals": 8
+    },
+    {
+      "gene": "CYP2A7",
+      "variant_id": "19_40876571_T/A, 19_40880231_A/C, 19_40880515_A/C, 19_40877210_G/A",
+      "hmm_score": 7.894270181655884,
+      "total_vs": 20.870310000000003,
+      "variant_num": 4,
+      "num_individuals": 10
+    },
+    {
+      "gene": "PATE4",
+      "variant_id": "11_125838398_T/G",
+      "hmm_score": 5.988789793103933,
+      "total_vs": 166.1177,
+      "variant_num": 1,
+      "num_individuals": 4
+    },
+    {
+      "gene": "CYP4F2",
+      "variant_id": "19_15879621_C/T, 19_15890405_C/A",
+      "hmm_score": 5.842550277709961,
+      "total_vs": 26.52935,
+      "variant_num": 2,
+      "num_individuals": 8
+    },
+    {
+      "gene": "CYP4A22",
+      "variant_id": "1_47143817_T/C, 1_47144902_C/T",
+      "hmm_score": 3.5759600400924683,
+      "total_vs": 34.86606,
+      "variant_num": 2,
+      "num_individuals": 5
+    },
+    {
+      "gene": "CYP2D6",
+      "variant_id": "22_42130692_G/A",
+      "hmm_score": 3.4199899435043335,
+      "total_vs": 26.359930000000002,
+      "variant_num": 1,
+      "num_individuals": 4
+    },
+    {
+      "gene": "CYP2F1",
+      "variant_id": "19_41116300_T/C, 19_41128075_C/T",
+      "hmm_score": 3.313940167427063,
+      "total_vs": 8.36739,
+      "variant_num": 2,
+      "num_individuals": 3
+    },
+    {
+      "gene": "CYP4F11",
+      "variant_id": "19_15923904_A/G",
+      "hmm_score": 2.784369945526123,
+      "total_vs": 15.824550000000002,
+      "variant_num": 1,
+      "num_individuals": 4
+    },
+    {
+      "gene": "CYP2B6",
+      "variant_id": "19_41004029_C/T",
+      "hmm_score": 1.550570011138916,
+      "total_vs": 2.39105,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CYP4A11",
+      "variant_id": "1_46932824_A/G",
+      "hmm_score": 1.3758902549743652,
+      "total_vs": 2.85304,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "CYP2W1",
+      "variant_id": "7_988812_C/T",
+      "hmm_score": 1.2282600402832031,
+      "total_vs": 1.02268,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CYP4F12",
+      "variant_id": "19_15682425_C/T",
+      "hmm_score": 1.2067699432373047,
+      "total_vs": 2.40816,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CYP4V2",
+      "variant_id": "4_186199057_C/A",
+      "hmm_score": 0.7936499118804932,
+      "total_vs": 1.30713,
+      "variant_num": 1,
+      "num_individuals": 1
+    }
+  ],
+  "roc_stats_lrp_tpr": 0.007272727272727273,
+  "roc_stats_lrp_fpr": 0.004511596523027665,
+  "roc_stats_lrp_lrp": 1.6120074289457764,
+  "roc_stats_lrp_top_variants": [
+    {
+      "variant_id": "1_46817100_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 6.369330108165741,
+      "num_individuals": 2,
+      "vs": 262.128,
+      "vs00": 131.064,
+      "vs01": 31.1444,
+      "vs11": 12.3613
+    },
+    {
+      "variant_id": "1_46815212_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 4.001539826393127,
+      "num_individuals": 2,
+      "vs": 103.7248,
+      "vs00": 51.8624,
+      "vs01": 12.329,
+      "vs11": 4.82015
+    },
+    {
+      "variant_id": "11_125838398_T/G",
+      "gene": "PATE4",
+      "hmm_score": 5.988789793103933,
+      "num_individuals": 2,
+      "vs": 38.1308,
+      "vs00": 117.984,
+      "vs01": 28.1279,
+      "vs11": 10.0029
+    },
+    {
+      "variant_id": "19_15879621_C/T",
+      "gene": "CYP4F2",
+      "hmm_score": 2.220850110054016,
+      "num_individuals": 2,
+      "vs": 14.648029999999999,
+      "vs00": 11.7739,
+      "vs01": 2.87413,
+      "vs11": 3.83871
+    },
+    {
+      "variant_id": "22_42130692_G/A",
+      "gene": "CYP2D6",
+      "hmm_score": 3.4199899435043335,
+      "num_individuals": 2,
+      "vs": 14.19375,
+      "vs00": 33.5309,
+      "vs01": 8.11066,
+      "vs11": 6.08309
+    },
+    {
+      "variant_id": "1_47143817_T/C",
+      "gene": "CYP4A22",
+      "hmm_score": 2.326900005340576,
+      "num_individuals": 2,
+      "vs": 16.70335,
+      "vs00": 11.2396,
+      "vs01": 2.93723,
+      "vs11": 5.46375
+    },
+    {
+      "variant_id": "10_94733301_C/T",
+      "gene": "CYP2C18",
+      "hmm_score": 2.4017601013183594,
+      "num_individuals": 2,
+      "vs": 8.54494,
+      "vs00": 18.0219,
+      "vs01": 4.27247,
+      "vs11": 2.05989
+    },
+    {
+      "variant_id": "19_15923904_A/G",
+      "gene": "CYP4F11",
+      "hmm_score": 2.784369945526123,
+      "num_individuals": 2,
+      "vs": 6.9581,
+      "vs00": 22.8012,
+      "vs01": 5.3874,
+      "vs11": 3.47905
+    },
+    {
+      "variant_id": "1_46813503_C/T",
+      "gene": "CYP4B1",
+      "hmm_score": 3.11568021774292,
+      "num_individuals": 2,
+      "vs": 5.9564,
+      "vs00": 31.3578,
+      "vs01": 7.46055,
+      "vs11": 2.9782
+    },
+    {
+      "variant_id": "19_40880231_A/C",
+      "gene": "CYP2A7",
+      "hmm_score": 1.0293300151824951,
+      "num_individuals": 2,
+      "vs": 3.10776,
+      "vs00": 1.65613,
+      "vs01": 0.545481,
+      "vs11": 1.55388
+    },
+    {
+      "variant_id": "10_94688163_C/T",
+      "gene": "CYP2C18",
+      "hmm_score": 6.455970138311386,
+      "num_individuals": 2,
+      "vs": 2.73058,
+      "vs00": 162.716,
+      "vs01": 40.3612,
+      "vs11": 1.36529
+    },
+    {
+      "variant_id": "19_15890405_C/A",
+      "gene": "CYP4F2",
+      "hmm_score": 3.621700167655945,
+      "num_individuals": 2,
+      "vs": 2.58424,
+      "vs00": 48.8334,
+      "vs01": 11.9461,
+      "vs11": 1.29212
+    },
+    {
+      "variant_id": "19_40880515_A/C",
+      "gene": "CYP2A7",
+      "hmm_score": 0.9385299682617188,
+      "num_individuals": 2,
+      "vs": 2.57926,
+      "vs00": 1.39068,
+      "vs01": 0.459314,
+      "vs11": 1.28963
+    },
+    {
+      "variant_id": "19_40877210_G/A",
+      "gene": "CYP2A7",
+      "hmm_score": 3.100450038909912,
+      "num_individuals": 1,
+      "vs": 9.09054,
+      "vs00": 36.8621,
+      "vs01": 9.09054,
+      "vs11": 0.544518
+    },
+    {
+      "variant_id": "19_41116300_T/C",
+      "gene": "CYP2F1",
+      "hmm_score": 1.9130901098251343,
+      "num_individuals": 1,
+      "vs": 3.33981,
+      "vs00": 13.6496,
+      "vs01": 3.33981,
+      "vs11": 0.349833
+    },
+    {
+      "variant_id": "1_46932824_A/G",
+      "gene": "CYP4A11",
+      "hmm_score": 1.3758902549743652,
+      "num_individuals": 1,
+      "vs": 1.42652,
+      "vs00": 6.00357,
+      "vs01": 1.42652,
+      "vs11": 0.635625
+    },
+    {
+      "variant_id": "19_40876571_T/A",
+      "gene": "CYP2A7",
+      "hmm_score": 2.825960159301758,
+      "num_individuals": 1,
+      "vs": 1.08308,
+      "vs00": 28.695,
+      "vs01": 6.90298,
+      "vs11": 1.08308
+    }
+  ],
+  "roc_stats_lrp_top_gene_set": [
+    {
+      "gene": "CYP4B1",
+      "variant_id": "1_46817100_C/T, 1_46815212_C/T, 1_46813503_C/T",
+      "hmm_score": 13.486550152301788,
+      "total_vs": 371.8092,
+      "variant_num": 3,
+      "num_individuals": 6
+    },
+    {
+      "gene": "CYP2C18",
+      "variant_id": "10_94733301_C/T, 10_94688163_C/T",
+      "hmm_score": 8.857730239629745,
+      "total_vs": 11.27552,
+      "variant_num": 2,
+      "num_individuals": 4
+    },
+    {
+      "gene": "CYP2A7",
+      "variant_id": "19_40880231_A/C, 19_40880515_A/C, 19_40877210_G/A, 19_40876571_T/A",
+      "hmm_score": 7.894270181655884,
+      "total_vs": 15.860640000000002,
+      "variant_num": 4,
+      "num_individuals": 6
+    },
+    {
+      "gene": "PATE4",
+      "variant_id": "11_125838398_T/G",
+      "hmm_score": 5.988789793103933,
+      "total_vs": 38.1308,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "CYP4F2",
+      "variant_id": "19_15879621_C/T, 19_15890405_C/A",
+      "hmm_score": 5.842550277709961,
+      "total_vs": 17.23227,
+      "variant_num": 2,
+      "num_individuals": 4
+    },
+    {
+      "gene": "CYP2D6",
+      "variant_id": "22_42130692_G/A",
+      "hmm_score": 3.4199899435043335,
+      "total_vs": 14.19375,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "CYP4F11",
+      "variant_id": "19_15923904_A/G",
+      "hmm_score": 2.784369945526123,
+      "total_vs": 6.9581,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "CYP4A22",
+      "variant_id": "1_47143817_T/C",
+      "hmm_score": 2.326900005340576,
+      "total_vs": 16.70335,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "CYP2F1",
+      "variant_id": "19_41116300_T/C",
+      "hmm_score": 1.9130901098251343,
+      "total_vs": 3.33981,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CYP4A11",
+      "variant_id": "1_46932824_A/G",
+      "hmm_score": 1.3758902549743652,
+      "total_vs": 1.42652,
+      "variant_num": 1,
+      "num_individuals": 1
+    }
+  ]
+}

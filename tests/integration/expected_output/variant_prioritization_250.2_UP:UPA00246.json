@@ -1,0 +1,1017 @@
+{
+  "num_rp": 40984.0,
+  "num_rn": 422414.0,
+  "metric1_pvalue": 1.0,
+  "roc_stats_mcc_threshold": 0.0279,
+  "roc_stats_mcc_all_index": 6.0,
+  "roc_stats_mcc_tp": 2.0,
+  "roc_stats_mcc_fp": 4.0,
+  "roc_stats_mcc_fn": 40982.0,
+  "roc_stats_mcc_tn": 422410.0,
+  "roc_stats_mcc_or": 5.153604021277634,
+  "roc_stats_mcc_pvalue": 0.0922834099766764,
+  "roc_stats_yjs_threshold": 0.0104,
+  "roc_stats_yjs_tp": 410.0,
+  "roc_stats_yjs_fp": 4095.0,
+  "roc_stats_yjs_fn": 40574.0,
+  "roc_stats_yjs_tn": 418319.0,
+  "roc_stats_yjs_or": 1.0322614679592057,
+  "roc_stats_yjs_pvalue": 0.5442019833229181,
+  "roc_stats_lrp_threshold": 0.0279,
+  "roc_stats_lrp_tp": 2.0,
+  "roc_stats_lrp_fp": 4.0,
+  "roc_stats_lrp_fn": 40982.0,
+  "roc_stats_lrp_tn": 422410.0,
+  "roc_stats_lrp_or": 5.153604021277634,
+  "roc_stats_lrp_pvalue": 0.0922834099766764,
+  "roc_stats_lrn_protective_threshold": 0.0001,
+  "roc_stats_lrn_protective_tp": 4217.0,
+  "roc_stats_lrn_protective_fp": 45290.0,
+  "roc_stats_lrn_protective_fn": 36767.0,
+  "roc_stats_lrn_protective_tn": 377124.0,
+  "roc_stats_lrn_protective_or": 0.9550525243427064,
+  "roc_stats_lrn_protective_pvalue": 0.0068302948074244,
+  "metric1_threshold": 0.022,
+  "metric1_tp": 10,
+  "metric1_fp": 105,
+  "metric1_fn": 42963,
+  "metric1_tn": 439014,
+  "metric1_tpr": 0.00024399765762248682,
+  "metric1_fpr": 0.00024857130682221705,
+  "metric1_lrp": 0.9815998579313612,
+  "metric1_top_variants": [
+    {
+      "variant_id": "4_108027694_C/A",
+      "gene": "HADH",
+      "hmm_score": 3.054700016975403,
+      "num_individuals": 2,
+      "vs": 74.193,
+      "vs00": 37.0965,
+      "vs01": 9.25538,
+      "vs11": 0.0766568
+    },
+    {
+      "variant_id": "7_88284046_C/T",
+      "gene": "STEAP4",
+      "hmm_score": 2.7705101370811462,
+      "num_individuals": 10,
+      "vs": 109.24112,
+      "vs00": 20.0667,
+      "vs01": 4.8006,
+      "vs11": 4.88596
+    },
+    {
+      "variant_id": "7_88283906_C/T",
+      "gene": "STEAP4",
+      "hmm_score": 1.9560599327087402,
+      "num_individuals": 10,
+      "vs": 22.055849999999996,
+      "vs00": 11.1697,
+      "vs01": 2.64285,
+      "vs11": 1.76832
+    },
+    {
+      "variant_id": "8_143606976_C/T",
+      "gene": "PYCRL",
+      "hmm_score": 1.6649398803710938,
+      "num_individuals": 10,
+      "vs": 20.399649999999998,
+      "vs00": 8.21649,
+      "vs01": 1.93064,
+      "vs11": 1.18884
+    },
+    {
+      "variant_id": "8_143606566_C/G",
+      "gene": "PYCRL",
+      "hmm_score": 1.1680599451065063,
+      "num_individuals": 8,
+      "vs": 14.670531,
+      "vs00": 2.18019,
+      "vs01": 0.687951,
+      "vs11": 1.92444
+    },
+    {
+      "variant_id": "22_17188416_T/C",
+      "gene": "CECR1",
+      "hmm_score": 0.9218800067901611,
+      "num_individuals": 5,
+      "vs": 8.363049,
+      "vs00": 1.9045,
+      "vs01": 0.47491,
+      "vs11": 0.745049
+    },
+    {
+      "variant_id": "10_16484760_G/A",
+      "gene": "PTER",
+      "hmm_score": 5.5243798941373825,
+      "num_individuals": 6,
+      "vs": 183.0102,
+      "vs00": 122.024,
+      "vs01": 30.5017,
+      "vs11": 0.0170541
+    },
+    {
+      "variant_id": "16_67977673_C/T",
+      "gene": "DPEP3",
+      "hmm_score": 2.0406200289726257,
+      "num_individuals": 1,
+      "vs": 4.08786,
+      "vs00": 16.4261,
+      "vs01": 4.08786,
+      "vs11": 0.0779133
+    },
+    {
+      "variant_id": "1_114679616_T/A",
+      "gene": "AMPD1",
+      "hmm_score": 2.9950900077819824,
+      "num_individuals": 2,
+      "vs": 16.82098,
+      "vs00": 34.2019,
+      "vs01": 8.41049,
+      "vs11": 0.560219
+    },
+    {
+      "variant_id": "22_17189987_C/T",
+      "gene": "CECR1",
+      "hmm_score": 1.364109992980957,
+      "num_individuals": 1,
+      "vs": 1.85594,
+      "vs00": 7.42861,
+      "vs01": 1.85594,
+      "vs11": 0.00486803
+    },
+    {
+      "variant_id": "2_119247736_G/A",
+      "gene": "STEAP3",
+      "hmm_score": 1.1159698963165283,
+      "num_individuals": 3,
+      "vs": 3.6274800000000003,
+      "vs00": 4.87286,
+      "vs01": 1.20916,
+      "vs11": 0.0362305
+    },
+    {
+      "variant_id": "1_212791950_A/C",
+      "gene": "TATDN3",
+      "hmm_score": 5.140379965305328,
+      "num_individuals": 1,
+      "vs": 26.4188,
+      "vs00": 105.68,
+      "vs01": 26.4188,
+      "vs11": 0.00496065
+    },
+    {
+      "variant_id": "12_50106288_G/A",
+      "gene": "GPD1",
+      "hmm_score": 2.855070114135742,
+      "num_individuals": 1,
+      "vs": 8.10919,
+      "vs00": 32.479,
+      "vs01": 8.10919,
+      "vs11": 0.042233
+    },
+    {
+      "variant_id": "9_72225752_G/A",
+      "gene": "GDA",
+      "hmm_score": 1.4999699592590332,
+      "num_individuals": 1,
+      "vs": 2.15972,
+      "vs00": 8.72554,
+      "vs01": 2.15972,
+      "vs11": 0.0937216
+    }
+  ],
+  "metric1_top_gene_set": [
+    {
+      "gene": "PTER",
+      "variant_id": "10_16484760_G/A",
+      "hmm_score": 5.5243798941373825,
+      "total_vs": 183.0102,
+      "variant_num": 1,
+      "num_individuals": 6
+    },
+    {
+      "gene": "TATDN3",
+      "variant_id": "1_212791950_A/C",
+      "hmm_score": 5.140379965305328,
+      "total_vs": 26.4188,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "STEAP4",
+      "variant_id": "7_88284046_C/T, 7_88283906_C/T",
+      "hmm_score": 4.7265700697898865,
+      "total_vs": 131.29697,
+      "variant_num": 2,
+      "num_individuals": 20
+    },
+    {
+      "gene": "HADH",
+      "variant_id": "4_108027694_C/A",
+      "hmm_score": 3.054700016975403,
+      "total_vs": 74.193,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "AMPD1",
+      "variant_id": "1_114679616_T/A",
+      "hmm_score": 2.9950900077819824,
+      "total_vs": 16.82098,
+      "variant_num": 1,
+      "num_individuals": 2
+    },
+    {
+      "gene": "GPD1",
+      "variant_id": "12_50106288_G/A",
+      "hmm_score": 2.855070114135742,
+      "total_vs": 8.10919,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "PYCRL",
+      "variant_id": "8_143606976_C/T, 8_143606566_C/G",
+      "hmm_score": 2.8329998254776,
+      "total_vs": 35.070181,
+      "variant_num": 2,
+      "num_individuals": 18
+    },
+    {
+      "gene": "CECR1",
+      "variant_id": "22_17188416_T/C, 22_17189987_C/T",
+      "hmm_score": 2.285989999771118,
+      "total_vs": 10.218989,
+      "variant_num": 2,
+      "num_individuals": 6
+    },
+    {
+      "gene": "DPEP3",
+      "variant_id": "16_67977673_C/T",
+      "hmm_score": 2.0406200289726257,
+      "total_vs": 4.08786,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "GDA",
+      "variant_id": "9_72225752_G/A",
+      "hmm_score": 1.4999699592590332,
+      "total_vs": 2.15972,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "STEAP3",
+      "variant_id": "2_119247736_G/A",
+      "hmm_score": 1.1159698963165283,
+      "total_vs": 3.6274800000000003,
+      "variant_num": 1,
+      "num_individuals": 3
+    }
+  ],
+  "roc_stats_mcc_tpr": 4.879953152449737e-05,
+  "roc_stats_mcc_fpr": 9.46938311703684e-06,
+  "roc_stats_mcc_lrp": 5.153346906200257,
+  "roc_stats_mcc_top_variants": [
+    {
+      "variant_id": "4_108027694_C/A",
+      "gene": "HADH",
+      "hmm_score": 3.054700016975403,
+      "num_individuals": 1,
+      "vs": 37.0965,
+      "vs00": 37.0965,
+      "vs01": 9.25538,
+      "vs11": 0.0766568
+    },
+    {
+      "variant_id": "7_88284046_C/T",
+      "gene": "STEAP4",
+      "hmm_score": 2.7705101370811462,
+      "num_individuals": 2,
+      "vs": 40.1334,
+      "vs00": 20.0667,
+      "vs01": 4.8006,
+      "vs11": 4.88596
+    },
+    {
+      "variant_id": "7_88283906_C/T",
+      "gene": "STEAP4",
+      "hmm_score": 1.9560599327087402,
+      "num_individuals": 2,
+      "vs": 3.53664,
+      "vs00": 11.1697,
+      "vs01": 2.64285,
+      "vs11": 1.76832
+    },
+    {
+      "variant_id": "8_143606976_C/T",
+      "gene": "PYCRL",
+      "hmm_score": 1.6649398803710938,
+      "num_individuals": 2,
+      "vs": 2.37768,
+      "vs00": 8.21649,
+      "vs01": 1.93064,
+      "vs11": 1.18884
+    },
+    {
+      "variant_id": "22_17188416_T/C",
+      "gene": "CECR1",
+      "hmm_score": 0.9218800067901611,
+      "num_individuals": 1,
+      "vs": 0.745049,
+      "vs00": 1.9045,
+      "vs01": 0.47491,
+      "vs11": 0.745049
+    },
+    {
+      "variant_id": "10_16484760_G/A",
+      "gene": "PTER",
+      "hmm_score": 5.5243798941373825,
+      "num_individuals": 1,
+      "vs": 30.5017,
+      "vs00": 122.024,
+      "vs01": 30.5017,
+      "vs11": 0.0170541
+    },
+    {
+      "variant_id": "16_67977673_C/T",
+      "gene": "DPEP3",
+      "hmm_score": 2.0406200289726257,
+      "num_individuals": 1,
+      "vs": 4.08786,
+      "vs00": 16.4261,
+      "vs01": 4.08786,
+      "vs11": 0.0779133
+    },
+    {
+      "variant_id": "8_143606566_C/G",
+      "gene": "PYCRL",
+      "hmm_score": 1.1680599451065063,
+      "num_individuals": 1,
+      "vs": 1.92444,
+      "vs00": 2.18019,
+      "vs01": 0.687951,
+      "vs11": 1.92444
+    }
+  ],
+  "roc_stats_mcc_top_gene_set": [
+    {
+      "gene": "PTER",
+      "variant_id": "10_16484760_G/A",
+      "hmm_score": 5.5243798941373825,
+      "total_vs": 30.5017,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "STEAP4",
+      "variant_id": "7_88284046_C/T, 7_88283906_C/T",
+      "hmm_score": 4.7265700697898865,
+      "total_vs": 43.67004,
+      "variant_num": 2,
+      "num_individuals": 4
+    },
+    {
+      "gene": "HADH",
+      "variant_id": "4_108027694_C/A",
+      "hmm_score": 3.054700016975403,
+      "total_vs": 37.0965,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "PYCRL",
+      "variant_id": "8_143606976_C/T, 8_143606566_C/G",
+      "hmm_score": 2.8329998254776,
+      "total_vs": 4.3021199999999995,
+      "variant_num": 2,
+      "num_individuals": 3
+    },
+    {
+      "gene": "DPEP3",
+      "variant_id": "16_67977673_C/T",
+      "hmm_score": 2.0406200289726257,
+      "total_vs": 4.08786,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CECR1",
+      "variant_id": "22_17188416_T/C",
+      "hmm_score": 0.9218800067901611,
+      "total_vs": 0.745049,
+      "variant_num": 1,
+      "num_individuals": 1
+    }
+  ],
+  "roc_stats_yjs_tpr": 0.01000390396252196,
+  "roc_stats_yjs_fpr": 0.009694280966066466,
+  "roc_stats_yjs_lrp": 1.031938716687232,
+  "roc_stats_yjs_top_variants": [
+    {
+      "variant_id": "7_88284046_C/T",
+      "gene": "STEAP4",
+      "hmm_score": 2.7705101370811462,
+      "num_individuals": 413,
+      "vs": 7223.102740000023,
+      "vs00": 20.0667,
+      "vs01": 4.8006,
+      "vs11": 4.88596
+    },
+    {
+      "variant_id": "1_114679616_T/A",
+      "gene": "AMPD1",
+      "hmm_score": 2.9950900077819824,
+      "num_individuals": 224,
+      "vs": 1624.8908169999963,
+      "vs00": 34.2019,
+      "vs01": 8.41049,
+      "vs11": 0.560219
+    },
+    {
+      "variant_id": "7_88283906_C/T",
+      "gene": "STEAP4",
+      "hmm_score": 1.9560599327087402,
+      "num_individuals": 413,
+      "vs": 888.8274600000038,
+      "vs00": 11.1697,
+      "vs01": 2.64285,
+      "vs11": 1.76832
+    },
+    {
+      "variant_id": "8_143606976_C/T",
+      "gene": "PYCRL",
+      "hmm_score": 1.6649398803710938,
+      "num_individuals": 405,
+      "vs": 1300.5911000000083,
+      "vs00": 8.21649,
+      "vs01": 1.93064,
+      "vs11": 1.18884
+    },
+    {
+      "variant_id": "22_17188416_T/C",
+      "gene": "CECR1",
+      "hmm_score": 0.9218800067901611,
+      "num_individuals": 158,
+      "vs": 166.30233499999977,
+      "vs00": 1.9045,
+      "vs01": 0.47491,
+      "vs11": 0.745049
+    },
+    {
+      "variant_id": "8_143606566_C/G",
+      "gene": "PYCRL",
+      "hmm_score": 1.1680599451065063,
+      "num_individuals": 278,
+      "vs": 516.8608589999992,
+      "vs00": 2.18019,
+      "vs01": 0.687951,
+      "vs11": 1.92444
+    },
+    {
+      "variant_id": "4_108027694_C/A",
+      "gene": "HADH",
+      "hmm_score": 3.054700016975403,
+      "num_individuals": 34,
+      "vs": 370.36516000000006,
+      "vs00": 37.0965,
+      "vs01": 9.25538,
+      "vs11": 0.0766568
+    },
+    {
+      "variant_id": "1_212804609_C/T",
+      "gene": "TATDN3",
+      "hmm_score": 3.555149793624878,
+      "num_individuals": 8,
+      "vs": 101.0072,
+      "vs00": 50.5168,
+      "vs01": 12.6259,
+      "vs11": 0.0131919
+    },
+    {
+      "variant_id": "9_72225752_G/A",
+      "gene": "GDA",
+      "hmm_score": 1.4999699592590332,
+      "num_individuals": 20,
+      "vs": 43.1944,
+      "vs00": 8.72554,
+      "vs01": 2.15972,
+      "vs11": 0.0937216
+    },
+    {
+      "variant_id": "12_50106288_G/A",
+      "gene": "GPD1",
+      "hmm_score": 2.855070114135742,
+      "num_individuals": 16,
+      "vs": 129.74704,
+      "vs00": 32.479,
+      "vs01": 8.10919,
+      "vs11": 0.042233
+    },
+    {
+      "variant_id": "1_43453410_T/C",
+      "gene": "HYI",
+      "hmm_score": 1.9019899368286133,
+      "num_individuals": 38,
+      "vs": 142.3414089999999,
+      "vs00": 13.964,
+      "vs01": 3.45128,
+      "vs11": 0.173723
+    },
+    {
+      "variant_id": "2_119247736_G/A",
+      "gene": "STEAP3",
+      "hmm_score": 1.1159698963165283,
+      "num_individuals": 21,
+      "vs": 25.392360000000007,
+      "vs00": 4.87286,
+      "vs01": 1.20916,
+      "vs11": 0.0362305
+    },
+    {
+      "variant_id": "10_16484760_G/A",
+      "gene": "PTER",
+      "hmm_score": 5.5243798941373825,
+      "num_individuals": 24,
+      "vs": 732.0408000000004,
+      "vs00": 122.024,
+      "vs01": 30.5017,
+      "vs11": 0.0170541
+    },
+    {
+      "variant_id": "4_5843138_C/T",
+      "gene": "CRMP1",
+      "hmm_score": 1.2663800716400146,
+      "num_individuals": 2,
+      "vs": 3.20482,
+      "vs00": 6.41096,
+      "vs01": 1.60241,
+      "vs11": 0.00130462
+    },
+    {
+      "variant_id": "1_114678495_C/A",
+      "gene": "AMPD1",
+      "hmm_score": 0.9253499507904053,
+      "num_individuals": 3,
+      "vs": 2.544951,
+      "vs00": 3.40115,
+      "vs01": 0.848317,
+      "vs11": 0.00802594
+    },
+    {
+      "variant_id": "10_16486529_C/T",
+      "gene": "PTER",
+      "hmm_score": 1.9685401916503906,
+      "num_individuals": 14,
+      "vs": 53.868640000000006,
+      "vs00": 15.4184,
+      "vs01": 3.84776,
+      "vs11": 0.027423
+    },
+    {
+      "variant_id": "16_67977673_C/T",
+      "gene": "DPEP3",
+      "hmm_score": 2.0406200289726257,
+      "num_individuals": 21,
+      "vs": 98.18330000000005,
+      "vs00": 16.4261,
+      "vs01": 4.08786,
+      "vs11": 0.0779133
+    },
+    {
+      "variant_id": "1_212791950_A/C",
+      "gene": "TATDN3",
+      "hmm_score": 5.140379965305328,
+      "num_individuals": 18,
+      "vs": 475.5383999999998,
+      "vs00": 105.68,
+      "vs01": 26.4188,
+      "vs11": 0.00496065
+    },
+    {
+      "variant_id": "4_108009883_T/C",
+      "gene": "HADH",
+      "hmm_score": 0.772169828414917,
+      "num_individuals": 6,
+      "vs": 10.975639000000001,
+      "vs00": 2.09396,
+      "vs01": 0.505839,
+      "vs11": 0.110206
+    },
+    {
+      "variant_id": "2_26191498_G/T",
+      "gene": "HADHA",
+      "hmm_score": 3.173919916152954,
+      "num_individuals": 7,
+      "vs": 70.40530000000001,
+      "vs00": 40.2475,
+      "vs01": 10.0579,
+      "vs11": 0.0158724
+    },
+    {
+      "variant_id": "4_5856182_C/G",
+      "gene": "CRMP1",
+      "hmm_score": 1.4902700185775757,
+      "num_individuals": 6,
+      "vs": 13.249019999999998,
+      "vs00": 8.84411,
+      "vs01": 2.20817,
+      "vs11": 0.0140301
+    },
+    {
+      "variant_id": "2_26195184_C/G",
+      "gene": "HADHA",
+      "hmm_score": 2.560490071773529,
+      "num_individuals": 7,
+      "vs": 45.766420000000004,
+      "vs00": 26.1702,
+      "vs01": 6.53806,
+      "vs11": 0.0180996
+    },
+    {
+      "variant_id": "10_16511051_G/A",
+      "gene": "PTER",
+      "hmm_score": 1.8361499309539795,
+      "num_individuals": 1,
+      "vs": 3.36617,
+      "vs00": 13.4699,
+      "vs01": 3.36617,
+      "vs11": 0.00528129
+    },
+    {
+      "variant_id": "3_185192534_G/A",
+      "gene": "EHHADH",
+      "hmm_score": 3.8740000128746033,
+      "num_individuals": 4,
+      "vs": 59.9796,
+      "vs00": 59.9924,
+      "vs01": 14.9949,
+      "vs11": 0.0131078
+    },
+    {
+      "variant_id": "16_67978577_C/T",
+      "gene": "DPEP3",
+      "hmm_score": 1.3384599685668945,
+      "num_individuals": 4,
+      "vs": 7.11784,
+      "vs00": 7.12976,
+      "vs01": 1.77946,
+      "vs11": 0.0121182
+    },
+    {
+      "variant_id": "3_10278895_G/A",
+      "gene": "TATDN2",
+      "hmm_score": 0.7271099090576172,
+      "num_individuals": 1,
+      "vs": 0.518525,
+      "vs00": 2.08406,
+      "vs01": 0.518525,
+      "vs11": 0.0103671
+    },
+    {
+      "variant_id": "22_17189987_C/T",
+      "gene": "CECR1",
+      "hmm_score": 1.364109992980957,
+      "num_individuals": 1,
+      "vs": 1.85594,
+      "vs00": 7.42861,
+      "vs01": 1.85594,
+      "vs11": 0.00486803
+    },
+    {
+      "variant_id": "3_185193392_C/T",
+      "gene": "EHHADH",
+      "hmm_score": 1.4985899925231934,
+      "num_individuals": 1,
+      "vs": 2.24031,
+      "vs00": 8.96666,
+      "vs01": 2.24031,
+      "vs11": 0.00550068
+    },
+    {
+      "variant_id": "4_108014444_T/G",
+      "gene": "HADH",
+      "hmm_score": 1.3724300861358643,
+      "num_individuals": 4,
+      "vs": 7.42884,
+      "vs00": 7.45468,
+      "vs01": 1.85721,
+      "vs11": 0.0268659
+    },
+    {
+      "variant_id": "22_17207107_C/T",
+      "gene": "CECR1",
+      "hmm_score": 1.4646198749542236,
+      "num_individuals": 1,
+      "vs": 2.14301,
+      "vs00": 8.57413,
+      "vs01": 2.14301,
+      "vs11": 0.00211723
+    },
+    {
+      "variant_id": "12_95960486_G/A",
+      "gene": "AMDHD1",
+      "hmm_score": 2.253419876098633,
+      "num_individuals": 1,
+      "vs": 5.07589,
+      "vs00": 20.3056,
+      "vs01": 5.07589,
+      "vs11": 0.00200769
+    },
+    {
+      "variant_id": "2_119245887_G/A",
+      "gene": "STEAP3",
+      "hmm_score": 1.6753400564193726,
+      "num_individuals": 1,
+      "vs": 2.80422,
+      "vs00": 11.2194,
+      "vs01": 2.80422,
+      "vs11": 0.00257135
+    },
+    {
+      "variant_id": "1_43451412_C/T",
+      "gene": "HYI",
+      "hmm_score": 1.0695300102233887,
+      "num_individuals": 1,
+      "vs": 1.14273,
+      "vs00": 4.57204,
+      "vs01": 1.14273,
+      "vs11": 0.0012031
+    }
+  ],
+  "roc_stats_yjs_top_gene_set": [
+    {
+      "gene": "PTER",
+      "variant_id": "10_16484760_G/A, 10_16486529_C/T, 10_16511051_G/A",
+      "hmm_score": 9.329070016741753,
+      "total_vs": 789.2756100000005,
+      "variant_num": 3,
+      "num_individuals": 39
+    },
+    {
+      "gene": "TATDN3",
+      "variant_id": "1_212804609_C/T, 1_212791950_A/C",
+      "hmm_score": 8.695529758930206,
+      "total_vs": 576.5455999999998,
+      "variant_num": 2,
+      "num_individuals": 26
+    },
+    {
+      "gene": "HADHA",
+      "variant_id": "2_26191498_G/T, 2_26195184_C/G",
+      "hmm_score": 5.734409987926483,
+      "total_vs": 116.17172000000002,
+      "variant_num": 2,
+      "num_individuals": 14
+    },
+    {
+      "gene": "EHHADH",
+      "variant_id": "3_185192534_G/A, 3_185193392_C/T",
+      "hmm_score": 5.372590005397797,
+      "total_vs": 62.21991,
+      "variant_num": 2,
+      "num_individuals": 5
+    },
+    {
+      "gene": "HADH",
+      "variant_id": "4_108027694_C/A, 4_108009883_T/C, 4_108014444_T/G",
+      "hmm_score": 5.199299931526184,
+      "total_vs": 388.76963900000004,
+      "variant_num": 3,
+      "num_individuals": 44
+    },
+    {
+      "gene": "STEAP4",
+      "variant_id": "7_88284046_C/T, 7_88283906_C/T",
+      "hmm_score": 4.7265700697898865,
+      "total_vs": 8111.930200000027,
+      "variant_num": 2,
+      "num_individuals": 826
+    },
+    {
+      "gene": "AMPD1",
+      "variant_id": "1_114679616_T/A, 1_114678495_C/A",
+      "hmm_score": 3.9204399585723877,
+      "total_vs": 1627.4357679999964,
+      "variant_num": 2,
+      "num_individuals": 227
+    },
+    {
+      "gene": "CECR1",
+      "variant_id": "22_17188416_T/C, 22_17189987_C/T, 22_17207107_C/T",
+      "hmm_score": 3.750609874725342,
+      "total_vs": 170.30128499999978,
+      "variant_num": 3,
+      "num_individuals": 160
+    },
+    {
+      "gene": "DPEP3",
+      "variant_id": "16_67977673_C/T, 16_67978577_C/T",
+      "hmm_score": 3.3790799975395203,
+      "total_vs": 105.30114000000005,
+      "variant_num": 2,
+      "num_individuals": 25
+    },
+    {
+      "gene": "HYI",
+      "variant_id": "1_43453410_T/C, 1_43451412_C/T",
+      "hmm_score": 2.971519947052002,
+      "total_vs": 143.4841389999999,
+      "variant_num": 2,
+      "num_individuals": 39
+    },
+    {
+      "gene": "GPD1",
+      "variant_id": "12_50106288_G/A",
+      "hmm_score": 2.855070114135742,
+      "total_vs": 129.74704,
+      "variant_num": 1,
+      "num_individuals": 16
+    },
+    {
+      "gene": "PYCRL",
+      "variant_id": "8_143606976_C/T, 8_143606566_C/G",
+      "hmm_score": 2.8329998254776,
+      "total_vs": 1817.4519590000075,
+      "variant_num": 2,
+      "num_individuals": 683
+    },
+    {
+      "gene": "STEAP3",
+      "variant_id": "2_119247736_G/A, 2_119245887_G/A",
+      "hmm_score": 2.791309952735901,
+      "total_vs": 28.196580000000008,
+      "variant_num": 2,
+      "num_individuals": 22
+    },
+    {
+      "gene": "CRMP1",
+      "variant_id": "4_5843138_C/T, 4_5856182_C/G",
+      "hmm_score": 2.7566500902175903,
+      "total_vs": 16.45384,
+      "variant_num": 2,
+      "num_individuals": 8
+    },
+    {
+      "gene": "AMDHD1",
+      "variant_id": "12_95960486_G/A",
+      "hmm_score": 2.253419876098633,
+      "total_vs": 5.07589,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "GDA",
+      "variant_id": "9_72225752_G/A",
+      "hmm_score": 1.4999699592590332,
+      "total_vs": 43.1944,
+      "variant_num": 1,
+      "num_individuals": 20
+    },
+    {
+      "gene": "TATDN2",
+      "variant_id": "3_10278895_G/A",
+      "hmm_score": 0.7271099090576172,
+      "total_vs": 0.518525,
+      "variant_num": 1,
+      "num_individuals": 1
+    }
+  ],
+  "roc_stats_lrp_tpr": 4.879953152449737e-05,
+  "roc_stats_lrp_fpr": 9.46938311703684e-06,
+  "roc_stats_lrp_lrp": 5.153346906200257,
+  "roc_stats_lrp_top_variants": [
+    {
+      "variant_id": "4_108027694_C/A",
+      "gene": "HADH",
+      "hmm_score": 3.054700016975403,
+      "num_individuals": 1,
+      "vs": 37.0965,
+      "vs00": 37.0965,
+      "vs01": 9.25538,
+      "vs11": 0.0766568
+    },
+    {
+      "variant_id": "7_88284046_C/T",
+      "gene": "STEAP4",
+      "hmm_score": 2.7705101370811462,
+      "num_individuals": 2,
+      "vs": 40.1334,
+      "vs00": 20.0667,
+      "vs01": 4.8006,
+      "vs11": 4.88596
+    },
+    {
+      "variant_id": "7_88283906_C/T",
+      "gene": "STEAP4",
+      "hmm_score": 1.9560599327087402,
+      "num_individuals": 2,
+      "vs": 3.53664,
+      "vs00": 11.1697,
+      "vs01": 2.64285,
+      "vs11": 1.76832
+    },
+    {
+      "variant_id": "8_143606976_C/T",
+      "gene": "PYCRL",
+      "hmm_score": 1.6649398803710938,
+      "num_individuals": 2,
+      "vs": 2.37768,
+      "vs00": 8.21649,
+      "vs01": 1.93064,
+      "vs11": 1.18884
+    },
+    {
+      "variant_id": "22_17188416_T/C",
+      "gene": "CECR1",
+      "hmm_score": 0.9218800067901611,
+      "num_individuals": 1,
+      "vs": 0.745049,
+      "vs00": 1.9045,
+      "vs01": 0.47491,
+      "vs11": 0.745049
+    },
+    {
+      "variant_id": "10_16484760_G/A",
+      "gene": "PTER",
+      "hmm_score": 5.5243798941373825,
+      "num_individuals": 1,
+      "vs": 30.5017,
+      "vs00": 122.024,
+      "vs01": 30.5017,
+      "vs11": 0.0170541
+    },
+    {
+      "variant_id": "16_67977673_C/T",
+      "gene": "DPEP3",
+      "hmm_score": 2.0406200289726257,
+      "num_individuals": 1,
+      "vs": 4.08786,
+      "vs00": 16.4261,
+      "vs01": 4.08786,
+      "vs11": 0.0779133
+    },
+    {
+      "variant_id": "8_143606566_C/G",
+      "gene": "PYCRL",
+      "hmm_score": 1.1680599451065063,
+      "num_individuals": 1,
+      "vs": 1.92444,
+      "vs00": 2.18019,
+      "vs01": 0.687951,
+      "vs11": 1.92444
+    }
+  ],
+  "roc_stats_lrp_top_gene_set": [
+    {
+      "gene": "PTER",
+      "variant_id": "10_16484760_G/A",
+      "hmm_score": 5.5243798941373825,
+      "total_vs": 30.5017,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "STEAP4",
+      "variant_id": "7_88284046_C/T, 7_88283906_C/T",
+      "hmm_score": 4.7265700697898865,
+      "total_vs": 43.67004,
+      "variant_num": 2,
+      "num_individuals": 4
+    },
+    {
+      "gene": "HADH",
+      "variant_id": "4_108027694_C/A",
+      "hmm_score": 3.054700016975403,
+      "total_vs": 37.0965,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "PYCRL",
+      "variant_id": "8_143606976_C/T, 8_143606566_C/G",
+      "hmm_score": 2.8329998254776,
+      "total_vs": 4.3021199999999995,
+      "variant_num": 2,
+      "num_individuals": 3
+    },
+    {
+      "gene": "DPEP3",
+      "variant_id": "16_67977673_C/T",
+      "hmm_score": 2.0406200289726257,
+      "total_vs": 4.08786,
+      "variant_num": 1,
+      "num_individuals": 1
+    },
+    {
+      "gene": "CECR1",
+      "variant_id": "22_17188416_T/C",
+      "hmm_score": 0.9218800067901611,
+      "total_vs": 0.745049,
+      "variant_num": 1,
+      "num_individuals": 1
+    }
+  ]
+}

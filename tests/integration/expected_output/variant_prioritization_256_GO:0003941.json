@@ -1,0 +1,139 @@
+{
+  "num_rp": 497.0,
+  "num_rn": 247437.0,
+  "metric1_pvalue": 0.0257488362252351,
+  "roc_stats_mcc_threshold": 0.3939,
+  "roc_stats_mcc_all_index": 1.0,
+  "roc_stats_mcc_tp": 1.0,
+  "roc_stats_mcc_fp": 0.0,
+  "roc_stats_mcc_fn": 496.0,
+  "roc_stats_mcc_tn": 247437.0,
+  "roc_stats_mcc_or": Infinity,
+  "roc_stats_mcc_pvalue": 0.0020045657312072,
+  "roc_stats_yjs_threshold": 0.3939,
+  "roc_stats_yjs_tp": 1.0,
+  "roc_stats_yjs_fp": 0.0,
+  "roc_stats_yjs_fn": 496.0,
+  "roc_stats_yjs_tn": 247437.0,
+  "roc_stats_yjs_or": Infinity,
+  "roc_stats_yjs_pvalue": 0.0020045657312072,
+  "roc_stats_lrp_threshold": 0.2593,
+  "roc_stats_lrp_tp": 1.0,
+  "roc_stats_lrp_fp": 5.0,
+  "roc_stats_lrp_fn": 496.0,
+  "roc_stats_lrp_tn": 247432.0,
+  "roc_stats_lrp_or": 99.77096774193548,
+  "roc_stats_lrp_pvalue": 0.0119674010539609,
+  "roc_stats_lrn_protective_threshold": 0,
+  "roc_stats_lrn_protective_tp": 0.0,
+  "roc_stats_lrn_protective_fp": 0.0,
+  "roc_stats_lrn_protective_fn": 497.0,
+  "roc_stats_lrn_protective_tn": 247437.0,
+  "roc_stats_lrn_protective_or": 1,
+  "roc_stats_lrn_protective_pvalue": 1.0,
+  "metric1_threshold": 0.022,
+  "metric1_tp": 1,
+  "metric1_fp": 12,
+  "metric1_fn": 537,
+  "metric1_tn": 257718,
+  "metric1_tpr": 0.002012072434607646,
+  "metric1_fpr": 4.849719322494211e-05,
+  "metric1_lrp": 41.48834503557075,
+  "metric1_top_variants": [
+    {
+      "variant_id": "1_119740425_A/T",
+      "gene": "PHGDH",
+      "hmm_score": 1.2213199138641357,
+      "num_individuals": 1,
+      "vs": 1.49156,
+      "vs00": 5.96631,
+      "vs01": 1.49156,
+      "vs11": 6.11879e-05
+    }
+  ],
+  "metric1_top_gene_set": [
+    {
+      "gene": "PHGDH",
+      "variant_id": "1_119740425_A/T",
+      "hmm_score": 1.2213199138641357,
+      "total_vs": 1.49156,
+      "variant_num": 1,
+      "num_individuals": 1
+    }
+  ],
+  "roc_stats_mcc_tpr": 0.002012072434607646,
+  "roc_stats_mcc_fpr": 0.0,
+  "roc_stats_mcc_lrp": 20120724.34607646,
+  "roc_stats_mcc_top_variants": [
+    {
+      "variant_id": "1_119740425_A/T",
+      "gene": "PHGDH",
+      "hmm_score": 1.2213199138641357,
+      "num_individuals": 1,
+      "vs": 1.49156,
+      "vs00": 5.96631,
+      "vs01": 1.49156,
+      "vs11": 6.11879e-05
+    }
+  ],
+  "roc_stats_mcc_top_gene_set": [
+    {
+      "gene": "PHGDH",
+      "variant_id": "1_119740425_A/T",
+      "hmm_score": 1.2213199138641357,
+      "total_vs": 1.49156,
+      "variant_num": 1,
+      "num_individuals": 1
+    }
+  ],
+  "roc_stats_yjs_tpr": 0.002012072434607646,
+  "roc_stats_yjs_fpr": 0.0,
+  "roc_stats_yjs_lrp": 20120724.34607646,
+  "roc_stats_yjs_top_variants": [
+    {
+      "variant_id": "1_119740425_A/T",
+      "gene": "PHGDH",
+      "hmm_score": 1.2213199138641357,
+      "num_individuals": 1,
+      "vs": 1.49156,
+      "vs00": 5.96631,
+      "vs01": 1.49156,
+      "vs11": 6.11879e-05
+    }
+  ],
+  "roc_stats_yjs_top_gene_set": [
+    {
+      "gene": "PHGDH",
+      "variant_id": "1_119740425_A/T",
+      "hmm_score": 1.2213199138641357,
+      "total_vs": 1.49156,
+      "variant_num": 1,
+      "num_individuals": 1
+    }
+  ],
+  "roc_stats_lrp_tpr": 0.002012072434607646,
+  "roc_stats_lrp_fpr": 2.0207163843725877e-05,
+  "roc_stats_lrp_lrp": 99.57174064574662,
+  "roc_stats_lrp_top_variants": [
+    {
+      "variant_id": "1_119740425_A/T",
+      "gene": "PHGDH",
+      "hmm_score": 1.2213199138641357,
+      "num_individuals": 1,
+      "vs": 1.49156,
+      "vs00": 5.96631,
+      "vs01": 1.49156,
+      "vs11": 6.11879e-05
+    }
+  ],
+  "roc_stats_lrp_top_gene_set": [
+    {
+      "gene": "PHGDH",
+      "variant_id": "1_119740425_A/T",
+      "hmm_score": 1.2213199138641357,
+      "total_vs": 1.49156,
+      "variant_num": 1,
+      "num_individuals": 1
+    }
+  ]
+}
