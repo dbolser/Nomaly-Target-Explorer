@@ -58,11 +58,24 @@ def make_qqplot(plot_df):
     try:
         melt_stats = qqstats(plot_df)
     except Exception as e:
-        print(f'Exception "{e}" encourterd')
+        print(f'Exception "{e}" encountered')
         # save plot_df to a temp file
         plot_df.to_csv("temp.csv", sep="\t", index=None)
         return None
-    # Add a scatter plot with plotly
+
+    # Define fixed colors for each test statistic
+    color_map = {
+        "mwu": "#636EFA",  # blue
+        "mcc": "#EF553B",  # red
+        "yjs": "#00CC96",  # green
+        "lrp": "#AB63FA",  # purple
+        "metric1": "#FFA15A",  # orange
+        "lrn_protective": "#19D3F3",  # light blue
+    }
+    # Define legend order based on keys order in color_map
+    legend_order = ["mwu", "mcc", "yjs", "lrp", "metric1", "lrn_protective"]
+
+    # Add a scatter plot with plotly using consistent colors and legend order
     xlabel = "-log10(expected)"
     ylabel = "-log10(observed)"
     fig = px.scatter(
@@ -70,6 +83,8 @@ def make_qqplot(plot_df):
         x=xlabel,
         y=ylabel,
         color="test",
+        color_discrete_map=color_map,
+        category_orders={"test": legend_order},
         hover_name="term",
         # title=f'{disease_select} QQ plot'
     )
