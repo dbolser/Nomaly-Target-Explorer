@@ -17,7 +17,7 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">NomalyApp</a>
+            <a class="navbar-brand" href="#">Nomaly Target Explorer</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -39,15 +39,20 @@
                         </a>
                     </li>
                 </ul>
-
+                <div class="mx-auto">
+                    <img src="{{ url_for('static', filename='img/outsee-160x48.png') }}" alt="OutSee Logo" height="48">
+                </div>
                 <!-- User login info and logout button -->
                 <ul class="navbar-nav ms-auto">
                     {% if current_user.is_authenticated %}
-                    <li class="nav-item">
-                        <span class="navbar-text me-3">Logged in as {{ current_user.username }}</span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown"
+                            aria-expanded="false">
+                            {{ current_user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                        </ul>
                     </li>
                     {% else %}
                     <li class="nav-item">
@@ -78,7 +83,7 @@
 
     <footer class="footer">
         <div class="footer-content">
-            <div class="copyright">© OutSee Ltd. 2024</div>
+            <div class="copyright">© OutSee Ltd. 2024 - 2025 | v1.0</div>
             <div class="footer-links">
                 <a href="https://github.com/OutSeeLtd/ukbb_run/issues/new?template=bug_report.md" target="_blank"
                     class="feedback-link">Feedback</a>
