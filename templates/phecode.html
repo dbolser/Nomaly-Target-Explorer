@@ -88,7 +88,7 @@
 
             // Create a script element to load Plotly
             const script = document.createElement('script');
-            script.src = 'https://cdn.plot.ly/plotly-latest.min.js';
+            script.src = 'https://cdn.plot.ly/plotly-2.24.1.min.js';
 
             // When the script loads, try rendering again
             script.onload = function () {
@@ -143,6 +143,7 @@
                     // Add event listeners
                     const plotElement = document.getElementById('plotContainer');
 
+                    // Click event (keep your existing code)
                     plotElement.on('plotly_click', function (data) {
                         console.log('Plot clicked:', data);
                         // Handle click events
@@ -157,6 +158,92 @@
                             }
                         }
                     });
+
+                    // Add zoom event handler
+                    plotElement.on('plotly_relayout', function (eventData) {
+                        console.log('Plot zoomed/panned:', eventData);
+
+                        // Check if we have a valid zoom range
+                        if (eventData['xaxis.range[0]'] !== undefined &&
+                            eventData['xaxis.range[1]'] !== undefined &&
+                            eventData['yaxis.range[0]'] !== undefined &&
+                            eventData['yaxis.range[1]'] !== undefined) {
+
+                            // Get the zoom ranges
+                            const xMin = eventData['xaxis.range[0]'];
+                            const xMax = eventData['xaxis.range[1]'];
+                            const yMin = eventData['yaxis.range[0]'];
+                            const yMax = eventData['yaxis.range[1]'];
+
+                            console.log(`Zoom range: x(${xMin}-${xMax}), y(${yMin}-${yMax})`);
+
+                            // Get all points in the current plot
+                            const termsInView = new Set();
+                            const plotData = figureData.data;
+
+                            // Loop through all traces (different colored point series)
+                            for (const trace of plotData) {
+                                // Loop through all points in the trace
+                                for (let i = 0; i < trace.x.length; i++) {
+                                    const x = trace.x[i];
+                                    const y = trace.y[i];
+
+                                    // Check if the point is in the zoom range
+                                    if (x >= xMin && x <= xMax && y >= yMin && y <= yMax) {
+                                        // Add the term to our set of visible terms
+                                        const term = trace.text ? trace.text[i] :
+                                            (trace.customdata ? trace.customdata[i][0] : null);
+
+                                        if (term) {
+                                            termsInView.add(term);
+                                        }
+                                    }
+                                }
+                            }
+
+                            console.log(`Found ${termsInView.size} terms in current view`);
+
+                            // Filter the table to show only these terms
+                            if (termsInView.size > 0) {
+                                const table = $('#resultsTable').DataTable();
+
+                                // Create a regex OR pattern of all terms
+                                const searchPattern = Array.from(termsInView).join('|');
+
+                                // Apply the search filter
+                                table.search(searchPattern, true, false).draw();
+
+                                // Show an indicator that filtering is active
+                                document.getElementById('plotContainer').style.border = '2px solid #28a745';
+                            } else {
+                                // No terms in view, do nothing or reset
+                                document.getElementById('plotContainer').style.border = '2px solid #dc3545';
+                            }
+                        } else if (eventData['xaxis.autorange'] === true || eventData['yaxis.autorange'] === true) {
+                            // User has reset the zoom (clicked "Reset axes" button)
+                            console.log('Zoom reset detected');
+
+                            // Reset the table filter
+                            const table = $('#resultsTable').DataTable();
+                            table.search('').draw();
+
+                            // Remove filtering indicator
+                            document.getElementById('plotContainer').style.border = 'none';
+                        }
+                    });
+
+                    // Add a reset button for the table filtering
+                    const resetButton = document.createElement('button');
+                    resetButton.textContent = 'Reset Table Filter';
+                    resetButton.className = 'btn btn-sm btn-outline-secondary mt-2';
+                    resetButton.onclick = function () {
+                        const table = $('#resultsTable').DataTable();
+                        table.search('').draw();
+                        document.getElementById('plotContainer').style.border = 'none';
+                    };
+
+                    // Add the button below the plot
+                    plotElement.parentNode.insertBefore(resetButton, plotElement.nextSibling);
                 })
                 .catch(err => {
                     console.error('Error creating plot:', err);
