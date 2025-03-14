@@ -5,6 +5,7 @@ from typing import Any, List, NamedTuple
 
 import numpy as np
 import pandas as pd
+from fisher import pvalue_npy
 from flask import current_app
 from scipy.stats import fisher_exact
 from tqdm import tqdm
@@ -479,103 +480,108 @@ def run_full_analysis():
         p.map(process_variant, variants_df.variant_id_standard)
 
 
-def try_simplified_verssion(variant: str):
+def try_simplified_version(variant: str) -> pd.DataFrame:
     # 1) Data loading:
 
-    from data_services import ServiceRegistry, GenotypeService, PhenotypeService
+    from data_services import GenotypeService, PhenotypeService, ServiceRegistry
 
     registry = ServiceRegistry.from_config(Config)
 
     genotype_service = registry.genotype
-    assert isinstance(genotype_service, GenotypeService)
-
     phenotype_service = registry.phenotype
-    assert isinstance(phenotype_service, PhenotypeService)
 
-    genotype_service = registry.genotype._hdf
-    phenotype_service = registry.phenotype._hdf
+    if not genotype_service or not phenotype_service:
+        raise ValueError("Genotype or phenotype service not initialized")
 
-    genotype_matrix = genotype_service.get_genotypes(vids=np.array([variant]))
-    phenotype_matrix = phenotype_service.phenotype_data
-
-    print(genotype_matrix.shape)  # (1, 487950)
-    print(phenotype_matrix.shape)  #   (486145, 1855)
-
-    # 2) Data munging:
-
-    # We have to trim the genotype matrix to just the phenotype eids
-    genotype_eids = genotype_service.individual
     phenotype_eids = phenotype_service.eids
+    phenotype_phec = phenotype_service.phecodes
+    phenotype_matrix = phenotype_service.get_phenotypes()  # Get them all
 
-    # Confirm that at least the genotype eids are sorted (only the longer of the
-    # two lists needs to be sorted for searchsorted to work as expected below).
-    assert np.all(np.diff(genotype_eids) > 0)
-    assert np.all(np.diff(phenotype_eids) > 0), "Not strictly necessary!"
-
-    # Find the genotype indices where a corresponding phenotype eid exists
-    genotype_indices = np.searchsorted(genotype_eids, phenotype_eids)
-    assert len(genotype_indices) == phenotype_matrix.shape[0]
-    assert np.all(genotype_eids[genotype_indices] == phenotype_eids)
-
-    # Trim (and flip) the genotype matrix to just the phenotype eids
-    genotype_matrix_trimmed = genotype_matrix[:, genotype_indices].T
-
-    # 3) Data processing:
-
-    # Convert to float and handle missing values
-    geno = genotype_matrix_trimmed.astype(float)
-    pheno = phenotype_matrix[...].astype(float)
-
-    geno[geno == -1] = np.nan
-    pheno[pheno == 9] = np.nan
-
-    # Calculate ref allele counts in cases (core calculation)
-    n_ref_case = np.nansum(geno * pheno, axis=0)
-
-    # Calculate total valid samples and alleles
-    is_valid_geno = ~np.isnan(geno)
-    is_valid_pheno = ~np.isnan(pheno)
-    is_valid_sample = is_valid_geno & is_valid_pheno
-
-    n_alleles_total = 2 * np.sum(is_valid_sample, axis=0)
-    n_ref_total = np.nansum(geno, axis=0)
-    n_cases = np.sum(pheno == 1, axis=0)
-
-    # Derive remaining counts
-    n_ref_ctrl = n_ref_total - n_ref_case
-    n_alt_case = 2 * n_cases - n_ref_case
-    n_alt_ctrl = n_alleles_total - n_ref_total - n_alt_case
-
-    odds_ratios1 = (n_ref_case * n_alt_ctrl) / (n_alt_case * n_ref_ctrl)
-    odds_ratios2 = (n_ref_case / n_alt_case) / (n_ref_ctrl / n_alt_ctrl)
-
-    np.allclose(
-        odds_ratios1[~np.isnan(odds_ratios1)], odds_ratios2[~np.isnan(odds_ratios2)]
+    # Important to pass phenotype_eids here
+    genotype_matrix = genotype_service.get_genotypes(
+        eids=phenotype_eids, vids=np.array([variant])
     )
+
+    assert phenotype_matrix.shape == (486145, 1855)
+    assert genotype_matrix.shape == (1, phenotype_eids.shape[0])
+
+    # TODO: Somewhere deep down, it's implicit that the underlying EIDs are the
+    # same...
+
+    # Moving on...
+
+    # OK, this gets a bit slower, but, compared to the original crap, it's lightning fast...
+    ctrl_phenotype_mask = phenotype_matrix == 0
+    case_phenotype_mask = phenotype_matrix == 1
+
+    het_genotype_mask = genotype_matrix == 1
+    ref_genotype_mask = genotype_matrix == 0
+    alt_genotype_mask = genotype_matrix == 2
+
+    # Get all the counts in two stesp
+    ctrl_het_mask = ctrl_phenotype_mask * het_genotype_mask.T
+    ctrl_ref_mask = ctrl_phenotype_mask * ref_genotype_mask.T
+    ctrl_alt_mask = ctrl_phenotype_mask * alt_genotype_mask.T
+    case_het_mask = case_phenotype_mask * het_genotype_mask.T
+    case_ref_mask = case_phenotype_mask * ref_genotype_mask.T
+    case_alt_mask = case_phenotype_mask * alt_genotype_mask.T
+
+    ctrl_het_num = ctrl_het_mask.sum(axis=0)
+    ctrl_ref_num = ctrl_ref_mask.sum(axis=0) * 2 + ctrl_het_num
+    ctrl_alt_num = ctrl_alt_mask.sum(axis=0) * 2 + ctrl_het_num
+    case_het_num = case_het_mask.sum(axis=0)
+    case_ref_num = case_ref_mask.sum(axis=0) * 2 + case_het_num
+    case_alt_num = case_alt_mask.sum(axis=0) * 2 + case_het_num
+
+    case_ref_psu = case_ref_num + 1
+    case_alt_psu = case_alt_num + 1
+    ctrl_ref_psu = ctrl_ref_num + 1
+    ctrl_alt_psu = ctrl_alt_num + 1
+
+    # case_ref_af = case_ref_psu / (case_ref_psu + case_alt_psu)
+    # case_alt_af = case_alt_psu / (case_ref_psu + case_alt_psu)
+
+    # assert np.all(case_ref_af + case_alt_af == 1)
+
+    # Calculate odds ratios
+    odds_ratio = (case_alt_psu * ctrl_ref_psu) / (case_ref_psu * ctrl_alt_psu)
+
+    # odds_ratio_long = (case_alt_psu / case_ref_psu) / (ctrl_alt_psu / ctrl_ref_psu)
+    # np.allclose(odds_ratio, odds_ratio_long)
 
     # Now use vecttorized fishers exact...
     # https://stackoverflow.com/questions/34947578/how-to-vectorize-fishers-exact-test
 
-    return {
-        "odds_ratios": odds_ratios1,
-        "p_values": p_values,
-        "counts": {
-            "ref_case": n_ref_case,
-            "alt_case": n_alt_case,
-            "ref_ctrl": n_ref_ctrl,
-            "alt_ctrl": n_alt_ctrl,
-        },
-    }
+    _, _, twosided = pvalue_npy(
+        case_alt_num.astype(np.uint32),
+        case_ref_num.astype(np.uint32),
+        ctrl_alt_num.astype(np.uint32),
+        ctrl_ref_num.astype(np.uint32),
+    )
+
+    results_df = pd.DataFrame(
+        {
+            "phecodes": phenotype_phec,
+            "odds_ratios": odds_ratio,
+            "p_values": twosided,
+            "ref_case": case_ref_num,
+            "alt_case": case_alt_num,
+            "ref_ctrl": ctrl_ref_num,
+            "alt_ctrl": ctrl_alt_num,
+        }
+    )
+
+    return results_df
 
 
 @profile
 def main():
     """Debug entry point for blueprint development."""
 
-    test_variant = "19:15373898:C:T"
-    test_variant = "5:33951588:C:G"
+    test_variant1 = "19:15373898:C:T"
+    test_variant2 = "5:33951588:C:G"
 
-    _ = try_simplified_verssion(test_variant)
+    _ = try_simplified_version(test_variant2)
 
     from app import create_app
 
@@ -584,7 +590,7 @@ def main():
         # Quick test of single variant/phecode
         # results = get_phewas_results(test_variant, "642.1")
 
-        results = get_phewas_results(test_variant, phecode=None, no_cache=True)
+        results = get_phewas_results(test_variant1, phecode=None, no_cache=True)
         print(results)
 
         # Optionally run full analysis
