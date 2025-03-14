@@ -62,9 +62,22 @@ def make_qqplot(plot_df):
         melt_stats = qqstats(plot_df)
     except Exception as e:
         print(f'Exception "{e}" encountered')
-        # save plot_df to a temp file
-        plot_df.to_csv("temp.csv", sep="\t", index=None)
-        return None
+        # Create a simple empty figure instead of returning None
+        fig = px.scatter(x=[0], y=[0])
+        fig.update_layout(
+            title="Error generating QQ plot",
+            annotations=[
+                dict(
+                    text=f"Error: {str(e)}",
+                    showarrow=False,
+                    xref="paper",
+                    yref="paper",
+                    x=0.5,
+                    y=0.5,
+                )
+            ],
+        )
+        return fig
 
     # Define fixed colors for each test statistic
     color_map = {

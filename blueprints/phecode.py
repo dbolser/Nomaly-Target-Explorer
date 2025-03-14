@@ -1,4 +1,6 @@
 import logging
+import json
+import numpy as np
 
 import pandas as pd
 import plotly.io as pio
@@ -111,9 +113,36 @@ def read_disease_stats_from_nomaly_statsHDF5(stats_handler, phecode: str):
     return diseasestats, plot_df_pval
 
 
-def make_qqplot_html(plot_df_pval):
+def make_qqplot_data(plot_df_pval):
+    """Return the data needed to create the plot in JavaScript"""
     fig = make_qqplot(plot_df_pval)
-    return pio.to_html(fig, full_html=False)
+
+    # Check if figure was created successfully
+    if fig is None:
+        # Return an empty plot to avoid errors
+        return json.dumps({"data": [], "layout": {"title": "No data available"}})
+
+    # Convert numpy arrays to Python native types
+    def convert_numpy(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, dict):
+            return {k: convert_numpy(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_numpy(i) for i in obj]
+        else:
+            return obj
+
+    # Convert the figure to dict and then clean up numpy types
+    fig_dict = fig.to_dict()
+    fig_dict_clean = convert_numpy(fig_dict)
+
+    # Now we can safely serialize to JSON
+    return json.dumps(fig_dict_clean)
 
 
 def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
@@ -261,8 +290,8 @@ def prepare_nomaly_stats_response(disease_stats, plot_df, phecode, version=1):
         description=plot_df["term"].map(lambda x: term_name_dict.get(x, "-"))
     )
 
-    # Generate the plot with the enhanced data
-    graph_html = make_qqplot_html(plot_df)
+    # Instead of HTML, send the plot data
+    plot_data = make_qqplot_data(plot_df)
 
     # Format data for table display
     plot_df = show_datatable_nomaly_stats(plot_df, phecode)
@@ -280,7 +309,7 @@ def prepare_nomaly_stats_response(disease_stats, plot_df, phecode, version=1):
     base_columns = ["minrank", "term", "name", "domain"]
 
     response = {
-        "qqplot": graph_html,
+        "plotData": plot_data,  # Send JSON data instead of HTML
         "affected": disease_stats["num_rp"].values[0],
         "control": disease_stats["num_rn"].values[0],
         "data": plot_df.replace("nan", "1.00e+00").to_dict(orient="records"),

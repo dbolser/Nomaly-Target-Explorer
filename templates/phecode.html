@@ -23,7 +23,7 @@
     <div id="nomalyResult" class="mt-3"></div>
 
     <!-- Div for QQplot -->
-    <iframe id="plotIframe" style="width: 80%; height: 450px; border: none;"></iframe>
+    <div id="plotContainer" style="width: 80%; height: 450px;"></div>
 
     <div id="testnumbers">
         <!-- Test numbers will be populated here -->
@@ -70,16 +70,105 @@
 {% block extra_js %}
 {{ super() }} {# Include parent block's JS #}
 <script>
+        // At the top of your script block
+        console.log('Plotly status at page load:', typeof Plotly !== 'undefined' ? 'Loaded' : 'Not loaded');
+
     // Define phecode and runbatch from template data
     const phecode = "{{ data.phecode }}";
     const runbatch = "{{ data.runbatch }}";
 
-    // Function to render the Plotly graph
-    function renderPlot(graphHtml) {
-        console.log('Rendering Plotly graph');
+        // Function to create the Plotly graph directly
+        function renderPlot(plotData) {
+            console.log('Creating Plotly graph');
         $('#NomalyResultContainer').show();
-        const iframe = document.getElementById('plotIframe');
-        iframe.srcdoc = graphHtml;
+
+        // Check if Plotly is available
+        if (typeof Plotly === 'undefined') {
+            console.warn('Plotly not found, loading it now...');
+
+            // Create a script element to load Plotly
+            const script = document.createElement('script');
+            script.src = 'https://cdn.plot.ly/plotly-latest.min.js';
+
+            // When the script loads, try rendering again
+            script.onload = function () {
+                console.log('Plotly loaded successfully, now rendering');
+                actuallyRenderPlot(plotData);
+            };
+
+            script.onerror = function () {
+                console.error('Failed to load Plotly');
+                document.getElementById('plotContainer').innerHTML =
+                    '<div class="alert alert-danger">Failed to load Plotly library</div>';
+            };
+
+            // Add the script to the document
+            document.head.appendChild(script);
+        } else {
+            // Plotly is already available, render immediately
+            console.log('Plotly already loaded, rendering directly');
+            actuallyRenderPlot(plotData);
+        }
+    }
+
+    // Actual rendering function
+    function actuallyRenderPlot(plotData) {
+        try {
+            // Add more detailed error handling
+            if (!plotData || plotData === "undefined" || plotData === "null") {
+                console.error('Empty plot data received');
+                document.getElementById('plotContainer').innerHTML =
+                    '<div class="alert alert-warning">Unable to generate plot. Check server logs for details.</div>';
+                return;
+            }
+
+            console.log('Plot data type:', typeof plotData);
+
+            // Parse the JSON data
+            const figureData = JSON.parse(plotData);
+
+            console.log('Figure data parsed successfully');
+
+            // Check if there's actual data
+            if (!figureData.data || figureData.data.length === 0) {
+                document.getElementById('plotContainer').innerHTML =
+                    '<div class="alert alert-info">No data available for plotting.</div>';
+                return;
+            }
+
+            // Create the plot directly
+            Plotly.newPlot('plotContainer', figureData.data, figureData.layout, figureData.config)
+                .then(() => {
+                    console.log('Plot created successfully');
+                    // Add event listeners
+                    const plotElement = document.getElementById('plotContainer');
+
+                    plotElement.on('plotly_click', function (data) {
+                        console.log('Plot clicked:', data);
+                        // Handle click events
+                        if (data.points && data.points.length > 0) {
+                            const term = data.points[0].text || data.points[0].customdata?.[0];
+                            console.log('Clicked on term:', term);
+
+                            // Only search if we have a valid term
+                            if (term) {
+                                const table = $('#resultsTable').DataTable();
+                                table.search(term).draw();
+                            }
+                        }
+                    });
+                })
+                .catch(err => {
+                    console.error('Error creating plot:', err);
+                    document.getElementById('plotContainer').innerHTML =
+                        `<div class="alert alert-danger">Error creating plot: ${err.message}</div>`;
+                });
+        } catch (error) {
+            console.error('Error parsing plot data:', error);
+            console.log('First 100 chars of plot data:', plotData.substring(0, 100));
+            document.getElementById('plotContainer').innerHTML =
+                `<div class="alert alert-danger">Error parsing plot data: ${error.message}</div>`;
+        }
     }
 
     // Function to populate the test numbers
@@ -177,7 +266,13 @@
 
             const resultData = await response.json();
             console.log('Data received, rendering content');
-            renderPlot(resultData.qqplot);
+
+            // Use plotData instead of qqplot
+            if (resultData.plotData) {
+                renderPlot(resultData.plotData);
+            } else {
+                console.error('No plot data found in response');
+            }
 
             renderDataTable(resultData, resultData.columns, resultData.defaultColumns, resultData.numColumns);
             console.log('Content rendered');
@@ -214,8 +309,14 @@
     }
 
     // Initialize data load on document ready
-    $(document).ready(function () {
-        console.log('Document ready, calling loadNomalyData');
+                            $(document).ready(function () {
+                            console.log('Document ready, Plotly available:', typeof Plotly !== 'undefined');
+
+                            // Add a Plotly check before calling loadNomalyData
+                            if (typeof Plotly === 'undefined') {
+                                console.warn('Plotly not loaded at document ready');
+                            }
+                        
         loadNomalyData();
 
         // Conditional Event Listener Attachment
