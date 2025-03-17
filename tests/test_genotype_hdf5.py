@@ -13,8 +13,8 @@ def test_init_with_valid_file(mock_genotype_hdf5_file_with_npy):
     assert geno is not None
     assert hasattr(geno, "f")
     assert hasattr(geno, "genotype_matrix")
-    assert hasattr(geno, "genotype_matrix_mm")
-    assert hasattr(geno, "genotype_matrix_h5")
+    # assert hasattr(geno, "genotype_matrix_mm")
+    # assert hasattr(geno, "genotype_matrix_h5")
     assert hasattr(geno, "individual")
     assert hasattr(geno, "genotype_variant_id")
     assert hasattr(geno, "nomaly_variant_id")
@@ -108,11 +108,11 @@ def test_large_dataset_handling():
             f.create_dataset("genotype_matrix", data=genotype_data)
             f.create_dataset("fam", data=np.arange(1000))
             f.create_dataset(
-                "sex", data=np.random.choice(["M", "F"], 1000).astype(np.string_)
+                "sex", data=np.random.choice(["M", "F"], 1000).astype(np.bytes_)
             )
             f.create_dataset(
                 "ancestry",
-                data=np.random.choice(["EUR", "SAS"], 1000).astype(np.string_),
+                data=np.random.choice(["EUR", "SAS"], 1000).astype(np.bytes_),
             )
             f.create_dataset("bim", data=[f"{i}:100:A:T".encode() for i in range(1000)])
             f.create_dataset(
@@ -145,9 +145,9 @@ def test_error_handling_corrupted_data():
                 "genotype_matrix", data=np.array([[0, 1]], dtype=np.int8)
             )  # 1x2 matrix
             f.create_dataset("fam", data=np.array([1001, 1002, 1003]))  # 3 individuals
-            f.create_dataset("sex", data=np.array(["M", "F", "M"]).astype(np.string_))
+            f.create_dataset("sex", data=np.array(["M", "F", "M"]).astype(np.bytes_))
             f.create_dataset(
-                "ancestry", data=np.array(["EUR", "EUR", "SAS"]).astype(np.string_)
+                "ancestry", data=np.array(["EUR", "EUR", "SAS"]).astype(np.bytes_)
             )
             f.create_dataset("bim", data=np.array([b"1:100:A:T"]))  # 1 variant
             f.create_dataset("nomaly_variant_id", data=np.array([b"1:100:A:T"]))

@@ -70,13 +70,12 @@ def mock_genotype_hdf5_file():
             eids = np.array([1001, 1002, 1003, 1004])
             hdf.create_dataset("fam", data=eids)
 
-            biological_sex = np.array(["M", "F", "M", "F"], dtype=np.string_)
+            biological_sex = np.array(["M", "F", "M", "F"], dtype=np.bytes_)
             hdf.create_dataset("sex", data=biological_sex)
 
-            ancestry = np.array(["EUR", "EUR", "EUR", "SAS"], dtype=np.string_)
+            ancestry = np.array(["EUR", "EUR", "EUR", "SAS"], dtype=np.bytes_)
             hdf.create_dataset("ancestry", data=ancestry)
 
-            # Add test variants (combining both sets)
             bim = np.array(
                 [
                     b"1:100:A:T",

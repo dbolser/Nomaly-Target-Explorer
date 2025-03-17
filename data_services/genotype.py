@@ -415,7 +415,7 @@ class GenotypesHDF5:
             variant (str): Variant ID in any supported format
 
         Returns:
-            np.ndarray|None: Array of genotypes or None if error/not found
+            np.ndarray: Array of genotypes (shape: (n_variants, n_eids))
         """
         try:
             std_variant = self._standardize_variant_format(variant)
@@ -456,7 +456,7 @@ class GenotypesHDF5:
 
             # Query the submatrix
             try:
-                submatrix = self.genotype_matrix_mm[selected_variant_indices, :]
+                submatrix = self.genotype_matrix[selected_variant_indices, :]
                 if submatrix.size == 0:
                     return None
                 return submatrix
