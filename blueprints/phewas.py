@@ -26,7 +26,7 @@ from db import get_all_phecodes, get_all_variants
 
 # Create a 'dummy' profile decorator if we don't have line_profiler installed
 try:
-    from line_profiler import profile
+    from line_profiler import profile  # type: ignore
 except ImportError:
 
     def profile(func):

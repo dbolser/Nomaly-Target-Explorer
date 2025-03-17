@@ -38,6 +38,9 @@
                             request.view_args.phecode }}{% endif %}
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('phecode.get_random_phecode') }}">Random PheCode</a>
+                    </li>
                 </ul>
                 <div class="mx-auto">
                     <img src="{{ url_for('static', filename='img/outsee-160x48.png') }}" alt="OutSee Logo" height="48">

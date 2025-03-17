@@ -25,7 +25,7 @@ def test_init_with_valid_file(mock_genotype_hdf5_file_with_npy):
 def test_init_with_nonexistent_file():
     """Test initialization with a non-existent file."""
     with pytest.raises(FileNotFoundError):
-        GenotypesHDF5("nonexistent.h5")
+        GenotypesHDF5(Path("nonexistent.h5"))
 
 
 def test_init_with_invalid_file():
@@ -153,7 +153,7 @@ def test_error_handling_corrupted_data():
             f.create_dataset("nomaly_variant_id", data=np.array([b"1:100:A:T"]))
             f.create_dataset("plink_variant_id", data=np.array([b"1:100:A:T"]))
         with pytest.raises(AssertionError) as excinfo:
-            _ = GenotypesHDF5(tmp.name)
+            _ = GenotypesHDF5(Path(tmp.name))
             assert "Error in sanity checks" in str(excinfo.value)
 
 

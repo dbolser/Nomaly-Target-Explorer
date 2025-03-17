@@ -270,6 +270,55 @@ def get_term_domain_genes(term: str) -> pd.DataFrame:
         raise
 
 
+def get_variant_gene(variant_id: str) -> str | None:
+    """Get gene information for a variant.
+
+    Args:
+        variant_id (str): The variant ID in any format (will be normalized)
+
+    Returns:
+        str | None: The gene name if found, None otherwise
+    """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                # Normalize variant ID format for database lookup
+                parts = variant_id.replace(":", "_").split("_")
+                if len(parts) == 4:  # Format: chr_pos_ref_alt
+                    normalized_variant = "_".join(parts)
+                else:  # Format: chr_pos_ref/alt
+                    normalized_variant = "_".join(
+                        [
+                            parts[0],
+                            parts[1],
+                            parts[2].split("/")[0],
+                            parts[2].split("/")[1],
+                        ]
+                    )
+
+                # Updated query to match how we get gene info in other places
+                query = """
+                SELECT DISTINCT gene
+                FROM variants_consequences
+                WHERE variant_id = %s
+                """
+                cur.execute(query, (normalized_variant,))
+                results = cur.fetchall()
+
+                if not results:
+                    return None
+
+                # If we have multiple genes, join them with commas
+                genes = [r["gene"] for r in results if r["gene"]]
+                return ", ".join(genes) if genes else None
+
+    except Exception as e:
+        logger.error(
+            f"Error fetching gene for variant {variant_id}: {str(e)}", exc_info=True
+        )
+        return None
+
+
 def get_term_variants(term: str) -> pd.DataFrame:
     """
     Return a DataFrame of variant_id, gene, aa, hmm_score for the given term.

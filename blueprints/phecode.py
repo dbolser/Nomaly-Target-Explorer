@@ -1,14 +1,19 @@
-import logging
 import json
-import numpy as np
+import logging
 
+import numpy as np
 import pandas as pd
-import plotly.io as pio
 from flask import Blueprint, current_app, jsonify, render_template, request, url_for
 
 from blueprints.gwas import format_gwas_results, run_gwas
 from blueprints.nomaly import make_qqplot
-from db import get_phecode_info, get_term_domains, get_term_genes, get_term_names
+from db import (
+    get_phecode_info,
+    get_term_domains,
+    get_term_genes,
+    get_term_names,
+    get_all_phecodes,
+)
 
 logger = logging.getLogger(__name__)
 phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
@@ -37,6 +42,13 @@ def get_phecode_data(phecode, population: str | None = None) -> dict:
     data["control"] = case_counts["control"]
 
     return data
+
+
+@phecode_bp.route("/random_phecode", methods=["GET"])
+def get_random_phecode():
+    """Get a random phecode."""
+    phecodes = get_all_phecodes()
+    return phecodes.sample(1).iloc[0]["phecode"]
 
 
 # TODO: Merge these two endpoints
@@ -362,7 +374,7 @@ def main():
     app = create_app("development")
 
     with app.app_context():
-        services = current_app.extensions["nomaly_services"]
+        # services = current_app.extensions["nomaly_services"]
 
         # TOOD: Move this to the stats service?
         stats_service = get_stats_handler(version=2, population=None)
