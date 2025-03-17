@@ -94,6 +94,12 @@ def make_qqplot(plot_df):
     # Add a scatter plot with plotly using consistent colors and legend order
     xlabel = "-log10(expected)"
     ylabel = "-log10(observed)"
+
+    if "description" in melt_stats.columns:
+        hover_data = {"description": True}
+    else:
+        hover_data = None
+
     fig = px.scatter(
         melt_stats,
         x=xlabel,
@@ -102,9 +108,7 @@ def make_qqplot(plot_df):
         color_discrete_map=color_map,
         category_orders={"test": legend_order},
         hover_name="term",
-        hover_data={
-            "description": True if "description" in melt_stats.columns else False
-        },
+        hover_data=hover_data,
         # title=f'{disease_select} QQ plot'
     )
     # add the diagonal line

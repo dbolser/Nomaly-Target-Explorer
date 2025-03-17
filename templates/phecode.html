@@ -88,7 +88,8 @@
 
             // Create a script element to load Plotly
             const script = document.createElement('script');
-            script.src = 'https://cdn.plot.ly/plotly-2.24.1.min.js';
+            //script.src = 'https://cdn.plot.ly/plotly-2.24.1.min.js';
+            script.src = 'https://cdn.plot.ly/plotly-3.0.0.min.js';
 
             // When the script loads, try rendering again
             script.onload = function () {
@@ -177,25 +178,58 @@
 
                             console.log(`Zoom range: x(${xMin}-${xMax}), y(${yMin}-${yMax})`);
 
-                            // Get all points in the current plot
+                            // Get all points in the current plot - using Plotly's getSubplotCalc API
                             const termsInView = new Set();
-                            const plotData = figureData.data;
+                            const gd = document.getElementById('plotContainer');
 
-                            // Loop through all traces (different colored point series)
-                            for (const trace of plotData) {
-                                // Loop through all points in the trace
-                                for (let i = 0; i < trace.x.length; i++) {
-                                    const x = trace.x[i];
-                                    const y = trace.y[i];
+                            // For each trace in the plot
+                            const traces = gd.data;
+                            for (let i = 0; i < traces.length; i++) {
+                                const trace = traces[i];
+                                const points = [];
 
-                                    // Check if the point is in the zoom range
-                                    if (x >= xMin && x <= xMax && y >= yMin && y <= yMax) {
-                                        // Add the term to our set of visible terms
-                                        const term = trace.text ? trace.text[i] :
-                                            (trace.customdata ? trace.customdata[i][0] : null);
+                                // Use Plotly's calcdata to get actual point coordinates
+                                const cd = gd._fullData[i];
+                                const xa = gd._fullLayout.xaxis;
+                                const ya = gd._fullLayout.yaxis;
 
-                                        if (term) {
-                                            termsInView.add(term);
+                                // If we don't have access to the calculations, fall back to trace data
+                                if (!cd || !cd._x || !cd._y) {
+                                    console.log('Using trace data directly');
+                                    // Use the actual data from the plot
+                                    Plotly.extendTraces('plotContainer', {}, [i]).then(function () {
+                                        const currentTrace = Plotly.d3.select('#plotContainer').data()[0].data[i];
+                                        if (!currentTrace.x || !currentTrace.y) return;
+
+                                        for (let j = 0; j < currentTrace.x.length; j++) {
+                                            const x = currentTrace.x[j];
+                                            const y = currentTrace.y[j];
+
+                                            // Check if the point is in the zoom range
+                                            if (x >= xMin && x <= xMax && y >= yMin && y <= yMax) {
+                                                const term = currentTrace.text ? currentTrace.text[j] :
+                                                    (currentTrace.customdata ? currentTrace.customdata[j][0] : null);
+                            
+                                                if (term) {
+                                                    termsInView.add(term);
+                                                }
+                                            }
+                                        }
+                                    });
+                                } else {
+                                    // Use the calculation data (more reliable)
+                                    for (let j = 0; j < cd._x.length; j++) {
+                                        const x = cd._x[j];
+                                        const y = cd._y[j];
+
+                                        // Check if the point is in the zoom range
+                                        if (x >= xMin && x <= xMax && y >= yMin && y <= yMax) {
+                                            const term = cd.text ? cd.text[j] :
+                                                (cd.customdata ? cd.customdata[j][0] : null);
+
+                                            if (term) {
+                                                termsInView.add(term);
+                                            }
                                         }
                                     }
                                 }
