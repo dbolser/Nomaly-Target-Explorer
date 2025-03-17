@@ -1,9 +1,10 @@
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, render_template, jsonify, request, current_app
 import threading
 import traceback
 import re
 
 from blueprints.phewas import get_formatted_phewas_data
+
 
 # Create the blueprint
 variant_bp = Blueprint("variant", __name__, template_folder="../templates")
@@ -16,37 +17,58 @@ phewas_results = {}
 @variant_bp.route("/variant/<string:variant>", methods=["POST", "GET"])
 def show_variant(variant):
     try:
-        # Parse variant information regardless of format
-        if ":" in variant:
-            # Format: "5:33951588_C/G"
-            chrom = variant.split(":")[0].replace("chr", "")
-            rest = variant.split(":")[1]
-            pos = rest.split("_")[0]
-            alleles = rest.split("_")[1].replace("/", "_")
-        else:
-            # Format: "5_33951588_C_G"
-            parts = variant.split("_")
-            chrom = parts[0].replace("chr", "")
-            pos = parts[1]
-            alleles = f"{parts[2]}_{parts[3]}"  # Reconstruct alleles
-
-        # Normalize the variant format
-        normalized_variant = f"{chrom}_{pos}_{alleles}"
-
-        # Validate the normalized format
-        format_str = r"(chr)?(\d+|MT|[XY])_\d+_[ACGT]+_[ACGT]+"
-        if not re.match(format_str, normalized_variant):
+        # Validate the variant format
+        format_str = r"(\d+|MT|[XY])_\d+_[ACGT]+_[ACGT]+"
+        if not re.match(format_str, variant):
             return render_template(
                 "error.html", error="Invalid variant ID format: " + variant
             )
 
+        # Parse variant information from 'URL format' (e.g. "5_33951588_C_G")
+        parts = variant.split("_")
+        chrom = parts[0].replace("chr", "")
+        pos = parts[1]
+        allele1 = parts[2]
+        allele2 = parts[3]
+
+        # Nom'alize the variant format
+        nomalized_variant = f"{chrom}_{pos}_{allele1}/{allele2}"
+        plnkified_variant = f"{chrom}:{pos}_{allele1}/{allele2}"
+
+        # THE KEY THING TO NOTE HERE IS THAT PLINK MAY HAVE FLIPPED THE ALLELES,
+        # AND WE'RE TOO LAZY TO FIX IT!
+
+        # Now we use the 'nomaly_data service' to lookup comprehensive variant
+        # information from the 'mapping' hack.
+        app = current_app
+        services = app.extensions["nomaly_services"]
+
+        variant_info = (
+            False
+            or services.nomaly_data.get_variant_info_nomaly(nomalized_variant)
+            or services.nomaly_data.get_variant_info_plinky(plnkified_variant)
+        )
+
+        if not variant_info:
+            return render_template(
+                "error.html", error="Variant not found in the Nomaly mapping data."
+            )
+
+        # Finally get the data we want... easy eh?
+        gene = variant_info["gene_id"]
+        rsid = variant_info["RSID"]
+        genotypeing_allele1 = variant_info["CHR_BP_A1_A2"].split("_")[1][0]
+        genotypeing_allele2 = variant_info["CHR_BP_A1_A2"].split("_")[1][2]
+
         # Prepare data for the template
         variant_data = {
-            "variant_id": f"{chrom}:{pos}_{alleles.replace('_', '/')}",  # Display format
+            "variant_id": nomalized_variant,
+            "rsid": rsid,
             "chromosome": chrom,
             "position": pos,
-            "allele1": alleles.split("_")[0],
-            "allele2": alleles.split("_")[1],
+            "gene": gene,
+            "genotyping_allele1": genotypeing_allele1,
+            "genotyping_allele2": genotypeing_allele2,
         }
 
         return render_template("variant.html", data=variant_data)
@@ -61,9 +83,10 @@ def show_variant(variant):
 # Background task function
 def background_task(variant: str, services, flush: bool = False):
     try:
+
         # Get formatted PheWAS results using injected services
         results = get_formatted_phewas_data(
-            variant, None, services
+            variant, services, no_cache=flush
         )  # None to get all phecodes
 
         if not results:

@@ -14,7 +14,9 @@ UKBB_PHENO_DIR = Config.UKBB_PHENO_DIR
 
 SOURCE_PLINK_GENOME = Config.SOURCE_PLINK_GENOME
 PLINK_BINARY = Config.PLINK_BINARY
-NOMALY_VARIANTS_PATH = Config.NOMALY_VARIANTS_PATH
+NOMALY_VARIANTS_PATH = (
+    Config.NOMALY_VARIANTS_PATH
+)  # TODO: Replace with nomaly_data service
 logger = logging.getLogger(__name__)
 
 
@@ -22,6 +24,7 @@ def run_gwas(
     phecode: str, sex: str = "both", ancestry: str = "ALL", no_cache: bool = False
 ) -> pd.DataFrame:
     """Run GWAS for a phecode if not already done and return results."""
+    # TODO: Refactor to use the nomaly_data service instead of direct file access
 
     output_suffix = f"{GWAS_PHENO_DIR}/phecode_{phecode}_sex_{sex}_ancestry_{ancestry}"
     assoc_file = GWAS_PHENO_DIR / f"{output_suffix}.assoc"
@@ -83,6 +86,7 @@ def run_gwas(
     )
 
     # Add variant annotations
+    # TODO: Replace with services.nomaly_data.df
     nomaly_variants = pd.read_csv(NOMALY_VARIANTS_PATH, sep="\t")
     assoc = assoc.merge(
         nomaly_variants[["CHR_BP_A1_A2", "gene_id", "nomaly_variant", "RSID"]],

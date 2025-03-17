@@ -32,7 +32,7 @@
             ],
             "jinja": true,
             "autoStartBrowser": false,
-            "justMyCode": false
+            //"justMyCode": false
         }
     ]
 }

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Test Plot for PheCode {{ phecode }}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .plot-container {
+            width: 900px;
+            height: 600px;
+            margin: 0 auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>QQ Plot Test for PheCode {{ phecode }}</h1>
+
+    <div class="plot-container">
+        {{ plot_html|safe }}
+    </div>
+
+    <script>
+        // Log when the page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Page loaded, checking for Plotly elements');
+            const plotElements = document.querySelectorAll('.js-plotly-plot');
+            console.log(`Found ${plotElements.length} Plotly elements`);
+        });
+    </script>
+</body>
+
+</html>

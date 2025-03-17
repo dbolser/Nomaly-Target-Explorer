@@ -1,3 +1,13 @@
+"""
+
+Calculate PheWAS results for a variant using about the most cumbersome and
+stupid method possible.
+
+Two matrix multiplications is probably all we need (see
+'try_simplified_verssion' for wip code).
+
+"""
+
 import logging
 import os
 from collections import Counter
@@ -89,26 +99,26 @@ class PhecodeCounts:
         heterozygous_controls = 0
 
         for item, count in self.counts.items():
-            ref_alleles = item.genotype
-            alt_alleles = 2 - item.genotype
+            ref_alleles = 2 - item.genotype
+            alt_alleles = item.genotype
             table[item.case, 0] += count * alt_alleles
             table[item.case, 1] += count * ref_alleles
 
             if item.case == 1:  # Case
                 ref_allele_count_cases += count * ref_alleles
                 alt_allele_count_cases += count * alt_alleles
-                if item.genotype == 2:
+                if item.genotype == 0:
                     homozygous_ref_cases += count
-                elif item.genotype == 0:
+                elif item.genotype == 2:
                     homozygous_alt_cases += count
                 elif item.genotype == 1:
                     heterozygous_cases += count
             else:  # Control
                 ref_allele_count_controls += count * ref_alleles
                 alt_allele_count_controls += count * alt_alleles
-                if item.genotype == 2:
+                if item.genotype == 0:
                     homozygous_ref_controls += count
-                elif item.genotype == 0:
+                elif item.genotype == 2:
                     homozygous_alt_controls += count
                 elif item.genotype == 1:
                     heterozygous_controls += count
@@ -161,9 +171,7 @@ class PhecodeCounts:
 
 
 # @profile
-def get_genotype_data(
-    variant: str, services=None
-) -> tuple[np.ndarray, np.ndarray] | None:
+def get_genotype_data(variant: str, services) -> tuple[np.ndarray, np.ndarray] | None:
     """
     Get genotype data for a variant.
 
@@ -174,11 +182,6 @@ def get_genotype_data(
     Returns:
         tuple: (sorted_eids, sorted_genotypes) or None if error
     """
-    if services is None:
-        from flask import current_app
-
-        services = current_app.extensions["nomaly_services"]
-
     genotype_service = services.genotype
     if genotype_service is None:
         raise ValueError("Genotype service is not initialized!")
@@ -187,6 +190,18 @@ def get_genotype_data(
         # Get genotype data
         genotype_eids = genotype_service._hdf.individual
         genotypes = genotype_service._hdf.query_variants(variant)
+
+        # NOTE THE FORMER WILL FLIP! THe latter wont!
+
+        # SOME PAGES NEED TO FILP FOR SOME REASON!
+
+        # TODO: MAKE SUER WE NEVER NEED TO FILP!
+
+        # genotypes2 = genotype_service._hdf.get_genotypes(vids=[variant])
+
+        # Well... this is one way of testing...
+        # assert np.all(genotypes == genotypes2)
+
         if genotypes is None or len(genotypes) == 0:
             print(f"No genotype data found for variant {variant}")
             return None
@@ -199,6 +214,8 @@ def get_genotype_data(
             )
             return None
 
+        # I WOULD REFACTOR THIS, but see try_simplified_verssion
+
         # Sort the data
         sorted_indices = np.argsort(genotype_eids)
         sorted_genotype_eids = genotype_eids[sorted_indices]
@@ -207,7 +224,9 @@ def get_genotype_data(
         return sorted_genotype_eids, sorted_genotypes
 
     except Exception as e:
-        print(f"Error in get_genotype_data for variant {variant}: {str(e)}")
+        print(
+            f"Error in get_genotype_data for variant (get_genotype_data) {variant}: {str(e)}"
+        )
         return None
 
 
@@ -281,7 +300,7 @@ def phecode_level_assoc(variant: str, services=None) -> pd.DataFrame:
     # Get genotype data and handle failure case
     genotype_result = get_genotype_data(variant, services)
     if genotype_result is None:
-        print(f"No genotype data found for variant {variant}")
+        print(f"No genotype data found for variant (phecode_level_assoc) {variant}")
         return pd.DataFrame()
 
     sorted_genotype_eids, sorted_genotypes = genotype_result
@@ -326,7 +345,10 @@ def phecode_level_assoc(variant: str, services=None) -> pd.DataFrame:
 
 @profile
 def get_phewas_results(
-    variant: str, phecode: str | None = None, no_cache: bool = False, services=None
+    variant: str,
+    services,
+    phecode: str | None = None,
+    no_cache: bool = False,
 ) -> pd.DataFrame:
     """
     Get PheWAS results for a variant, either from cache or by running analysis.
@@ -372,20 +394,20 @@ def get_phewas_results(
             sorted_genotype_eids, sorted_genotypes = genotype_result
             all_phecodes = get_all_phecodes()
 
-            phenotype_data = services.phenotype if services else None
-            assert phenotype_data is not None
-
             # Process just the requested phecode
             result = process_phecode(
                 phecode,
                 sorted_genotype_eids,
                 sorted_genotypes,
-                phenotype_data,
+                services.phenotype,
                 all_phecodes,
             )
 
             if result:
-                return pd.DataFrame([result])
+                result_df = pd.DataFrame([result])
+                result_df["ref_allele"] = variant.split(":")[2]
+                result_df["alt_allele"] = variant.split(":")[3]
+                return result_df
             return pd.DataFrame()
 
         except Exception as e:
@@ -397,9 +419,14 @@ def get_phewas_results(
     # No cached results and no specific phecode - run full analysis
     try:
         results_df = phecode_level_assoc(variant, services)
+
         if results_df is None or results_df.empty:
             print(f"PheWAS analysis returned no results for variant {variant}")
             return pd.DataFrame()
+
+        results_df["ref_allele"] = variant_underscore.split("_")[2]
+        results_df["alt_allele"] = variant_underscore.split("_")[3]
+
         return results_df
     except Exception as e:
         print(f"Error running PheWAS for variant {variant}: {e}")
@@ -431,7 +458,7 @@ def format_phewas_row_for_display(row: pd.Series) -> dict:
 
 
 def get_formatted_phewas_data(
-    variant_id: str, phecode: str | None = None, services=None
+    variant_id: str, services, phecode: str | None = None, no_cache: bool = False
 ) -> List[dict[str, Any]]:
     """
     Get formatted PheWAS data for a variant, optionally filtered by phecode.
@@ -444,10 +471,12 @@ def get_formatted_phewas_data(
     Returns:
         List[dict]: List of formatted PheWAS results (one dict per row)
     """
-    phewas_df = get_phewas_results(variant_id, phecode, services=services)
+    phewas_df = get_phewas_results(variant_id, services, phecode, no_cache)
 
     if phewas_df is None or phewas_df.empty:
-        print(f"No PheWAS results available for variant {variant_id}")
+        print(
+            f"No PheWAS results available for variant (get_formatted_phewas_data) {variant_id}"
+        )
         return []
 
     if phecode is not None:
@@ -483,7 +512,7 @@ def run_full_analysis():
 def try_simplified_version(variant: str) -> pd.DataFrame:
     # 1) Data loading:
 
-    from data_services import GenotypeService, PhenotypeService, ServiceRegistry
+    from data_services import ServiceRegistry
 
     registry = ServiceRegistry.from_config(Config)
 
@@ -586,11 +615,17 @@ def main():
     from app import create_app
 
     app = create_app("development")
+
+    services = app.extensions["nomaly_services"]
+
     with app.app_context():
         # Quick test of single variant/phecode
-        # results = get_phewas_results(test_variant, "642.1")
+        results = get_phewas_results(
+            test_variant1, services, phecode="642.1", no_cache=True
+        )
+        print(results.T)
 
-        results = get_phewas_results(test_variant1, phecode=None, no_cache=True)
+        results = get_phewas_results(test_variant1, services, no_cache=True)
         print(results)
 
         # Optionally run full analysis
