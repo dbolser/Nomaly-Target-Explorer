@@ -1,4 +1,10 @@
 
+# Things TODO
+
+## DAN'S SPRINT
+
+- [] Sex matched stats for All.
+- [] Bonferoni correction (and friends).
 
 
 ## Migration plan
