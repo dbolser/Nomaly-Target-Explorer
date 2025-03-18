@@ -81,9 +81,9 @@ class PhenotypesHDF5:
             raise
 
         # Load the data matrix and index information as numpy arrays
-        # I think this may be a massive performance hit!
-        # self.phenotype_data: h5py.Dataset = phenotype_data
-        self.phenotype_data: np.ndarray = phenotype_data[...].astype(int)
+        # NOTE: I think this may be a massive performance hit!
+        self.phenotype_data: h5py.Dataset = phenotype_data
+        # self.phenotype_data: np.ndarray = phenotype_data[...].astype(int)
         self.eids: np.ndarray = eids[...].astype(int)
         self.populations: np.ndarray = populations[...].astype(str)
         self.biological_sex: np.ndarray = biological_sex[...].astype(str)

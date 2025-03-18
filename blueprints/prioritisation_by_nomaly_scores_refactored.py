@@ -5,141 +5,27 @@ The original mega-function has been broken down into smaller, more focused funct
 
 import json
 import logging
+from typing import Any, Dict, Optional, Sequence, Tuple, cast
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any, Union, Sequence, cast
 
-from config import Config
+
+from blueprints.prioritisation_by_nomaly_scores import (
+    convert_numpy_types,
+    load_cached_results,
+    save_results_to_cache,
+    read_nomaly_filtered_genotypes_new,
+    process_individual_variants,
+    variant_scores,
+    log_and_stream,
+)
+
 from db import get_term_variants
 
 
 # Create a logger
 logger = logging.getLogger(__name__)
-
-# Import profile decorator (keeping the same behavior)
-try:
-    from line_profiler import profile  # type: ignore
-except ImportError:
-
-    def profile(func):
-        """Dummy profile decorator when line_profiler is not available."""
-        return func
-
-
-# Convert NumPy types to native Python types
-def convert_numpy_types(obj):
-    if isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, np.floating):
-        return float(obj)
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, dict):
-        return {key: convert_numpy_types(value) for key, value in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_numpy_types(item) for item in obj]
-    return obj
-
-
-# Check JSON safety and fix any problematic values
-def check_json_safety(obj):
-    """
-    Check if an object can be safely serialized to JSON and fix any issues.
-    Replaces None values with empty strings to avoid problems in JavaScript.
-
-    Args:
-        obj: The object to check
-
-    Returns:
-        The object with any unsafe values replaced
-    """
-    if isinstance(obj, dict):
-        for key, value in obj.items():
-            if value is None:
-                print(f"Found None value for key: {key}")
-                obj[key] = ""  # Replace None with empty string
-            else:
-                check_json_safety(value)
-    elif isinstance(obj, list):
-        for i, item in enumerate(obj):
-            if item is None:
-                print(f"Found None value for index: {i}")
-                obj[i] = ""  # Replace None with empty string
-            else:
-                check_json_safety(item)
-    return obj
-
-
-class StreamLogger:
-    """Helper class to capture and stream progress messages."""
-
-    def __init__(self, message_queue):
-        self.message_queue = message_queue
-
-    def info(self, message):
-        """Send a progress message immediately to the queue."""
-        msg = {"type": "progress", "data": message}
-        self.message_queue.put(msg)
-
-
-def get_cache_path(disease_code: str, term: str) -> Path:
-    """Get the path to the cache file for the given disease code and term."""
-    cache_dir = Path(Config.VARIANT_SCORES_DIR)
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir / f"variant_prioritization_{disease_code}_{term}.json"
-
-
-def load_cached_results(disease_code: str, term: str) -> Optional[Dict[str, Any]]:
-    """Load cached results if they exist."""
-    cache_path = get_cache_path(disease_code, term)
-    if not cache_path.exists():
-        return None
-
-    try:
-        # Load the cached JSON data
-        with open(cache_path) as f:
-            data = json.load(f)
-
-        return data
-    except Exception as e:
-        logger.error(f"Error loading cached results: {e}")
-        return None
-
-
-def save_results_to_cache(
-    disease_code: str, term: str, data: dict
-) -> Optional[Dict[str, Any]]:
-    """Save results to cache file."""
-    try:
-        cache_path = get_cache_path(disease_code, term)
-
-        # Convert data before saving
-        converted_data = convert_numpy_types(data)
-
-        # Save as JSON
-        with open(cache_path, "w") as f:
-            json.dump(converted_data, f, indent=2)  # indent for readability
-        # Return the loaded data
-        return load_cached_results(disease_code, term)
-    except Exception as e:
-        logger.error(f"Error saving results to cache: {e}")
-        return None
-
-
-def read_nomaly_filtered_genotypes_new(eids, vids, genotype_service) -> Dict[str, Any]:
-    """Read genotypes using the new genotype service method."""
-    genotypes = genotype_service.get_genotypes(eids=eids, vids=vids, nomaly_ids=True)
-
-    # Transpose the genotypes matrix
-    genotypes = genotypes.T
-
-    return {
-        "row_eids": eids,
-        "col_variants": vids,
-        "data": genotypes,
-        "error_variants": [],
-    }
 
 
 def term_variant_prioritisation(
@@ -153,12 +39,6 @@ def term_variant_prioritisation(
     Genotypes are 'scored' using background data from Nomaly (HMM Score and
     Nomaly Score for the given eids).
     """
-    # Load variant scores data from global variable in original module
-    # This is a bit of a hack, but necessary to match the original behavior
-    from blueprints.prioritisation_by_nomaly_scores import (
-        variant_scores,
-        process_individual_variants,
-    )
 
     # Remove the duplicate aa column but keep the largest hmm_score
     vids = (
@@ -173,32 +53,22 @@ def term_variant_prioritisation(
     term_variants_hmmsc = vids.groupby("variant_id")["hmm_score"].max().reset_index()
     vids = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
 
-    if stream_logger:
-        stream_logger.info(f"Reading genotypes for {len(vids)} variants")
-    else:
-        logger.info(f"Reading genotypes for {len(vids)} variants")
+    log_and_stream(f"Reading genotypes for {len(vids)} variants", stream_logger)
 
-    # Use the new genotype reading function
     sel_genotypes = read_nomaly_filtered_genotypes_new(
         eids, vids["variant_id"], genotype_service
     )
 
-    if stream_logger:
-        stream_logger.info(
-            f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read."
+    log_and_stream(
+        f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read.",
+        stream_logger,
+    )
+    if len(sel_genotypes["error_variants"]) > 0:
+        log_and_stream(
+            f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants.",
+            stream_logger,
+            level="warning",
         )
-        if len(sel_genotypes["error_variants"]) > 0:
-            stream_logger.warning(
-                f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants."
-            )
-    else:
-        logger.info(
-            f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read."
-        )
-        if len(sel_genotypes["error_variants"]) > 0:
-            logger.warning(
-                f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants."
-            )
 
     variant_scores_table = variant_scores.loc[sel_genotypes["col_variants"]]
     term_variant_scores = variant_scores_table[["vs00", "vs01", "vs11"]]
@@ -207,7 +77,7 @@ def term_variant_prioritisation(
         f"We read {len(term_variant_scores)} variant scores for our {len(vids)} variants"
     )
 
-    # Process individual variants (importing from original module to match behavior)
+    # TODO:This is now the bottleneck!
     ind_top_variants_df = process_individual_variants(
         sel_genotypes, term_variant_scores
     )
@@ -222,14 +92,11 @@ def term_variant_prioritisation(
     # Convert gene lists to strings to match the original output format
     top_variants["gene"] = top_variants["gene"].map(lambda x: ", ".join(x))
 
-    if stream_logger:
-        stream_logger.info(f"Term variants: {len(vids)}")
-        stream_logger.info(f"Top variants: {len(top_variants)}")
-        stream_logger.info(f"Individual top variants: {len(ind_top_variants_df)}")
-    else:
-        logger.info(f"Term variants: {len(vids)}")
-        logger.info(f"Individual top variants: {len(ind_top_variants_df)}")
-        logger.info(f"Top variants: {len(top_variants)}")
+    log_and_stream(f"Term variants: {len(vids)}", stream_logger)
+    log_and_stream(f"Top variants: {len(top_variants)}", stream_logger)
+    log_and_stream(
+        f"Individual top variants: {len(ind_top_variants_df)}", stream_logger
+    )
 
     return top_variants
 
@@ -575,8 +442,7 @@ def process_gene_level_stats(top_variants: pd.DataFrame) -> Sequence[Dict[str, A
     )
 
 
-@profile
-def get_top_variants(
+def get_top_variants_refactored(
     phecode: str,
     term: str,
     phenotype_service,
@@ -619,11 +485,11 @@ def get_top_variants(
                 stream_logger.info("Loaded results from cache")
             return cached_results
 
-    # Log that we're computing results
-    if stream_logger:
-        stream_logger.info(
-            f"Computing results (not found in cache, flush={no_cache}, protective={protective})"
-        )
+    # Compute results if not cached...
+    log_and_stream(
+        f"Computing results (not found in cache, flush={no_cache}, protective={protective})",
+        stream_logger,
+    )
 
     try:
         # Step 1: Fetch phenotype data
@@ -635,8 +501,9 @@ def get_top_variants(
 
         # Step 2: Get term variants
         term_variants = get_term_variants(term)
-        if stream_logger:
-            stream_logger.info(f"Got {len(term_variants)} variants for term {term}")
+        log_and_stream(
+            f"Got {len(term_variants)} variants for term {term}", stream_logger
+        )
 
         # Step 3: Fetch Nomaly scores
         case_scores, control_scores = fetch_nomaly_scores(
@@ -683,8 +550,6 @@ def get_top_variants(
 
     except Exception as e:
         logger.error(f"Error in get_top_variants: {str(e)}", exc_info=True)
-        if stream_logger:
-            stream_logger.info(f"Error in analysis: {str(e)}")
         raise
 
 
@@ -729,7 +594,7 @@ def main():
     with app.app_context():
         services = app.extensions["nomaly_services"]
 
-        data = get_top_variants(
+        data = get_top_variants_refactored(
             phecode,
             term,
             services.phenotype._hdf,

@@ -142,7 +142,7 @@ def extract_messages(response):
 def test_stream_progress_success(app, client, monkeypatch):
     # Test the normal /stream_progress execution (non-protective path).
     monkeypatch.setattr(
-        "blueprints.prioritisation_by_nomaly_scores_refactored.get_top_variants",
+        "blueprints.prioritisation_by_nomaly_scores_refactored.get_top_variants_refactored",
         dummy_get_top_variants,
     )
     monkeypatch.setattr("blueprints.prioritisation_by_nomaly_scores.get_top_variants", dummy_get_top_variants)
@@ -164,7 +164,7 @@ def test_stream_progress_success(app, client, monkeypatch):
 def test_stream_progress_error(app, client, monkeypatch):
     # Test the error handling path where get_top_variants raises an exception.
     monkeypatch.setattr(
-        "blueprints.prioritisation_by_nomaly_scores_refactored.get_top_variants",
+        "blueprints.prioritisation_by_nomaly_scores_refactored.get_top_variants_refactored",
         dummy_get_top_variants_error,
     )
     monkeypatch.setattr("blueprints.prioritisation_by_nomaly_scores.get_top_variants", dummy_get_top_variants_error)
@@ -179,10 +179,13 @@ def test_stream_progress_error(app, client, monkeypatch):
 def test_stream_progress_protective(app, client, monkeypatch):
     # Test the protective flag behavior.
     monkeypatch.setattr(
-        "blueprints.prioritisation_by_nomaly_scores_refactored.get_top_variants",
+        "blueprints.prioritisation_by_nomaly_scores_refactored.get_top_variants_refactored",
         dummy_get_top_variants_protective,
     )
-    monkeypatch.setattr("blueprints.prioritisation_by_nomaly_scores.get_top_variants", dummy_get_top_variants_protective)
+    monkeypatch.setattr(
+        "blueprints.prioritisation_by_nomaly_scores.get_top_variants",
+        dummy_get_top_variants_protective,
+    )
     monkeypatch.setattr("blueprints.prioritisation_by_nomaly_scores.variant_processor", DummyVariantProcessor())
     # Call the endpoint with the protective parameter set to true.
     response = client.get("/stream_progress/test/dummy?protective=true")

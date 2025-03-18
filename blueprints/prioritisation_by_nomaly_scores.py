@@ -11,6 +11,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -23,6 +24,13 @@ from flask import (
     stream_with_context,
 )
 
+from blueprints.phecode import get_phecode_data
+from config import Config
+from db import get_term_domains, get_term_genes, get_term_names, get_term_variants
+
+logger = logging.getLogger(__name__)
+
+
 # Create a 'dummy' profile decorator if we don't have line_profiler installed
 try:
     from line_profiler import profile  # type: ignore
@@ -30,13 +38,6 @@ except ImportError:
 
     def profile(func):
         return func
-
-
-from blueprints.phecode import get_phecode_data
-from config import Config
-from db import get_term_domains, get_term_genes, get_term_names, get_term_variants
-
-logger = logging.getLogger(__name__)
 
 
 # TODO: Move to a new variant scores (or 'nomaly_data') data service?
@@ -62,6 +63,13 @@ MAX_WORKERS = 20  # Adjust based on server capacity
 variant_processor = ThreadPoolExecutor(
     max_workers=MAX_WORKERS, thread_name_prefix="variant_processor"
 )
+
+
+def log_and_stream(message, stream_logger=None, level="info"):
+    if stream_logger:
+        stream_logger.info(message)
+    else:
+        getattr(logger, level)(message)
 
 
 # Convert NumPy types to native Python types
@@ -103,10 +111,11 @@ def read_cases_for_disease_code(phecode: str) -> dict:
     return cases
 
 
-def read_nomaly_filtered_genotypes_new(eids, vids, genotype_service) -> dict:
+def read_nomaly_filtered_genotypes_new(eids, vids, genotype_service) -> Dict[str, Any]:
+    """Read genotypes using the new genotype service method."""
     genotypes = genotype_service.get_genotypes(eids=eids, vids=vids, nomaly_ids=True)
 
-    # FUCK ME!
+    # Transpose the genotypes matrix
     genotypes = genotypes.T
 
     return {
@@ -114,58 +123,6 @@ def read_nomaly_filtered_genotypes_new(eids, vids, genotype_service) -> dict:
         "col_variants": vids,
         "data": genotypes,
         "error_variants": [],
-    }
-
-
-def read_nomaly_filtered_genotypes(eids, vids, genotype_service) -> dict:
-    """Read genotypes for the individuals and variants.
-
-    TODO:
-        1) All EIDs are now already sorted, so we can remove the 'alignment'
-           step.
-        2) Instead of the messy id mapping, we can use the new
-           nomaly_variant_id index.
-        3) Essentially this entire function should be replaced with a
-           single call to the genotype service.
-    """
-
-    genotype_eids = genotype_service.individual
-
-    # Because we need to 'align' the eids with genotype eids, we need to jump
-    # through a few hoops here ...
-
-    # 1) Get the sort order of the genotype eids
-    sorted_indices = np.argsort(genotype_eids)
-
-    # 2) Remove eids that are not found in the genotype data
-    eids = eids[np.isin(eids, genotype_eids)]
-
-    # 3) Use searchsorted (fast) to find the indices of the eids in the
-    #    sorted genotype eids
-    eidx = np.searchsorted(genotype_eids[sorted_indices], eids)
-
-    geno_matrix = np.empty((len(eids), len(vids)))
-    failed_variants = []
-
-    for v, nomaly_variant_id in enumerate(vids):
-        genotype_result = genotype_service.query_variantID_genotypes(nomaly_variant_id)
-        if genotype_result is None:
-            logger.warning(f"No genotype data found for variant {nomaly_variant_id}")
-            failed_variants.append(nomaly_variant_id)
-            continue
-
-        sorted_genotype_eids, sorted_genotypes = genotype_result
-
-        # HOrrible code!
-        assert np.all(sorted_genotype_eids[eidx] == eids)
-
-        geno_matrix[:, v] = sorted_genotypes[eidx]
-
-    return {
-        "row_eids": genotype_eids[eidx],
-        "col_variants": vids,
-        "data": geno_matrix,
-        "error_variants": failed_variants,
     }
 
 
@@ -217,7 +174,9 @@ def process_individual_variants(sel_genotypes, term_variant_scores):
 
 
 @profile
-def term_variant_prioritisation(vids, eids, genotype_service, stream_logger=None):
+def term_variant_prioritisation(
+    vids, eids, genotype_service, stream_logger=None
+) -> pd.DataFrame:
     """Prioritise a set of variants from a set of eids and their genotypes.
 
     Typically we're looking at the set of variants for a given term
@@ -225,7 +184,6 @@ def term_variant_prioritisation(vids, eids, genotype_service, stream_logger=None
 
     Genotypes are 'scored' using background data from Nomaly (HMM Score and
     Nomaly Score for the given eids).
-
     """
 
     # Remove the duplicate aa column but keep the largest hmm_score
@@ -241,40 +199,22 @@ def term_variant_prioritisation(vids, eids, genotype_service, stream_logger=None
     term_variants_hmmsc = vids.groupby("variant_id")["hmm_score"].max().reset_index()
     vids = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
 
-    if stream_logger:
-        stream_logger.info(f"Reading genotypes for {len(vids)} variants")
-    else:
-        logger.info(f"Reading genotypes for {len(vids)} variants")
+    log_and_stream(f"Reading genotypes for {len(vids)} variants", stream_logger)
 
-    # sel_genotypes2 = read_nomaly_filtered_genotypes_new(
-    #     eids, vids["variant_id"], genotype_service
-    # )
-
-    # The CRITICAL difference betwween the new version is that I dont' flip
-    # alleles. This means that the genotypes and the genotype frequencies used
-    # to calculate vs are consistent. Everything is consistent with the genotype
-    # ref/alt definition EXCEPT nomaly variant IDs... (conveniently, the latter
-    # are used in the displya...)
     sel_genotypes = read_nomaly_filtered_genotypes_new(
         eids, vids["variant_id"], genotype_service
     )
 
-    if stream_logger:
-        stream_logger.info(
-            f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read."
+    log_and_stream(
+        f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read.",
+        stream_logger,
+    )
+    if len(sel_genotypes["error_variants"]) > 0:
+        log_and_stream(
+            f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants.",
+            stream_logger,
+            level="warning",
         )
-        if len(sel_genotypes["error_variants"]) > 0:
-            stream_logger.warning(
-                f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants."
-            )
-    else:
-        logger.info(
-            f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read."
-        )
-        if len(sel_genotypes["error_variants"]) > 0:
-            logger.warning(
-                f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants."
-            )
 
     variant_scores_table = variant_scores.loc[sel_genotypes["col_variants"]]
     term_variant_scores = variant_scores_table[["vs00", "vs01", "vs11"]]
@@ -295,14 +235,14 @@ def term_variant_prioritisation(vids, eids, genotype_service, stream_logger=None
     top_variants = vids.join(ind_top_variants_df, on="variant_id", how="right")
     top_variants = top_variants.join(term_variant_scores, on="variant_id")
 
-    if stream_logger:
-        stream_logger.info(f"Term variants: {len(vids)}")
-        stream_logger.info(f"Top variants: {len(top_variants)}")
-        stream_logger.info(f"Individual top variants: {len(ind_top_variants_df)}")
-    else:
-        logger.info(f"Term variants: {len(vids)}")
-        logger.info(f"Individual top variants: {len(ind_top_variants_df)}")
-        logger.info(f"Top variants: {len(top_variants)}")
+    # Convert gene lists to strings to match the original output format
+    # top_variants["gene"] = top_variants["gene"].map(lambda x: ", ".join(x))
+
+    log_and_stream(f"Term variants: {len(vids)}", stream_logger)
+    log_and_stream(f"Top variants: {len(top_variants)}", stream_logger)
+    log_and_stream(
+        f"Individual top variants: {len(ind_top_variants_df)}", stream_logger
+    )
 
     return top_variants
 
@@ -314,7 +254,7 @@ def get_cache_path(disease_code: str, term: str) -> Path:
     return cache_dir / f"variant_prioritization_{disease_code}_{term}.json"
 
 
-def load_cached_results(disease_code: str, term: str) -> dict | None:
+def load_cached_results(disease_code: str, term: str) -> Optional[Dict[str, Any]]:
     """Load cached results if they exist."""
     cache_path = get_cache_path(disease_code, term)
     if not cache_path.exists():
@@ -331,7 +271,9 @@ def load_cached_results(disease_code: str, term: str) -> dict | None:
         return None
 
 
-def save_results_to_cache(disease_code: str, term: str, data: dict):
+def save_results_to_cache(
+    disease_code: str, term: str, data: dict
+) -> Optional[Dict[str, Any]]:
     """Save results to cache file."""
     try:
         cache_path = get_cache_path(disease_code, term)
@@ -342,10 +284,11 @@ def save_results_to_cache(disease_code: str, term: str, data: dict):
         # Save as JSON
         with open(cache_path, "w") as f:
             json.dump(converted_data, f, indent=2)  # indent for readability
-        # Meh
+        # Return the loaded data
         return load_cached_results(disease_code, term)
     except Exception as e:
         logger.error(f"Error saving results to cache: {e}")
+        return None
 
 
 @profile
@@ -373,33 +316,27 @@ def get_top_variants(
             return cached_results
 
     # Compute results if not cached...
-
-    if stream_logger:
-        stream_logger.info(
-            f"Computing results (not found in cache, flush={no_cache}, protective={protective})"
-        )
+    log_and_stream(
+        f"Computing results (not found in cache, flush={no_cache}, protective={protective})",
+        stream_logger,
+    )
 
     # Get phenotype data for the given phecode...
     eids, phenotypes = phenotype_service.get_cases_for_phecode(
         phecode, population, biological_sex
     )
 
-    if stream_logger:
-        stream_logger.info(
-            f"Got {len(eids)} samples for phecode {phecode} with population {population} and sex {biological_sex}"
-        )
-    else:
-        logger.info(
-            f"Got {len(eids)} samples for phecode {phecode} with population {population} and sex {biological_sex}"
-        )
+    log_and_stream(
+        f"Got {len(eids)} samples for phecode {phecode} with population {population} and sex {biological_sex}",
+        stream_logger,
+    )
 
     # Doing this outside the loop makes sense, but it doesn't save much time.
     term_variant_ids = get_term_variants(term)
 
-    if stream_logger:
-        stream_logger.info(f"Got {len(term_variant_ids)} variants for term {term}")
-    else:
-        logger.info(f"Got {len(term_variant_ids)} variants for term {term}")
+    log_and_stream(
+        f"Got {len(term_variant_ids)} variants for term {term}", stream_logger
+    )
 
     # cases_info = read_cases_for_disease_code(disease_code)
     # cases_eids = list(cases_info["cases"])
@@ -409,14 +346,10 @@ def get_top_variants(
 
     assert len(eids) == len(case_eids) + len(control_eids) + len(exclude_eids)
 
-    if stream_logger:
-        stream_logger.info(
-            f"Got {len(case_eids)} cases for {phecode} with population {population} and sex {biological_sex}"
-        )
-    else:
-        logger.info(
-            f"Got {len(case_eids)} cases for {phecode} with population {population} and sex {biological_sex}"
-        )
+    log_and_stream(
+        f"Got {len(case_eids)} cases for {phecode} with population {population} and sex {biological_sex}",
+        stream_logger,
+    )
 
     # Assert that the case eids are sorted
     assert np.all(np.diff(case_eids) > 0), "case_eids are not sorted!"

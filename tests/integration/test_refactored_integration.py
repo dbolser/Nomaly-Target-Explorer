@@ -8,7 +8,7 @@ from blueprints.prioritisation_by_nomaly_scores import (
 )
 
 from blueprints.prioritisation_by_nomaly_scores_refactored import (
-    get_top_variants as get_top_variants_refactored,
+    get_top_variants_refactored as get_top_variants_refactored,
 )
 
 
