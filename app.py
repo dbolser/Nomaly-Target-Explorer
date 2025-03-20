@@ -58,11 +58,13 @@ def create_app(config_name=None):
     if config_name is None:
         config_name = os.getenv("FLASK_ENV", "development")
 
+    print(f"Loading config: {config_name}")
     app.config.from_object(config[config_name])
 
     # Optionally load environment-specific .env file
     env_file = f".env.{config_name}"
     if os.path.exists(env_file):
+        print(f"Loading environment file: {env_file}")
         load_dotenv(env_file)
 
     # Initialize extensions
@@ -94,6 +96,10 @@ def register_blueprints(app):
     app.register_blueprint(variant_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(prioritisation_bp)
+
+    from api import stats_bp
+
+    app.register_blueprint(stats_bp)
 
 
 def register_routes(app):
@@ -233,6 +239,7 @@ def register_error_handlers(app):
     def handle_db_error(e):
         app.logger.error(f"Database error: {str(e)}")
         return render_template("error.html", error="Database connection error"), 503
+
 
 
 # Only create app if running directly

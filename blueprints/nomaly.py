@@ -7,10 +7,11 @@ from config import Config
 
 # Yay globals!
 
-RESOURCE_DATA_DIR = Config.RESOURCE_DATA_DIR
+RESOURCE_DATA_DIR = Config.PHAROS_DATA_DIR
 pharos_path = RESOURCE_DATA_DIR / "pharos_api_query.out"
 pp_path = RESOURCE_DATA_DIR / "pp_by_gene.tsv"
 
+# TODO: MAKE A DATA SERVICE FOR THIS
 pharos = pd.read_csv(pharos_path, sep="\t", encoding="ISO-8859-1").rename(
     columns={"#symbol": "gene"}
 )

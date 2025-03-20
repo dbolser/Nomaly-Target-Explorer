@@ -7,7 +7,7 @@ from typing import Optional
 
 # Create a 'dummy' profile decorator if we don't have line_profiler installed
 try:
-    from line_profiler import profile
+    from line_profiler import profile  # type: ignore
 except ImportError:
 
     def profile(func):
@@ -81,8 +81,8 @@ class PhenotypesHDF5:
             raise
 
         # Load the data matrix and index information as numpy arrays
-        # NOTE: I think this may be a massive performance hit!
         self.phenotype_data: h5py.Dataset = phenotype_data
+        # NOTE: I think this may be a massive performance hit!
         # self.phenotype_data: np.ndarray = phenotype_data[...].astype(int)
         self.eids: np.ndarray = eids[...].astype(int)
         self.populations: np.ndarray = populations[...].astype(str)
