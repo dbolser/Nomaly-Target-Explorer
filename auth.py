@@ -50,7 +50,7 @@ def check_page_permission(current_user, path):
         "/phecode/",
         "/nomaly-stats/",
         "/phecode2/",
-        "/nomaly-stats2/",
+        # "/nomaly-stats2/",
         "/run-task/",
         "/variant_scores/",
         "/stream_progress/",

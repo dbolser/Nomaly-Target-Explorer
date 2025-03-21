@@ -6,6 +6,38 @@
 
 {% include 'partials/phecode_details.html' %}
 
+<!-- Simple Ancestry Selector -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5>Analysis Settings</h5>
+    </div>
+    <div class="card-body">
+        <form id="settingsForm" action="{{ url_for('phecode.update_settings', phecode=data.phecode) }}" method="post">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="runVersionSelect" class="form-label">Run Version:</label>
+                    <select class="form-select" id="runVersionSelect" name="run_version">
+                        <option value="Run-v1" {% if data.runbatch=="Run-v1" %}selected{% endif %}>Run-v1</option>
+                        <option value="Run-v2" {% if data.runbatch=="Run-v2" %}selected{% endif %}>Run-v2</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="ancestrySelect" class="form-label">Ancestry:</label>
+                    <select class="form-select" id="ancestrySelect" name="ancestry">
+                        <option value="EUR" {% if data.ancestry=="EUR" %}selected{% endif %}>EUR</option>
+                        <option value="AFR" {% if data.ancestry=="AFR" %}selected{% endif %}>AFR</option>
+                        <option value="SAS" {% if data.ancestry=="SAS" %}selected{% endif %}>SAS</option>
+                        <option value="EAS" {% if data.ancestry=="EAS" %}selected{% endif %}>EAS</option>
+                    </select>
+                </div>
+            </div>
+            <div class="text-end">
+                <button type="submit" class="btn btn-primary">Apply Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Centered spinner -->
 <div id="nomalySpinner" class="d-flex justify-content-center align-items-center my-5">
     <div class="spinner-border text-primary" role="status">
@@ -369,7 +401,7 @@
         $('#nomalySpinner').show();
         $('#NomalyResultContainer').hide();
 
-        const endpoint = runbatch === "Run v1" ? `/nomaly-stats/${phecode}` : `/nomaly-stats2/${phecode}`;
+        const endpoint = `/nomaly-stats/${phecode}`;
         console.log('Fetching data from:', endpoint);
 
         try {

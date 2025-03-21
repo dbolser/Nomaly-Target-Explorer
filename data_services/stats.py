@@ -5,15 +5,18 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from data_services.utils import deprecated
-
 
 class StatsRegistry:
     """Registry for managing multiple StatsService instances."""
 
-    def __init__(self, stats_selector: Dict):
+    def __init__(self, stats_selector: Dict | None = None):
         self.stats_selector = stats_selector
+        self.initialized = stats_selector is not None
         self._services: Dict[Tuple[str, str], StatsService] = {}
+
+    def _check_initialized(self):
+        if not self.initialized:
+            raise ValueError("Service not properly initialized: missing filename")
 
     def get(self, run_version: str = "Run-v1", ancestry: str = "EUR") -> "StatsService":
         """Get a StatsService instance for the specified run version and ancestry.
@@ -28,10 +31,13 @@ class StatsRegistry:
         Raises:
             ValueError: If the requested combination doesn't exist
         """
+        self._check_initialized()
+
         key = (run_version, ancestry)
 
         if key not in self._services:
             try:
+                assert self.stats_selector is not None
                 file_path = self.stats_selector[run_version][ancestry]
                 self._services[key] = StatsService(file_path)
             except KeyError:

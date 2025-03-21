@@ -3,45 +3,35 @@ import logging
 
 import numpy as np
 import pandas as pd
-from flask import Blueprint, current_app, jsonify, render_template, request, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    jsonify,
+    render_template,
+    request,
+    session,
+    url_for,
+    redirect,
+)
 
 from blueprints.gwas import format_gwas_results, run_gwas
 from blueprints.nomaly import make_qqplot
+from data_services import (
+    PhenotypeService,
+    ServiceRegistry,
+    StatsRegistry,
+    StatsService,
+)
 from db import (
+    get_all_phecodes,
     get_phecode_info,
     get_term_domains,
     get_term_genes,
     get_term_names,
-    get_all_phecodes,
 )
 
 logger = logging.getLogger(__name__)
 phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
-
-
-# TODO: Move this to the stats service!
-# TODO: Implement a stats service that can handle different versions *and* populations
-def get_stats_handler(version=1, population: str | None = None):
-    """Get the appropriate stats handler based on version."""
-    services = current_app.extensions["nomaly_services"]
-    return services.stats_v2 if version == 2 else services.stats
-
-
-def get_phecode_data(phecode, population: str | None = None) -> dict:
-    data = get_phecode_info(phecode)
-
-    services = current_app.extensions["nomaly_services"]
-    assert services.phenotype is not None
-    case_counts = services.phenotype._hdf.get_case_counts_for_phecode(
-        phecode, population=population
-    )
-
-    data["population"] = population or "All"
-    data["affected"] = case_counts["affected"]
-    data["excluded"] = case_counts["excluded"]
-    data["control"] = case_counts["control"]
-
-    return data
 
 
 @phecode_bp.route("/random_phecode", methods=["GET"])
@@ -51,81 +41,159 @@ def get_random_phecode():
     return phecodes.sample(1).iloc[0]["phecode"]
 
 
-# TODO: Merge these two endpoints
 @phecode_bp.route("/phecode/<string:phecode>", methods=["GET"])
-@phecode_bp.route("/phecode/<string:phecode>/<string:population>", methods=["GET"])
-def show_phecode(phecode, population=None):
-    data = get_phecode_data(phecode, population)
-    data["runbatch"] = "Run v1"
-    data["show_gwas"] = request.args.get("gwas") == "1"
+def show_phecode(phecode):
+    """Show the phecode page."""
 
-    return render_template("phecode.html", data=data)
+    # Get Run version and ancestry from session
+    run_version = session.get("run_version", "Run-v1")
+    ancestry = session.get("ancestry", "EUR")
+
+    # Store values in session to ensure they persist
+    session["run_version"] = run_version
+    session["ancestry"] = ancestry
+
+    try:
+        # Get services while we're in 'app context'
+        services: ServiceRegistry = current_app.extensions["nomaly_services"]
+
+        # NOTE: We inject the appropriate services into 'backend' functions
+        # (dependency injection)
+        phecode_data = get_phecode_data(phecode, services.phenotype, ancestry)
+
+        # Add runbatch and ancestry to the data for display AFTER getting phecode data
+        phecode_data["runbatch"] = run_version
+        phecode_data["ancestry"] = ancestry
+
+        # Cobble together a half functional systsem..
+        phecode_data["show_gwas"] = request.args.get("gwas") == "1"
+
+        # And finally shove the whole thing into the template
+        return render_template("phecode.html", data=phecode_data)
+    except Exception as e:
+        logger.error(f"Failed to get Phecode data for {phecode}: {e}")
+        return jsonify({"error": "Failed to get Phecode data"}), 500
 
 
-@phecode_bp.route("/phecode2/<string:phecode>", methods=["GET"])
-@phecode_bp.route("/phecode2/<string:phecode>/<string:population>", methods=["GET"])
-def show_phecode2(phecode, population=None):
-    data = get_phecode_data(phecode, population)
-    data["runbatch"] = "Run v2"
-    data["show_gwas"] = request.args.get("gwas") == "1"
-    return render_template("phecode.html", data=data)
+def get_phecode_data(
+    phecode,
+    phenotype_service: PhenotypeService,
+    ancestry: str,
+) -> dict:
+    """Get the data for a phecode."""
+    data = get_phecode_info(phecode)
+
+    # Get case counts for the phecode
+    case_counts = phenotype_service.get_case_counts_for_phecode(phecode, ancestry)
+
+    data["population"] = ancestry or "EUR"
+    data["affected"] = case_counts["affected"]
+    data["excluded"] = case_counts["excluded"]
+    data["control"] = case_counts["control"]
+
+    return data
 
 
 # Called by phecode.html
-@phecode_bp.route("/run-task/<string:phecode>", methods=["POST"])
-def run_task(phecode):
-    """Endpoint to run GWAS analysis."""
+@phecode_bp.route("/nomaly-stats/<string:phecode>", methods=["POST"])
+def get_nomaly_stats(phecode, run_version=None, ancestry=None):
+    """Get nomaly stats"""
+
+    if run_version is None or ancestry is None:
+        # Get Run version and ancestry from the session
+        run_version = session.get("run_version", "Run-v1")
+        ancestry = session.get("ancestry", "EUR")
+
     try:
-        results = run_gwas(phecode)
-        formatted_results = format_gwas_results(results)
-        return jsonify(
-            {
-                "status": "completed",
-                "result": f"GWAS completed successfully with {len(formatted_results)} significant variants",
-                "associations": formatted_results,
-            }
-        )
+        services: ServiceRegistry = current_app.extensions["nomaly_services"]
+
+        stats_registry: StatsRegistry = services.stats_registry
+        stats_handler = stats_registry.get(run_version, ancestry)
+
+        phecode_stats = stats_handler.get_phecode_stats(phecode)
+
+        logger.info(f"Got {len(phecode_stats)} stats for {phecode}")
     except Exception as e:
-        logger.exception(f"GWAS failed for {phecode}")
-        error_message = f"GWAS analysis failed: {str(e)}"
-        return jsonify({"status": "failed", "result": error_message}), 500
+        logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
+        return jsonify({"error": "Failed to get Nomaly stats"}), 500
+
+    return prepare_nomaly_stats_response(phecode, phecode_stats)
 
 
-def read_disease_stats_from_nomaly_statsHDF5(stats_handler, phecode: str):
-    """Read disease stats from HDF5 file using the provided stats handler."""
-    try:
-        diseasestats = stats_handler._hdf.get_stats_by_phecode(phecode)
-    except Exception as e:
-        logger.error(
-            f"Failed to get Nomaly stats for Phecode {phecode}, exception was {e}",
-            exc_info=True,
-        )
-        raise
+def prepare_nomaly_stats_response(phecode, phecode_stats):
+    """Prepare the JSON response for nomaly stats."""
 
-    # rename columns
-    for col in diseasestats.columns:
-        if col.startswith("roc_stats_"):
-            diseasestats = diseasestats.rename(
-                columns={col: col.replace("roc_stats_", "")}
-            )
+    # Rename columns (for some reason)
+    renames = {
+        x: x.replace("roc_stats_", "")
+        for x in phecode_stats.columns
+        if x.startswith("roc_stats_")
+    }
+    phecode_stats.rename(columns=renames, inplace=True)
 
-    # select columns with pvalues
+    # Pull out pvalue_columns into a new dataframe
+    pvalue_columns = [x for x in phecode_stats.columns if x.endswith("_pvalue")]
+    plot_df = phecode_stats.loc[:, pvalue_columns]
+
+    # NOTE: There are two pvalues we don't like...
+    plot_df.drop(columns=["lrp_protective_pvalue", "tti_pvalue"], inplace=True)
+
+    # Set the metric1_pvalue to na if it is 1
+    # plot_df[plot_df["metric1_pvalue"].isna(), "metric1_pvalue"] = 1
+
+    # First get the term 'names' for each term (term_id)
+
+    plot_df["term"] = plot_df.index
+
+    # NOTE: term = term_id = short code, term_name = term description)
+    term_list = list(plot_df["term"])
+    term_name_dict = get_term_names(term_list)
+
+    # Add description column before plotting
+    plot_df = plot_df.assign(
+        description=plot_df["term"].map(lambda x: term_name_dict.get(x, "-"))
+    )
+
+    # Instead of HTML, send the plot data
+    plot_data = get_qqplot_data(plot_df)
+
+    # Format data for table display... why?
+    plot_df = show_datatable_nomaly_stats(plot_df, phecode)
+
+    # Add a link to the term page for each term
+    # TODO: This should probably be done inside the template!
+    plot_df["term"] = plot_df["term"].map(
+        lambda x: f'<a href="{url_for("phecode_term.show_phecode_term", phecode=phecode, term=x)}" target="_blank">{x}</a>'
+    )
+
     pval_nondirect = ["mwu_pvalue", "mcc_pvalue", "yjs_pvalue", "lrp_pvalue"]
     pval_pos = ["metric1_pvalue"]
     pval_neg = ["lrn_protective_pvalue"]
     columns_pval = pval_nondirect + pval_pos + pval_neg
-    plot_df_pval = diseasestats[columns_pval].copy()
-    plot_df_pval.loc[:, "term"] = plot_df_pval.index
 
-    # set metric1_pvalue to na if it is 1
-    plot_df_pval.loc[:, "metric1_pvalue"] = plot_df_pval["metric1_pvalue"].map(
-        lambda x: None if x == 1 else x
-    )
+    column_display_names = get_column_display_names()
+    base_columns = ["minrank", "term", "name", "domain"]
 
-    return diseasestats, plot_df_pval
+    response = {
+        "plotData": plot_data,  # Send JSON data instead of HTML
+        "affected": phecode_stats["num_rp"].values[0],
+        "control": phecode_stats["num_rn"].values[0],
+        "data": plot_df.replace("nan", "1.00e+00").to_dict(orient="records"),
+        "columns": base_columns + columns_pval,
+        "columnNames": [
+            column_display_names[col]["display"] for col in base_columns + columns_pval
+        ],
+        "columnTooltips": [
+            column_display_names[col]["tooltip"] for col in base_columns + columns_pval
+        ],
+        "defaultColumns": base_columns + ["mwu_pvalue", "metric1_pvalue", "mcc_pvalue"],
+        "numColumns": columns_pval,
+    }
+
+    return jsonify(response)
 
 
-def make_qqplot_data(plot_df_pval):
+def get_qqplot_data(plot_df_pval):
     """Return the data needed to create the plot in JavaScript"""
     fig = make_qqplot(plot_df_pval)
 
@@ -289,110 +357,69 @@ def get_column_display_names():
     }
 
 
-def prepare_nomaly_stats_response(disease_stats, plot_df, phecode, version=1):
-    """Prepare the JSON response for nomaly stats."""
-    if disease_stats is None or plot_df is None:
-        return jsonify({"error": "Failed to get Nomaly stats"}), 500
-
-    # First get the term names to add descriptions
-    term_list = plot_df["term"].tolist()
-    term_name_dict = get_term_names(term_list)
-    # Add description column before plotting
-    plot_df = plot_df.assign(
-        description=plot_df["term"].map(lambda x: term_name_dict.get(x, "-"))
-    )
-
-    # Instead of HTML, send the plot data
-    plot_data = make_qqplot_data(plot_df)
-
-    # Format data for table display
-    plot_df = show_datatable_nomaly_stats(plot_df, phecode)
-
-    plot_df["term"] = plot_df["term"].map(
-        lambda x: f'<a href="{url_for("phecode_term.show_phecode_term", phecode=phecode, term=x)}" target="_blank">{x}</a>'
-    )
-
-    pval_nondirect = ["mwu_pvalue", "mcc_pvalue", "yjs_pvalue", "lrp_pvalue"]
-    pval_pos = ["metric1_pvalue"]
-    pval_neg = ["lrn_protective_pvalue"]
-    columns_pval = pval_nondirect + pval_pos + pval_neg
-
-    column_display_names = get_column_display_names()
-    base_columns = ["minrank", "term", "name", "domain"]
-
-    response = {
-        "plotData": plot_data,  # Send JSON data instead of HTML
-        "affected": disease_stats["num_rp"].values[0],
-        "control": disease_stats["num_rn"].values[0],
-        "data": plot_df.replace("nan", "1.00e+00").to_dict(orient="records"),
-        "columns": base_columns + columns_pval,
-        "columnNames": [
-            column_display_names[col]["display"] for col in base_columns + columns_pval
-        ],
-        "columnTooltips": [
-            column_display_names[col]["tooltip"] for col in base_columns + columns_pval
-        ],
-        "defaultColumns": base_columns + ["mwu_pvalue", "metric1_pvalue", "mcc_pvalue"],
-        "numColumns": columns_pval,
-    }
-
-    return jsonify(response)
-
-
-# TODO: Merge these two endpoints
-@phecode_bp.route("/nomaly-stats/<string:phecode>", methods=["POST"])
-def get_nomaly_stats(phecode):
-    """Get nomaly stats for v1."""
+# Called by phecode.html
+@phecode_bp.route("/run-task/<string:phecode>", methods=["POST"])
+def run_task(phecode):
+    """Endpoint to run GWAS analysis."""
     try:
-        stats_handler = get_stats_handler(version=1)
-        diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
-            stats_handler, phecode
+        results = run_gwas(phecode)
+        formatted_results = format_gwas_results(results)
+        return jsonify(
+            {
+                "status": "completed",
+                "result": f"GWAS completed successfully with {len(formatted_results)} significant variants",
+                "associations": formatted_results,
+            }
         )
-        return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=1)
     except Exception as e:
-        logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
-        return jsonify({"error": "Failed to get Nomaly stats"}), 500
+        logger.exception(f"GWAS failed for {phecode}")
+        error_message = f"GWAS analysis failed: {str(e)}"
+        return jsonify({"status": "failed", "result": error_message}), 500
 
 
-@phecode_bp.route("/nomaly-stats2/<string:phecode>", methods=["POST"])
-def get_nomaly_stats2(phecode):
-    """Get nomaly stats for v2."""
-    try:
-        stats_handler = get_stats_handler(version=2)
-        diseasestats, plot_df = read_disease_stats_from_nomaly_statsHDF5(
-            stats_handler, phecode
-        )
-        return prepare_nomaly_stats_response(diseasestats, plot_df, phecode, version=2)
-    except Exception as e:
-        logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
-        return jsonify({"error": "Failed to get Nomaly stats"}), 500
+# Add a new route to update session settings
+@phecode_bp.route("/update_settings/<string:phecode>", methods=["POST"])
+def update_settings(phecode):
+    """Update session settings and redirect back to phecode page."""
+    # Get values from form
+    run_version = request.form.get("run_version", "Run-v1")
+    ancestry = request.form.get("ancestry", "EUR")
+
+    print(f"Ancestry: {ancestry}")
+    # Store in session
+    session["run_version"] = run_version
+    session["ancestry"] = ancestry
+
+    # Redirect back to phecode page
+    return redirect(url_for("phecode.show_phecode", phecode=phecode))
 
 
 def main():
-    from app import create_app
+    """Main function for testing."""
 
-    app = create_app("development")
+    from config import Config
 
-    with app.app_context():
-        # services = current_app.extensions["nomaly_services"]
+    services = ServiceRegistry.from_config(Config)
 
-        # TOOD: Move this to the stats service?
-        stats_service = get_stats_handler(version=2, population=None)
-        stats_hdf = stats_service._hdf
+    stats_service: StatsService = services.stats_registry.get(
+        run_version="Run-v1", ancestry="EUR"
+    )
 
-        print(stats_hdf.get_stats_by_phecode("332"))
-        print(stats_hdf.get_stats_by_phecode("332", "roc_stats_lrn_pvalue"))
-        print(
-            stats_hdf.get_stats_by_phecode(
-                "332", ["roc_stats_lrn_pvalue", "mwu_pvalue"]
-            )
+    # Some random tests of get_phecode_stats...
+    print(stats_service.get_phecode_stats("332"))
+    print(stats_service.get_phecode_stats("332", stats_types=["roc_stats_lrn_pvalue"]))
+    print(
+        stats_service.get_phecode_stats(
+            "332", stats_types=["roc_stats_lrn_pvalue", "mwu_pvalue"]
         )
+    )
+    print(stats_service.get_phecode_stats("332", term="MP:0004957"))
 
-        print(stats_hdf.get_stats_by_term_phecode("MP:0004957", "332"))
+    # Test of some of the weirdness...
+    stats = stats_service.get_phecode_stats("332")
+    prepare_nomaly_stats_response("332", stats)
 
-        some_test = read_disease_stats_from_nomaly_statsHDF5(stats_service, "332")
-        print(some_test)
-
+    print("Done")
 
 if __name__ == "__main__":
     main()

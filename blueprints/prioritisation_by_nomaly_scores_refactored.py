@@ -104,8 +104,7 @@ def term_variant_prioritisation(
 def fetch_phenotype_data(
     phecode: str,
     phenotype_service,
-    population: Optional[str] = None,
-    biological_sex: Optional[str] = None,
+    population: str = "EUR",
     stream_logger=None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -114,23 +113,19 @@ def fetch_phenotype_data(
     Args:
         phecode: The disease code
         phenotype_service: Service to fetch phenotype data
-        population: Optional population filter
-        biological_sex: Optional biological sex filter
+        population: Optional population filter, defaults to "EUR"
         stream_logger: Optional logger for streaming progress
 
     Returns:
         Tuple containing (case_eids, control_eids, exclude_eids, all_eids, phenotypes)
     """
     # Get phenotype data for the given phecode
-    eids, phenotypes = phenotype_service.get_cases_for_phecode(
-        phecode, population, biological_sex
-    )
+    eids, phenotypes = phenotype_service.get_cases_for_phecode(phecode, population)
 
-    log_message = f"Got {len(eids)} samples for phecode {phecode} with population {population} and sex {biological_sex}"
-    if stream_logger:
-        stream_logger.info(log_message)
-    else:
-        logger.info(log_message)
+    log_and_stream(
+        f"Got {len(eids)} samples for phecode {phecode} with population {population}",
+        stream_logger,
+    )
 
     # Separate cases, controls, and excludes
     case_eids = eids[phenotypes == 1]
@@ -140,11 +135,10 @@ def fetch_phenotype_data(
     # Verify that all eids are accounted for
     assert len(eids) == len(case_eids) + len(control_eids) + len(exclude_eids)
 
-    log_message = f"Got {len(case_eids)} cases for {phecode} with population {population} and sex {biological_sex}"
-    if stream_logger:
-        stream_logger.info(log_message)
-    else:
-        logger.info(log_message)
+    log_and_stream(
+        f"Got {len(case_eids)} cases for {phecode} with population {population}",
+        stream_logger,
+    )
 
     # Assert that the case eids are sorted
     assert np.all(np.diff(case_eids) > 0), "case_eids are not sorted!"
@@ -447,10 +441,10 @@ def get_top_variants_refactored(
     term: str,
     phenotype_service,
     genotype_service,
-    nomaly_scores_service,
+    score_service,
     stats_service,
-    population: Optional[str] = None,
-    biological_sex: Optional[str] = None,
+    run_version: str,
+    ancestry: str,
     stream_logger=None,
     protective: bool = False,
     no_cache: bool = False,
@@ -479,7 +473,7 @@ def get_top_variants_refactored(
     """
     # Try to load from cache first (unless no_cache is True)
     if not no_cache:
-        cached_results = load_cached_results(phecode, term)
+        cached_results = load_cached_results(phecode, term, run_version, ancestry)
         if cached_results:
             if stream_logger:
                 stream_logger.info("Loaded results from cache")
@@ -494,9 +488,7 @@ def get_top_variants_refactored(
     try:
         # Step 1: Fetch phenotype data
         case_eids, control_eids, exclude_eids, all_eids, phenotypes = (
-            fetch_phenotype_data(
-                phecode, phenotype_service, population, biological_sex, stream_logger
-            )
+            fetch_phenotype_data(phecode, phenotype_service, ancestry, stream_logger)
         )
 
         # Step 2: Get term variants
@@ -507,7 +499,7 @@ def get_top_variants_refactored(
 
         # Step 3: Fetch Nomaly scores
         case_scores, control_scores = fetch_nomaly_scores(
-            case_eids, control_eids, nomaly_scores_service, term
+            case_eids, control_eids, score_service, term
         )
 
         # Step 4: Fetch stats data
@@ -544,7 +536,7 @@ def get_top_variants_refactored(
             )
 
         # Step 8: Save to cache
-        save_results_to_cache(phecode, term, stats)
+        save_results_to_cache(phecode, term, stats, run_version, ancestry)
 
         return stats
 
@@ -590,17 +582,23 @@ def main():
 
     from app import create_app
 
+    # TODO: Avoid using app context when we should just be able to 'inject' services...
     app = create_app("development")
     with app.app_context():
         services = app.extensions["nomaly_services"]
 
+        run_version = "Run-v1"
+        ancestry = "EUR"
+
         data = get_top_variants_refactored(
             phecode,
             term,
-            services.phenotype._hdf,
-            services.genotype._hdf,
-            services.nomaly_score._hdf,
-            services.stats._hdf,
+            services.phenotype,
+            services.genotype,
+            services.nomaly_score,
+            services.stats,
+            run_version=run_version,
+            ancestry=ancestry,
             no_cache=True,
             # protective=True,
         )

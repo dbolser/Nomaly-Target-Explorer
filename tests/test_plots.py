@@ -1,5 +1,5 @@
 import json
-from blueprints.phecode import make_qqplot_data
+from blueprints.phecode import get_qqplot_data
 import pandas as pd
 
 
@@ -15,7 +15,7 @@ def test_qqplot_data_has_points():
         }
     )
     # Generate the plot data
-    plot_data_json = make_qqplot_data(test_df)
+    plot_data_json = get_qqplot_data(test_df)
     plot_data = json.loads(plot_data_json)
 
     # Basic structure checks

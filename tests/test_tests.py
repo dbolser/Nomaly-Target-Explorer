@@ -68,7 +68,7 @@ def test_integration_app(integration_app):
         # Check that each service has the _hdf attribute
         assert hasattr(services.genotype, "_hdf")
         assert hasattr(services.phenotype, "_hdf")
-        assert hasattr(services.stats, "_hdf")
+        # assert hasattr(services.stats, "_hdf")
         assert hasattr(services.nomaly_score, "_hdf")
 
 

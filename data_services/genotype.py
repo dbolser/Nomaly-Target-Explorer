@@ -1,33 +1,16 @@
+import logging
 import re
 from pathlib import Path
 from typing import Optional
-from functools import wraps
 
 import h5py
 import numpy as np
-import warnings
 
-import logging
+from data_services.utils import deprecated
 
 logger = logging.getLogger(__name__)
 
 chr_str = re.compile("chr", re.IGNORECASE)
-
-
-def deprecated(message: str):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            warnings.warn(
-                f"{func.__name__} is deprecated. {message}",
-                category=DeprecationWarning,
-                stacklevel=2,
-            )
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
 
 
 class GenotypeService:
@@ -42,7 +25,9 @@ class GenotypeService:
         """Delegate to the underlying HDF5 file's individual property."""
         return self._hdf.individual
 
-    def query_variantID_genotypes(self, variant: str) -> tuple[np.ndarray, np.ndarray] | None:
+    def query_variantID_genotypes(
+        self, variant: str
+    ) -> tuple[np.ndarray, np.ndarray] | None:
         """Delegate to the underlying HDF5 file's query_variantID_genotypes method."""
         return self._hdf.query_variantID_genotypes(variant)
 
@@ -64,122 +49,115 @@ class GenotypesHDF5:
     """
 
     def __init__(self, hdf5_file: Path):
-        self.hdf5_file = hdf5_file
+        self.f = h5py.File(hdf5_file, "r")
 
-        # TODO: should we add this 'with' to the PhenotypeService too?
-        with h5py.File(hdf5_file, "r") as f:
-            self.f = f
+        # TODO: Fix the naming of the fields!
+        genotype_matrix = self.f["genotype_matrix"]
+        individual = self.f["fam"]
+        biological_sex = self.f["sex"]
+        ancestry = self.f["ancestry"]
 
-            # Jumping through hoops to fix the type checker...
-            # TODO: Fix the naming of the fields!
-            genotype_matrix = self.f["genotype_matrix"]
-            individual = self.f["fam"]
-            biological_sex = self.f["sex"]
-            ancestry = self.f["ancestry"]
+        genotype_variant_id = self.f["bim"]
+        nomaly_variant_id = self.f["nomaly_variant_id"]
+        plink_variant_id = self.f["plink_variant_id"]
 
-            genotype_variant_id = self.f["bim"]
-            nomaly_variant_id = self.f["nomaly_variant_id"]
-            plink_variant_id = self.f["plink_variant_id"]
+        # genotype_counts = self.f["genotype_counts"]
 
-            # genotype_counts = self.f["genotype_counts"]
+        # Jumping through hoops to fix the type checker...
+        assert isinstance(genotype_matrix, h5py.Dataset)
+        assert isinstance(individual, h5py.Dataset)
+        assert isinstance(biological_sex, h5py.Dataset)
+        assert isinstance(ancestry, h5py.Dataset)
+        assert isinstance(genotype_variant_id, h5py.Dataset)
+        assert isinstance(nomaly_variant_id, h5py.Dataset)
+        assert isinstance(plink_variant_id, h5py.Dataset)
 
-            # Type checker magic
-            assert isinstance(genotype_matrix, h5py.Dataset)
-            assert isinstance(individual, h5py.Dataset)
-            assert isinstance(biological_sex, h5py.Dataset)
-            assert isinstance(ancestry, h5py.Dataset)
-            assert isinstance(genotype_variant_id, h5py.Dataset)
-            assert isinstance(nomaly_variant_id, h5py.Dataset)
-            assert isinstance(plink_variant_id, h5py.Dataset)
+        # Sanity checks
+        try:
+            print(f"RUNNING SANITY CHECK ON {self.f.filename}")
+            # assert isinstance(genotype_counts, h5py.Dataset)
 
-            # Sanity checks
-            # TODO: Move these to integration tests?
-            try:
-                # assert isinstance(genotype_counts, h5py.Dataset)
+            assert genotype_matrix.shape[0] == genotype_variant_id.shape[0]
+            assert genotype_matrix.shape[1] == individual.shape[0]
 
-                assert genotype_matrix.shape[0] == genotype_variant_id.shape[0]
-                assert genotype_matrix.shape[1] == individual.shape[0]
+            assert biological_sex.shape[0] == individual.shape[0]
+            assert ancestry.shape[0] == individual.shape[0]
 
-                assert biological_sex.shape[0] == individual.shape[0]
-                assert ancestry.shape[0] == individual.shape[0]
+            assert nomaly_variant_id.shape[0] == genotype_variant_id.shape[0]
 
-                assert nomaly_variant_id.shape[0] == genotype_variant_id.shape[0]
+            # assert genotype_counts.shape[0] == genotype_variant_id.shape[0]
 
-                # assert genotype_counts.shape[0] == genotype_variant_id.shape[0]
+        except Exception as e:
+            print(f"Error in sanity checks: {str(e)}")
+            raise
 
-            except Exception as e:
-                print(f"Error in sanity checks: {str(e)}")
-                raise
+        # Load the data matrix and index information as numpy arrays
+        # self.genotype_matrix: h5py.Dataset = genotype_matrix
+        self.individual: np.ndarray = individual[...].astype(int)
+        self.biological_sex: np.ndarray = biological_sex[...].astype(str)
+        self.ancestry: np.ndarray = ancestry[...].astype(str)
 
-            # Load the data matrix and index information as numpy arrays
-            # self.genotype_matrix: h5py.Dataset = genotype_matrix
-            self.individual: np.ndarray = individual[...].astype(int)
-            self.biological_sex: np.ndarray = biological_sex[...].astype(str)
-            self.ancestry: np.ndarray = ancestry[...].astype(str)
+        self.genotype_variant_id: np.ndarray = genotype_variant_id[...].astype(str)
+        self.nomaly_variant_id: np.ndarray = nomaly_variant_id[...].astype(str)
+        self.plink_variant_id: np.ndarray = plink_variant_id[...].astype(str)
 
-            self.genotype_variant_id: np.ndarray = genotype_variant_id[...].astype(str)
-            self.nomaly_variant_id: np.ndarray = nomaly_variant_id[...].astype(str)
-            self.plink_variant_id: np.ndarray = plink_variant_id[...].astype(str)
+        # self.genotype_counts: np.ndarray = genotype_counts[...].astype(int)
 
-            # self.genotype_counts: np.ndarray = genotype_counts[...].astype(int)
+        # TODO: Convert genotype matrix to np.memmap here? (Currently we
+        # assume that the corresponding .npy file already exists.)
+        genotype_matrix_np_path = f"{self.f.file.filename}.npy"
 
-            # TODO: Convert genotype matrix to np.memmap here? (Currently we
-            # assume that the corresponding .npy file already exists.)
-            genotype_matrix_np_path = f"{self.f.file.filename}.npy"
+        # Load genotype_matrix as memmap!
+        self.genotype_matrix: np.ndarray = np.load(
+            genotype_matrix_np_path,
+            mmap_mode="r",  # TODO: What is mode?
+        )
 
-            # Load genotype_matrix as memmap!
-            self.genotype_matrix: np.ndarray = np.load(
-                genotype_matrix_np_path,
-                mmap_mode="r",  # TODO: What is mode?
-            )
+        # More sanity checks
 
-            # More sanity checks
+        assert np.all(np.diff(self.individual) > 0), "EIDs are expected to be sorted"
 
-            assert np.all(np.diff(self.individual) > 0), (
-                "EIDs are expected to be sorted"
-            )
+        # # TODO: Move these to integration tests?
+        # try:
+        #     assert self.genotype_matrix_mm.shape == self.genotype_matrix.shape
+        #     assert self.genotype_matrix_mm.dtype == self.genotype_matrix.dtype
 
-            # # TODO: Move these to integration tests?
-            # try:
-            #     assert self.genotype_matrix_mm.shape == self.genotype_matrix.shape
-            #     assert self.genotype_matrix_mm.dtype == self.genotype_matrix.dtype
+        #     # A bit random, but hey...
+        #     assert np.all(
+        #         self.genotype_matrix[0:10, :] == self.genotype_matrix_mm[0:10, :]
+        #     )
+        #     assert np.all(
+        #         self.genotype_matrix[:, 0:10] == self.genotype_matrix_mm[:, 0:10]
+        #     )
+        # except Exception as e:
+        #     print(
+        #         f"Error in sanity checks, HDF5 genotype_matrix != memmap: {str(e)}"
+        #     )
+        #     raise
 
-            #     # A bit random, but hey...
-            #     assert np.all(
-            #         self.genotype_matrix[0:10, :] == self.genotype_matrix_mm[0:10, :]
-            #     )
-            #     assert np.all(
-            #         self.genotype_matrix[:, 0:10] == self.genotype_matrix_mm[:, 0:10]
-            #     )
-            # except Exception as e:
-            #     print(
-            #         f"Error in sanity checks, HDF5 genotype_matrix != memmap: {str(e)}"
-            #     )
-            #     raise
+        # # Switch to mm (for testing)
+        # self.genotype_matrix_h5 = self.genotype_matrix
+        # self.genotype_matrix = self.genotype_matrix_mm
 
-            # # Switch to mm (for testing)
-            # self.genotype_matrix_h5 = self.genotype_matrix
-            # self.genotype_matrix = self.genotype_matrix_mm
+        # Above we try asserting that eid's are sorted, but the following is
+        # fast enough, I think it's probably preferable to not care and do
+        # this anyway. It's a small up-front cost for a lot of downstream
+        # benefit, and praying that we sorted everything as expectd is a
+        # burden to carry.
 
-            # Above we try asserting that eid's are sorted, but the following is
-            # fast enough, I think it's probably preferable to not care and do
-            # this anyway. It's a small up-front cost for a lot of downstream
-            # benefit, and praying that we sorted everything as expectd is a
-            # burden to carry.
+        # Precompute sorted indices for faster lookups
+        self._individual_argsort = np.argsort(self.individual)
+        self._individual_sorted = self.individual[self._individual_argsort]
 
-            # Precompute sorted indices for faster lookups
-            self._individual_argsort = np.argsort(self.individual)
-            self._individual_sorted = self.individual[self._individual_argsort]
+        self._nomaly_variant_argsort = np.argsort(self.nomaly_variant_id)
+        self._nomaly_variant_sorted = self.nomaly_variant_id[
+            self._nomaly_variant_argsort
+        ]
 
-            self._nomaly_variant_argsort = np.argsort(self.nomaly_variant_id)
-            self._nomaly_variant_sorted = self.nomaly_variant_id[
-                self._nomaly_variant_argsort
-            ]
-
-            self._genotype_variant_argsort = np.argsort(self.genotype_variant_id)
-            self._genotype_variant_sorted = self.genotype_variant_id[
-                self._genotype_variant_argsort
-            ]
+        self._genotype_variant_argsort = np.argsort(self.genotype_variant_id)
+        self._genotype_variant_sorted = self.genotype_variant_id[
+            self._genotype_variant_argsort
+        ]
 
         # Hopefully we never need to use this...
         self.allele_flipped_in_genotype_file_relative_to_nomaly_variant_id = (

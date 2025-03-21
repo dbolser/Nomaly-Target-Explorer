@@ -1,10 +1,12 @@
 import logging
+from typing import Dict, List
+
 import mysql.connector
 import pandas as pd
 from mysql.connector.abstracts import MySQLConnectionAbstract
 
-from errors import DatabaseConnectionError, DataNotFoundError
 from config import Config
+from errors import DatabaseConnectionError, DataNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +77,7 @@ def get_phecode_info(phecode: str) -> dict:
         raise
 
 
-def get_term_names(terms_list: list[str]) -> dict[str, str]:
-    if not terms_list:
-        logger.warning("No terms provided")
-        return {}
-
+def get_term_names(terms_list: List[str]) -> Dict[str, str]:
     try:
         with get_db_connection() as conn:
             with conn.cursor(dictionary=True) as cur:
@@ -92,17 +90,13 @@ def get_term_names(terms_list: list[str]) -> dict[str, str]:
                 results = cur.fetchall()
 
                 if not results:
-                    logger.warning(f"No data found for terms: {terms_list}")
-                    return {}
+                    raise DataNotFoundError(f"No data found for terms: {terms_list}")
 
-                # turn into a dictionary, Note results is a list of dictionaries
+                # Result is a list of dictionaries
                 term_name_dict = {result["term"]: result["name"] for result in results}
 
                 return term_name_dict
     except DatabaseConnectionError:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching term names: {str(e)}", exc_info=True)
         raise
 
 

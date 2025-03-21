@@ -21,11 +21,19 @@ from flask import (
     current_app,
     render_template,
     request,
+    session,
     stream_with_context,
 )
 
 from blueprints.phecode import get_phecode_data
 from config import Config
+from data_services import (
+    GenotypeService,
+    NomalyScoreService,
+    PhenotypeService,
+    ServiceRegistry,
+    StatsService,
+)
 from db import get_term_domains, get_term_genes, get_term_names, get_term_variants
 
 logger = logging.getLogger(__name__)
@@ -247,16 +255,23 @@ def term_variant_prioritisation(
     return top_variants
 
 
-def get_cache_path(disease_code: str, term: str) -> Path:
+def get_cache_path(
+    disease_code: str, term: str, run_version: str, ancestry: str
+) -> Path:
     """Get the cache file path for this disease/term combination."""
     cache_dir = Path(Config.VARIANT_SCORES_DIR)
     cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir / f"variant_prioritization_{disease_code}_{term}.json"
+    return (
+        cache_dir
+        / f"variant_prioritization_{disease_code}_{term}_{run_version}_{ancestry}.json"
+    )
 
 
-def load_cached_results(disease_code: str, term: str) -> Optional[Dict[str, Any]]:
+def load_cached_results(
+    disease_code: str, term: str, run_version: str, ancestry: str
+) -> Optional[Dict[str, Any]]:
     """Load cached results if they exist."""
-    cache_path = get_cache_path(disease_code, term)
+    cache_path = get_cache_path(disease_code, term, run_version, ancestry)
     if not cache_path.exists():
         return None
 
@@ -272,11 +287,11 @@ def load_cached_results(disease_code: str, term: str) -> Optional[Dict[str, Any]
 
 
 def save_results_to_cache(
-    disease_code: str, term: str, data: dict
+    disease_code: str, term: str, data: dict, run_version: str, ancestry: str
 ) -> Optional[Dict[str, Any]]:
     """Save results to cache file."""
     try:
-        cache_path = get_cache_path(disease_code, term)
+        cache_path = get_cache_path(disease_code, term, run_version, ancestry)
 
         # Convert data before saving
         converted_data = convert_numpy_types(data)
@@ -285,7 +300,7 @@ def save_results_to_cache(
         with open(cache_path, "w") as f:
             json.dump(converted_data, f, indent=2)  # indent for readability
         # Return the loaded data
-        return load_cached_results(disease_code, term)
+        return load_cached_results(disease_code, term, run_version, ancestry)
     except Exception as e:
         logger.error(f"Error saving results to cache: {e}")
         return None
@@ -295,12 +310,12 @@ def save_results_to_cache(
 def get_top_variants(
     phecode: str,
     term: str,
-    phenotype_service,
-    genotype_service,
-    nomaly_scores_service,
-    stats_service,
-    population: str | None = None,
-    biological_sex: str | None = None,
+    phenotype_service: PhenotypeService,
+    genotype_service: GenotypeService,
+    nomaly_scores_service: NomalyScoreService,
+    stats_service: StatsService,
+    run_version: str,
+    ancestry: str,
     stream_logger=None,
     protective: bool = False,
     no_cache: bool = False,
@@ -309,7 +324,7 @@ def get_top_variants(
 
     # Try to load from cache first (unless no_cache is True)
     if not no_cache:
-        cached_results = load_cached_results(phecode, term)
+        cached_results = load_cached_results(phecode, term, run_version, ancestry)
         if cached_results:
             if stream_logger:
                 stream_logger.info("Loaded results from cache")
@@ -322,12 +337,10 @@ def get_top_variants(
     )
 
     # Get phenotype data for the given phecode...
-    eids, phenotypes = phenotype_service.get_cases_for_phecode(
-        phecode, population, biological_sex
-    )
+    eids, phenotypes = phenotype_service.get_cases_for_phecode(phecode, ancestry)
 
     log_and_stream(
-        f"Got {len(eids)} samples for phecode {phecode} with population {population} and sex {biological_sex}",
+        f"Got {len(eids)} samples for phecode {phecode} with ancestry {ancestry}",
         stream_logger,
     )
 
@@ -347,7 +360,7 @@ def get_top_variants(
     assert len(eids) == len(case_eids) + len(control_eids) + len(exclude_eids)
 
     log_and_stream(
-        f"Got {len(case_eids)} cases for {phecode} with population {population} and sex {biological_sex}",
+        f"Got {len(case_eids)} cases for {phecode} with ancestry {ancestry}",
         stream_logger,
     )
 
@@ -366,10 +379,13 @@ def get_top_variants(
 
     assert len(control_eids) == len(control_scores)
 
-    stats = stats_service.get_stats_by_term_phecode(
-        term=term,
-        phecode=phecode,
-        statstype=[
+    # TODO: Not sure the stats service can access this funciton, we need to use
+    # the registry here to get the appropriate service for hte run and
+    # population
+    stats = stats_service.get_data_slice(
+        terms=[term],
+        phecodes=[phecode],
+        stats_types=[
             "num_rp",
             "num_rn",
             #
@@ -378,7 +394,6 @@ def get_top_variants(
             "roc_stats_mcc_pvalue",
             "roc_stats_mcc_or",
             "roc_stats_mcc_threshold",
-            "roc_stats_mcc_all_index",
             "roc_stats_mcc_tp",
             "roc_stats_mcc_fp",
             "roc_stats_mcc_fn",
@@ -542,19 +557,30 @@ def get_top_variants(
         stats[f"{stat}_top_gene_set"] = gene_set_data
 
     # Save to cache
-    save_results_to_cache(phecode, term, stats)
+    save_results_to_cache(phecode, term, stats.to_dict(), run_version, ancestry)
 
-    return stats
+    return stats.to_dict()
 
 
 prioritisation_bp = Blueprint("prioritisation", __name__)
 
 
 @prioritisation_bp.route("/variant_scores/<disease_code>/<term>")
-def show_variant_scores(disease_code: str, term: str):
+def show_variant_scores(
+    disease_code: str,
+    term: str,
+    # TODO: If this is a route, we should be able to get the services from the
+    # request context? Is that cleaner? Perhaps we HAVE to do that, because this
+    # route is only called by the app, not the API.
+    phenotype_service: PhenotypeService,
+):
     """Show the variant scores page."""
     # Get flush parameter
     flush = bool(request.args.get("flush", False))
+
+    # Get run version and ancestry from the session
+    run_version = session.get("run_version", "Run-v1")
+    ancestry = session.get("ancestry", "EUR")
 
     # Get protecive parameter
     protective = bool(request.args.get("protective", False))
@@ -562,7 +588,7 @@ def show_variant_scores(disease_code: str, term: str):
     print(f"Flush: {flush}, Protective: {protective}")
 
     # Get phecode data
-    data = get_phecode_data(disease_code)
+    data = get_phecode_data(disease_code, phenotype_service, run_version, ancestry)
 
     # Get term data
     term_names = get_term_names([term])
@@ -852,6 +878,7 @@ def main():
 
     from app import create_app
 
+    # TODO: Avoid using app context when we should just be able to 'inject' services...
     app = create_app("development")
     with app.app_context():
         services = current_app.extensions["nomaly_services"]
@@ -859,10 +886,12 @@ def main():
         data = get_top_variants(
             phecode,
             term,
-            services.phenotype._hdf,
-            services.genotype._hdf,
-            services.nomaly_score._hdf,
-            services.stats._hdf,
+            services.phenotype,
+            services.genotype,
+            services.nomaly_score,
+            services.stats,
+            run_version="Run-v1",
+            ancestry="EUR",
             no_cache=True,
             # protective=True,
         )
