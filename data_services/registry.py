@@ -9,7 +9,7 @@ from data_services.stats import StatsRegistry, StatsService
 
 class ServiceRegistry:
     def __init__(self, app=None):
-        self.genotype: Optional[GenotypeService] = None
+        self.genotype = GenotypeService()
         self.phenotype = PhenotypeService()
         self.stats_registry: StatsRegistry = StatsRegistry()
         self.nomaly_score: Optional[NomalyScoreService] = None

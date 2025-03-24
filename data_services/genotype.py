@@ -14,26 +14,47 @@ chr_str = re.compile("chr", re.IGNORECASE)
 
 
 class GenotypeService:
-    def __init__(self, hdf5_file: Path | str):
-        # Convert string to Path if needed
-        if isinstance(hdf5_file, str):
-            hdf5_file = Path(hdf5_file)
-        self._hdf = GenotypesHDF5(hdf5_file)  # Existing implementation
+    """Service for getting genotype data."""
 
-    @property
-    def individual(self):
-        """Delegate to the underlying HDF5 file's individual property."""
-        return self._hdf.individual
+    def __init__(self, hdf5_file: Path | str | None = None):
+        self.hdf5_file = hdf5_file
+        self.initialized = hdf5_file is not None
+
+        if hdf5_file is not None:
+            self._hdf = GenotypesHDF5(hdf5_file)  # Existing implementation
+
+    def _check_initialized(self):
+        if not self.initialized:
+            raise ValueError("Service not properly initialized: missing filename")
 
     def query_variantID_genotypes(
         self, variant: str
     ) -> tuple[np.ndarray, np.ndarray] | None:
         """Delegate to the underlying HDF5 file's query_variantID_genotypes method."""
+        self._check_initialized()
         return self._hdf.query_variantID_genotypes(variant)
 
     def get_genotypes(self, eids=None, vids=None, nomaly_ids=False) -> np.ndarray:
         """Delegate to the underlying HDF5 file's get_genotypes method."""
+        self._check_initialized()
         return self._hdf.get_genotypes(eids=eids, vids=vids, nomaly_ids=nomaly_ids)
+
+    def get_variant_counts(
+        self,
+        nomaly_variant_id: str,
+        sex: Optional[str] = None,
+        ancestry: Optional[str] = None,
+    ) -> dict[str, int]:
+        """Delegate to the underlying HDF5 file's get_variant_counts method."""
+        self._check_initialized()
+        return self._hdf.get_variant_counts(nomaly_variant_id, sex, ancestry)
+
+    # TODO: Are these used?
+    @property
+    def individual(self):
+        """Delegate to the underlying HDF5 file's individual property."""
+        self._check_initialized()
+        return self._hdf.individual
 
 
 class GenotypesHDF5:
@@ -48,7 +69,7 @@ class GenotypesHDF5:
             must exist at {hdf5_file}.npy
     """
 
-    def __init__(self, hdf5_file: Path):
+    def __init__(self, hdf5_file: Path | str):
         self.f = h5py.File(hdf5_file, "r")
 
         # TODO: Fix the naming of the fields!
