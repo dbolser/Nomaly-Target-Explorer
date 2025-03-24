@@ -205,7 +205,8 @@
     function loadVariantDetailTable() {
         const encodedTerm = encodeURIComponent(term);
         const urlParams = new URLSearchParams(window.location.search);
-        const flush = urlParams.get('flush') === 'true';
+        // Gets the 'flush' parameter from the URL query string and checks if it equals '1'
+        const flush = urlParams.get('flush') === 1;
         const url = `/phecode/${phecode}/term/${encodedTerm}/tableVariantDetail?flush=${flush}`;
 
         console.log('Sending request to:', url);

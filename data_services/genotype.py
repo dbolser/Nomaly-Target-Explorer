@@ -34,10 +34,12 @@ class GenotypeService:
         self._check_initialized()
         return self._hdf.query_variantID_genotypes(variant)
 
-    def get_genotypes(self, eids=None, vids=None, nomaly_ids=False) -> np.ndarray:
+    def get_genotypes(self, eids, vids, ancestry, nomaly_ids=False) -> np.ndarray:
         """Delegate to the underlying HDF5 file's get_genotypes method."""
         self._check_initialized()
-        return self._hdf.get_genotypes(eids=eids, vids=vids, nomaly_ids=nomaly_ids)
+        return self._hdf.get_genotypes(
+            eids=eids, vids=vids, ancestry=ancestry, nomaly_ids=nomaly_ids
+        )
 
     def get_variant_counts(
         self,
@@ -248,6 +250,7 @@ class GenotypesHDF5:
         self,
         eids: Optional[np.ndarray] = None,
         vids: Optional[np.ndarray] = None,
+        ancestry: str = "EUR",
         nomaly_ids: bool = False,
     ) -> np.ndarray:
         """

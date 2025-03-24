@@ -1,17 +1,28 @@
 from pathlib import Path
-from typing import Optional
 
 import h5py
 import numpy as np
 
 
 class NomalyScoreService:
-    def __init__(self, hdf5_file: Path):
-        self._hdf = NomalyScoreHDF5(hdf5_file)  # Existing implementation
+    """Service for getting nomaly scores."""
+
+    def __init__(self, hdf5_file: Path | str | None = None):
+        self.hdf5_file = hdf5_file
+        self.initialized = hdf5_file is not None
+
+        if hdf5_file is not None:
+            self._hdf = NomalyScoreHDF5(hdf5_file)  # Existing implementation
+
+    def _check_initialized(self):
+        if not self.initialized:
+            raise ValueError("Service not properly initialized: missing filename")
 
     def get_scores_by_eids_unsorted(
-        self, eids: np.ndarray, terms: Optional[np.ndarray] = None
+        self, eids: np.ndarray, terms: np.ndarray | None = None
     ) -> np.ndarray:
+        """Delegate to the underlying HDF5 file's get_scores_by_eids_unsorted method."""
+        self._check_initialized()
         return self._hdf.get_scores_by_eids_unsorted(eids, terms)
 
 
@@ -79,7 +90,7 @@ class NomalyScoreHDF5:
         return self.data_matrix[:, terms_mask]
 
     def get_scores_by_eids_unsorted(
-        self, eids: np.ndarray, terms: Optional[np.ndarray] = None
+        self, eids: np.ndarray, terms: np.ndarray | None = None
     ) -> np.ndarray:
         """
         Get scores for a list of eids, unsorted.

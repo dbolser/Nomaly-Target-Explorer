@@ -1,5 +1,4 @@
 import logging
-import pickle
 import subprocess
 from pathlib import Path
 
@@ -7,8 +6,10 @@ import numpy as np
 import pandas as pd
 
 from config import Config
+from data_services import PhenotypeService
 
-# Keep the global constants
+# Keep the global constants??? WHY?
+# TODO: WHY?
 GWAS_PHENO_DIR = Config.GWAS_PHENO_DIR
 UKBB_PHENO_DIR = Config.UKBB_PHENO_DIR
 
@@ -21,32 +22,41 @@ logger = logging.getLogger(__name__)
 
 
 def run_gwas(
-    phecode: str, sex: str = "both", ancestry: str = "ALL", no_cache: bool = False
+    phecode: str,
+    ancestry: str,
+    phenotype_service: PhenotypeService,
+    no_cache: bool = False,
 ) -> pd.DataFrame:
-    """Run GWAS for a phecode if not already done and return results."""
+    """Run GWAS for a phecode."""
+
     # TODO: Refactor to use the nomaly_data service instead of direct file access
 
-    output_suffix = f"{GWAS_PHENO_DIR}/phecode_{phecode}_sex_{sex}_ancestry_{ancestry}"
+    output_suffix = f"{GWAS_PHENO_DIR}/phecode_{phecode}_ancestry_{ancestry}"
     assoc_file = GWAS_PHENO_DIR / f"{output_suffix}.assoc"
     nomaly_file = GWAS_PHENO_DIR / f"{output_suffix}.assoc_nomaly.tsv"
     fam_file = GWAS_PHENO_DIR / f"{output_suffix}.fam"
 
     # Return cached results if they exist and no_cache is False
-    if not no_cache and nomaly_file.exists():
+    if nomaly_file.exists() and not no_cache:
         logger.info(f"Loading cached GWAS results for {phecode}")
         return pd.read_csv(nomaly_file, sep="\t")
 
     # Create FAM file if needed
-    if not no_cache and not fam_file.exists():
+    if not fam_file.exists() or no_cache:
         create_fam_file(
             fam_file=fam_file,
             phecode=phecode,
-            sex=sex,
             ancestry=ancestry,
+            phenotype_service=phenotype_service,
         )
 
     # Run PLINK if needed
-    cmd = f"{PLINK_BINARY} --bed {SOURCE_PLINK_GENOME}.bed --bim {SOURCE_PLINK_GENOME}.bim --fam {fam_file} --assoc fisher --out {output_suffix}"
+    cmd = f"""{PLINK_BINARY} \
+        --bed {SOURCE_PLINK_GENOME}-{ancestry}.bed \
+        --bim {SOURCE_PLINK_GENOME}-{ancestry}.bim \
+        --fam {fam_file} \
+        --assoc fisher \
+        --out {output_suffix}"""
 
     try:
         process = subprocess.Popen(
@@ -114,36 +124,44 @@ def run_gwas(
 def create_fam_file(
     fam_file: Path,
     phecode: str,
-    sex: str = "both",
-    ancestry: str = "ALL",
+    ancestry: str,
+    phenotype_service: PhenotypeService,
 ) -> None:
     """Create FAM file for GWAS."""
 
+    # Get phenotype data
+    disease_sex = phenotype_service.get_disease_sex_for_phecode(phecode)
+    phenotype_data = phenotype_service.get_cases_for_phecode(phecode)
+
     # Load case information
-    logger.info(f"Running new GWAS for {phecode}")
-    with open(
-        UKBB_PHENO_DIR / "phecode_cases_excludes" / f"phecode_{phecode}.pkl", "rb"
-    ) as f:
-        cases = pickle.load(f)
+    logger.info(f"Creating FAM file for {phecode} ({ancestry})")
 
-    fam = pd.read_csv(f"{SOURCE_PLINK_GENOME}.fam", header=None, sep=r"\s+")
-    fam.columns = ["FID", "IID", "Father", "Mother", "sex", "phenotype"]
+    # Double check that we don't have cases for the 'wrong' sex...
+    if disease_sex == "Both":
+        pass
+    elif disease_sex == "Female":
+        assert np.all(phenotype_data[phenotype_data["sex"] == "M"]["phenotype"] == 9)
+    elif disease_sex == "Male":
+        assert np.all(phenotype_data[phenotype_data["sex"] == "F"]["phenotype"] == 9)
 
-    # Set phenotypes (1=control, 2=case, -9=missing)
-    fam["phenotype"] = 1
-    fam.loc[fam["IID"].isin(cases["cases"]), "phenotype"] = 2
+    # Reformat sex and phenotype columns for PLINK... (1=Female, 2=Male /
+    # (1=control, 2=case, -9=missing)
+    phenotype_data["sex"] = phenotype_data["sex"].map({"M": 1, "F": 2})
+    phenotype_data["phenotype"] = phenotype_data["phenotype"].map({0: 1, 1: 2, 9: -9})
 
-    # Handle sex-specific cases
-    if cases["Sex"] == "Female":
-        fam.loc[fam["sex"] == 1, "phenotype"] = -9
-    elif cases["Sex"] == "Male":
-        fam.loc[fam["sex"] == 2, "phenotype"] = -9
+    # Add garbage columns
+    phenotype_data["FID"] = phenotype_data["eid"]
+    phenotype_data["Father"] = 0
+    phenotype_data["Mother"] = 0
 
-    # Handle exclusions
-    if cases["exclude"]:
-        fam.loc[fam["IID"].isin(cases["exclude"]), "phenotype"] = -9
-
-    fam.to_csv(fam_file, sep=" ", header=False, index=False)
+    # Create FAM file
+    phenotype_data.to_csv(
+        fam_file,
+        sep=" ",
+        header=False,
+        index=False,
+        columns=["eid", "FID", "Father", "Mother", "sex", "phenotype"],
+    )
 
 
 def format_gwas_results(

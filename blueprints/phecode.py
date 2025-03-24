@@ -65,7 +65,7 @@ def show_phecode(phecode):
 def get_phecode_data(
     phecode,
     phenotype_service: PhenotypeService,
-    ancestry: str = "EUR",
+    ancestry: str,
 ) -> dict:
     """Get the data for a phecode."""
     data = get_phecode_info(phecode)
@@ -300,14 +300,14 @@ def add_gene_info_to_DataTable(plot_df, phecode):
     term_gene_df = get_term_genes(plot_df["term"].tolist())
 
     # Get GWAS results for gene filtering
-    gwas_data = run_gwas(phecode)
-    sig_variants = format_gwas_results(gwas_data)
-    genefilter = set(v["Gene"] for v in sig_variants)
+    # gwas_data = run_gwas(phecode, "EUR", "x")
+    # sig_variants = format_gwas_results(gwas_data)
+    # genefilter = set(v["Gene"] for v in sig_variants)
 
     # Filter and format gene information
-    term_gene_df_sig = term_gene_df[term_gene_df["gene"].isin(genefilter)].rename(
-        columns={"gene": "sig gene"}
-    )
+    # term_gene_df_sig = term_gene_df[term_gene_df["gene"].isin(genefilter)].rename(
+    #    columns={"gene": "sig gene"}
+    # )
 
     # Group genes by term
     term_gene_df = (
@@ -316,15 +316,15 @@ def add_gene_info_to_DataTable(plot_df, phecode):
         .reset_index()
     )
 
-    term_gene_df_sig = (
-        term_gene_df_sig.groupby("term")["sig gene"]
-        .apply(lambda x: ", ".join(x) if len(x) < 50 else f"{len(x)} genes")
-        .reset_index()
-    )
+    # term_gene_df_sig = (
+    #    term_gene_df_sig.groupby("term")["sig gene"]
+    #    .apply(lambda x: ", ".join(x) if len(x) < 50 else f"{len(x)} genes")
+    #    .reset_index()
+    # )
 
     # Merge gene information with main dataframe
     plot_df = plot_df.merge(term_gene_df, on="term", how="left")
-    plot_df = plot_df.merge(term_gene_df_sig, on="term", how="left")
+    # plot_df = plot_df.merge(term_gene_df_sig, on="term", how="left")
 
     return plot_df
 
@@ -370,8 +370,20 @@ def get_column_display_names():
 @phecode_bp.route("/run-task/<string:phecode>", methods=["POST"])
 def run_task(phecode):
     """Endpoint to run GWAS analysis."""
+
+    # Get flush from POST data
+    flush = request.form.get("flush", "False") == 1
+
+    # Get ancestry from session
+    ancestry = session.get("ancestry", "EUR")
+
+    services: ServiceRegistry = current_app.extensions["nomaly_services"]
+    phenotype_service: PhenotypeService = services.phenotype
+
     try:
-        results = run_gwas(phecode)
+        results = run_gwas(phecode, ancestry, phenotype_service, no_cache=flush)
+        logger.info(f"GWAS completed successfully with {len(results)} variants")
+
         formatted_results = format_gwas_results(results)
         return jsonify(
             {

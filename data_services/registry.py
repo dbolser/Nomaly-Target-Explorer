@@ -12,7 +12,7 @@ class ServiceRegistry:
         self.genotype = GenotypeService()
         self.phenotype = PhenotypeService()
         self.stats_registry: StatsRegistry = StatsRegistry()
-        self.nomaly_score: Optional[NomalyScoreService] = None
+        self.nomaly_score: NomalyScoreService = NomalyScoreService()
         self.nomaly_data: Optional[NomalyDataService] = None
 
         # If TESTING is True, we don't want to initialise the data services

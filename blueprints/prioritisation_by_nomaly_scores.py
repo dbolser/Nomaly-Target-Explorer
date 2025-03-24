@@ -7,6 +7,7 @@ Genes are prioritised by the sum of Nomaly scores of their variants.
 import json
 import logging
 import pickle
+import traceback
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -32,6 +33,7 @@ from data_services import (
     NomalyScoreService,
     PhenotypeService,
     ServiceRegistry,
+    StatsRegistry,
     StatsService,
 )
 from db import get_term_domains, get_term_genes, get_term_names, get_term_variants
@@ -119,9 +121,16 @@ def read_cases_for_disease_code(phecode: str) -> dict:
     return cases
 
 
-def read_nomaly_filtered_genotypes_new(eids, vids, genotype_service) -> Dict[str, Any]:
+def read_nomaly_filtered_genotypes_new(
+    eids: np.ndarray,
+    vids: np.ndarray,
+    ancestry: str,
+    genotype_service: GenotypeService,
+) -> Dict[str, Any]:
     """Read genotypes using the new genotype service method."""
-    genotypes = genotype_service.get_genotypes(eids=eids, vids=vids, nomaly_ids=True)
+    genotypes = genotype_service.get_genotypes(
+        eids=eids, vids=vids, ancestry=ancestry, nomaly_ids=True
+    )
 
     # Transpose the genotypes matrix
     genotypes = genotypes.T
@@ -183,7 +192,11 @@ def process_individual_variants(sel_genotypes, term_variant_scores):
 
 @profile
 def term_variant_prioritisation(
-    vids, eids, genotype_service, stream_logger=None
+    vids: pd.DataFrame,
+    eids: np.ndarray,
+    ancestry: str,
+    genotype_service: GenotypeService,
+    stream_logger=None,
 ) -> pd.DataFrame:
     """Prioritise a set of variants from a set of eids and their genotypes.
 
@@ -210,7 +223,7 @@ def term_variant_prioritisation(
     log_and_stream(f"Reading genotypes for {len(vids)} variants", stream_logger)
 
     sel_genotypes = read_nomaly_filtered_genotypes_new(
-        eids, vids["variant_id"], genotype_service
+        eids, vids["variant_id"].to_numpy(), ancestry, genotype_service
     )
 
     log_and_stream(
@@ -310,10 +323,7 @@ def save_results_to_cache(
 def get_top_variants(
     phecode: str,
     term: str,
-    phenotype_service: PhenotypeService,
-    genotype_service: GenotypeService,
-    nomaly_scores_service: NomalyScoreService,
-    stats_service: StatsService,
+    services: ServiceRegistry,
     run_version: str,
     ancestry: str,
     stream_logger=None,
@@ -324,11 +334,14 @@ def get_top_variants(
 
     # Try to load from cache first (unless no_cache is True)
     if not no_cache:
-        cached_results = load_cached_results(phecode, term, run_version, ancestry)
-        if cached_results:
-            if stream_logger:
-                stream_logger.info("Loaded results from cache")
-            return cached_results
+        try:
+            cached_results = load_cached_results(phecode, term, run_version, ancestry)
+            if cached_results:
+                if stream_logger:
+                    stream_logger.info("Loaded results from cache")
+                return cached_results
+        except Exception as e:
+            logger.error(f"Error loading cached results: {e}")
 
     # Compute results if not cached...
     log_and_stream(
@@ -337,10 +350,10 @@ def get_top_variants(
     )
 
     # Get phenotype data for the given phecode...
-    eids, phenotypes = phenotype_service.get_cases_for_phecode(phecode, ancestry)
+    phenotypes = services.phenotype.get_cases_for_phecode(phecode, ancestry)
 
     log_and_stream(
-        f"Got {len(eids)} samples for phecode {phecode} with ancestry {ancestry}",
+        f"Got {len(phenotypes)} samples for phecode {phecode} with ancestry {ancestry}",
         stream_logger,
     )
 
@@ -353,11 +366,11 @@ def get_top_variants(
 
     # cases_info = read_cases_for_disease_code(disease_code)
     # cases_eids = list(cases_info["cases"])
-    case_eids = eids[phenotypes == 1]
-    control_eids = eids[phenotypes == 0]
-    exclude_eids = eids[phenotypes == 9]
+    case_eids = phenotypes[phenotypes["phenotype"] == 1]["eid"].to_numpy()
+    ctrl_eids = phenotypes[phenotypes["phenotype"] == 0]["eid"].to_numpy()
+    excl_eids = phenotypes[phenotypes["phenotype"] == 9]["eid"]
 
-    assert len(eids) == len(case_eids) + len(control_eids) + len(exclude_eids)
+    assert len(phenotypes) == len(case_eids) + len(ctrl_eids) + len(excl_eids)
 
     log_and_stream(
         f"Got {len(case_eids)} cases for {phecode} with ancestry {ancestry}",
@@ -367,87 +380,51 @@ def get_top_variants(
     # Assert that the case eids are sorted
     assert np.all(np.diff(case_eids) > 0), "case_eids are not sorted!"
 
-    case_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
-        case_eids, terms=[term]
+    case_scores = services.nomaly_score.get_scores_by_eids_unsorted(
+        case_eids, terms=np.array([term])
     )
 
     assert len(case_eids) == len(case_scores)
 
-    control_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
-        control_eids, terms=[term]
+    ctrl_scores = services.nomaly_score.get_scores_by_eids_unsorted(
+        ctrl_eids, terms=np.array([term])
     )
 
-    assert len(control_eids) == len(control_scores)
+    assert len(ctrl_eids) == len(ctrl_scores)
 
     # TODO: Not sure the stats service can access this funciton, we need to use
     # the registry here to get the appropriate service for hte run and
     # population
-    stats = stats_service.get_data_slice(
-        terms=[term],
-        phecodes=[phecode],
-        stats_types=[
-            "num_rp",
-            "num_rn",
-            #
-            "metric1_pvalue",
-            #
-            "roc_stats_mcc_pvalue",
-            "roc_stats_mcc_or",
-            "roc_stats_mcc_threshold",
-            "roc_stats_mcc_tp",
-            "roc_stats_mcc_fp",
-            "roc_stats_mcc_fn",
-            "roc_stats_mcc_tn",
-            #
-            "roc_stats_yjs_pvalue",
-            "roc_stats_yjs_or",
-            "roc_stats_yjs_threshold",
-            "roc_stats_yjs_tp",
-            "roc_stats_yjs_fp",
-            "roc_stats_yjs_fn",
-            "roc_stats_yjs_tn",
-            #
-            "roc_stats_lrp_pvalue",
-            "roc_stats_lrp_or",
-            "roc_stats_lrp_threshold",
-            "roc_stats_lrp_tp",
-            "roc_stats_lrp_fp",
-            "roc_stats_lrp_fn",
-            "roc_stats_lrp_tn",
-            #
-            "roc_stats_lrn_protective_pvalue",
-            "roc_stats_lrn_protective_or",
-            "roc_stats_lrn_protective_threshold",
-            "roc_stats_lrn_protective_tp",
-            "roc_stats_lrn_protective_fp",
-            "roc_stats_lrn_protective_fn",
-            "roc_stats_lrn_protective_tn",
-        ],
-    )
+
+    stats_registry: StatsRegistry = services.stats_registry
+    stats_service: StatsService = stats_registry.get(run_version, ancestry)
+
+    stats = stats_service.get_term_stats(term=term, phecode=phecode)
 
     # Quick cleanup of stats...
+
+    # Just ignore these!
+    stats[stats.filter(like="_threshold").columns] = stats.filter(
+        like="_threshold"
+    ).replace(float("inf"), 0)
+    stats[stats.filter(like="_or").columns] = stats.filter(like="_or").fillna(1)
+
+    # Convert stats to dict..
+    stats = stats.to_dict(orient="records")[0]
 
     # Ensure NaN values are converted to None
     if pd.isna(stats["metric1_pvalue"]):
         stats["metric1_pvalue"] = 1
 
-    for key in stats.keys():
-        if key.endswith("_threshold"):
-            if stats[key] == float("inf"):
-                # Just ignore these!
-                stats[key] = 0
-        if key.endswith("_or"):
-            if np.isnan(stats[key]):
-                # This is probably the wrong thing to do...
-                stats[key] = 1
 
     # TODO: Something is wrong somewhere...
-    if len(case_eids) != stats["num_rp"] or len(control_eids) != stats["num_rn"]:
+    if len(case_eids) != stats["num_rp"] or len(ctrl_eids) != stats["num_rn"]:
         # TODO: DEBUG THIS!
         logger.warning(
-            f"Phecode {phecode} has {len(case_eids)} / {len(control_eids)} cases and controls"
-            + f" from phenotype service but {stats['num_rp']} / {stats['num_rn']} cases and controls"
-            + f" from stats service! (Excludes = {len(exclude_eids)})."
+            f"Phecode {phecode} has {len(case_eids)} / {len(ctrl_eids)} cases and controls"
+            f" from phenotype service but {stats['num_rp']} / {stats['num_rn']} cases and controls"
+            f" from stats service! (Excludes = {len(excl_eids)}).\n"
+            "I THINK THIS IS TODO WITH EXCLUDED SEX-MATCHED CONTROLS!"
         )
 
     # Fill in the 'missing' values for metric1
@@ -460,13 +437,13 @@ def get_top_variants(
     stats["metric1_tp"] = np.sum(case_scores >= stats["metric1_threshold"])
 
     # False positives are controls above the threshold
-    stats["metric1_fp"] = np.sum(control_scores >= stats["metric1_threshold"])
+    stats["metric1_fp"] = np.sum(ctrl_scores >= stats["metric1_threshold"])
 
     # False negatives are cases below the threshold (or, all the other cases)
     stats["metric1_fn"] = len(case_eids) - stats["metric1_tp"]
 
     # True negatives are controls below the threshold (or, all the other controls)
-    stats["metric1_tn"] = len(control_eids) - stats["metric1_fp"]
+    stats["metric1_tn"] = len(ctrl_eids) - stats["metric1_fp"]
 
     stats_to_process = [
         "metric1",
@@ -480,15 +457,15 @@ def get_top_variants(
 
     for stat in stats_to_process:
         # FUCK... How did this happen?
-        if stats[f"{stat}_threshold"] <= 0 and stats[f"{stat}_tp"] == 0:
+        if np.any(stats[f"{stat}_threshold"] <= 0) and np.any(stats[f"{stat}_tp"] == 0):
             # I think this should have been set this way?
             stats[f"{stat}_threshold"] = 1e308
 
         case_eids_above_threshold = case_eids[case_scores >= stats[f"{stat}_threshold"]]
 
         if stat.endswith("protective"):
-            case_eids_above_threshold = control_eids[
-                control_scores >= stats[f"{stat}_threshold"]
+            case_eids_above_threshold = ctrl_eids[
+                ctrl_scores >= stats[f"{stat}_threshold"]
             ]
 
         print(f"Selected for statistic {stat}: {len(case_eids_above_threshold)}")
@@ -513,7 +490,8 @@ def get_top_variants(
         top_variants = term_variant_prioritisation(
             term_variant_ids,
             case_eids_above_threshold,
-            genotype_service,
+            ancestry,
+            services.genotype,
             stream_logger,
         )
 
@@ -557,9 +535,9 @@ def get_top_variants(
         stats[f"{stat}_top_gene_set"] = gene_set_data
 
     # Save to cache
-    save_results_to_cache(phecode, term, stats.to_dict(), run_version, ancestry)
+    save_results_to_cache(phecode, term, stats, run_version, ancestry)
 
-    return stats.to_dict()
+    return stats
 
 
 prioritisation_bp = Blueprint("prioritisation", __name__)
@@ -569,11 +547,10 @@ prioritisation_bp = Blueprint("prioritisation", __name__)
 def show_variant_scores(
     disease_code: str,
     term: str,
-    # TODO: If this is a route, we should be able to get the services from the
-    # request context? Is that cleaner? Perhaps we HAVE to do that, because this
-    # route is only called by the app, not the API.
-    phenotype_service: PhenotypeService,
 ):
+    services = current_app.extensions["nomaly_services"]
+    phenotype_service = services.phenotype
+
     """Show the variant scores page."""
     # Get flush parameter
     flush = bool(request.args.get("flush", False))
@@ -588,7 +565,7 @@ def show_variant_scores(
     print(f"Flush: {flush}, Protective: {protective}")
 
     # Get phecode data
-    data = get_phecode_data(disease_code, phenotype_service, run_version, ancestry)
+    data = get_phecode_data(disease_code, phenotype_service, ancestry)
 
     # Get term data
     term_names = get_term_names([term])
@@ -616,6 +593,7 @@ def show_variant_scores(
     )
 
 
+# Called by variant_scores.html?
 @prioritisation_bp.route("/stream_progress/<disease_code>/<term>")
 def stream_progress(
     disease_code: str,
@@ -633,17 +611,14 @@ def stream_progress(
     print(f"Flush: {no_cache}, Protective: {protective}")
 
     def process_variants(
-        disease_code,
-        term,
-        phenotype_service,
-        genotype_service,
-        nomaly_scores_service,
-        stats_service,
-        population,
-        biological_sex,
-        message_queue,
-        protective,
-        no_cache,
+        disease_code: str,
+        term: str,
+        services: ServiceRegistry,
+        run_version: str,
+        ancestry: str,
+        message_queue: Queue,
+        protective: bool = False,
+        no_cache: bool = False,
     ):
         """Process variants using the thread pool."""
         try:
@@ -651,12 +626,9 @@ def stream_progress(
             data = get_top_variants(
                 disease_code,
                 term,
-                phenotype_service,
-                genotype_service,
-                nomaly_scores_service,
-                stats_service,
-                population,
-                biological_sex,
+                services,
+                run_version,
+                ancestry,
                 stream_logger,
                 protective,
                 no_cache,
@@ -770,12 +742,9 @@ def stream_progress(
                         process_variants(
                             disease_code,
                             term,
-                            phenotype_service,
-                            genotype_service,
-                            nomaly_scores_service,
-                            stats_service,
-                            population,
-                            biological_sex,
+                            services,
+                            run_version,
+                            ancestry,
                             message_queue,
                             protective,
                             no_cache=True,
@@ -786,6 +755,7 @@ def stream_progress(
 
         except Exception as e:
             print(f"Error in process_variants: {str(e)}")
+            print(traceback.format_exc())
             logger.error(f"Error processing variants: {e}")
             message_queue.put({"type": "error", "data": str(e)})
         finally:
@@ -795,7 +765,11 @@ def stream_progress(
 
     def generate():
         message_queue = Queue()
-        services = current_app.extensions["nomaly_services"]
+        services: ServiceRegistry = current_app.extensions["nomaly_services"]
+
+        # Get run version and ancestry from the session
+        run_version = session.get("run_version", "Run-v1")
+        ancestry = session.get("ancestry", "EUR")
 
         try:
             # Submit to thread pool with the service
@@ -804,12 +778,9 @@ def stream_progress(
                 process_variants,
                 disease_code,
                 term,
-                services.phenotype._hdf,
-                services.genotype._hdf,
-                services.nomaly_score._hdf,
-                services.stats._hdf,
-                population,
-                biological_sex,
+                services,
+                run_version,
+                ancestry,
                 message_queue,
                 protective,
                 no_cache,

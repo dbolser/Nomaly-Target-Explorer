@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def term_variant_prioritisation(
-    vids, eids, genotype_service, stream_logger=None
+    vids, eids, ancestry, genotype_service, stream_logger=None
 ) -> pd.DataFrame:
     """Prioritise a set of variants from a set of eids and their genotypes.
 
@@ -56,7 +56,7 @@ def term_variant_prioritisation(
     log_and_stream(f"Reading genotypes for {len(vids)} variants", stream_logger)
 
     sel_genotypes = read_nomaly_filtered_genotypes_new(
-        eids, vids["variant_id"], genotype_service
+        eids, vids["variant_id"], ancestry, genotype_service
     )
 
     log_and_stream(
@@ -312,6 +312,7 @@ def process_statistic(
     term_variants: pd.DataFrame,  # Changed from List[str] to match actual usage
     genotype_service,
     phecode: str,
+    ancestry: str,
     stream_logger=None,
 ) -> Dict[str, Any]:
     """
@@ -369,6 +370,7 @@ def process_statistic(
     top_variants = term_variant_prioritisation(
         term_variants,
         eids_above_threshold,
+        ancestry,
         genotype_service,
         stream_logger,
     )
@@ -532,6 +534,7 @@ def get_top_variants_refactored(
                 term_variants,
                 genotype_service,
                 phecode,
+                ancestry,
                 stream_logger,
             )
 

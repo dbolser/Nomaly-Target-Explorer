@@ -2,6 +2,7 @@ from pathlib import Path
 
 import h5py
 import numpy as np
+import pandas as pd
 
 from typing import Optional
 
@@ -28,12 +29,14 @@ class PhenotypeService:
         if not self.initialized:
             raise ValueError("Service not properly initialized: missing filename")
 
-    def get_cases_for_phecode(
-        self, phecode, ancestry: str = "EUR"
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def get_cases_for_phecode(self, phecode, ancestry: str = "EUR") -> pd.DataFrame:
         """Delegate to the underlying HDF5 file's get_cases_for_phecode method."""
         self._check_initialized()
         return self._hdf.get_cases_for_phecode(phecode, ancestry)
+
+    def get_disease_sex_for_phecode(self, phecode):
+        self._check_initialized()
+        return self._hdf.get_disease_sex_for_phecode(phecode)
 
     def get_case_counts_for_phecode(self, phecode, ancestry: str = "EUR"):
         """Get the case counts for a given phecode and ancestry."""
@@ -163,6 +166,9 @@ class PhenotypesHDF5:
         return self.phenotype_data[eid_idx, :][:, phecode_idx]
 
     def get_ancestry_mask(self, ancestry):
+        """Get a mask for the given ancestry."""
+        if ancestry == "EUR":
+            return (self.ancestry == "EUR") | (self.ancestry == "EUR_S")
         return self.ancestry == ancestry
 
     def get_individual_sex_mask(self, individual_sex):
@@ -171,27 +177,37 @@ class PhenotypesHDF5:
     def get_disease_sex_mask(self, disease_sex):
         return self.disease_sex == disease_sex
 
+    def get_disease_sex_for_phecode(self, phecode):
+        phecode_index = self.phecode_to_index[phecode]
+        return self.disease_sex[phecode_index]
+
     @profile
-    def get_cases_for_phecode(
-        self, phecode, ancestry: str = "EUR"
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def get_cases_for_phecode(self, phecode, ancestry: str = "EUR") -> pd.DataFrame:
         """Get the cases for a given phecode and ancestry"""
         phecode_index = self.phecode_to_index[phecode]
 
-        if ancestry is not None:
-            ancestry_mask = self.get_ancestry_mask(ancestry)
-        else:
-            ancestry_mask = np.ones(self.ancestry.shape, dtype=bool)
+        ancestry_mask = self.get_ancestry_mask(ancestry)
 
-        return (
-            self.eid[ancestry_mask],
-            self.phenotype_data[:, phecode_index][ancestry_mask],
+        return pd.DataFrame(
+            {
+                "eid": self.eid[ancestry_mask],
+                "sex": self.individual_sex[ancestry_mask],
+                "phenotype": self.phenotype_data[:, phecode_index][ancestry_mask],
+            }
         )
 
     def get_case_counts_for_phecode(self, phecode, ancestry: str = "EUR"):
         """Get the case counts for a given phecode and ancestry."""
-        eids, cases = self.get_cases_for_phecode(phecode, ancestry=ancestry)
-        values, counts = np.unique(cases, return_counts=True)
+
+        ancestry_mask = self.get_ancestry_mask(ancestry)
+        phecode_index = self.phecode_to_index[phecode]
+        phenotype_counts = self.phenotype_data[:, phecode_index][ancestry_mask]
+
+        values, counts = np.unique(
+            phenotype_counts,
+            return_counts=True,
+        )
+
         counts_dict = dict(zip(values, counts))
 
         counts_dict["affected"] = counts_dict.get(1, 0)

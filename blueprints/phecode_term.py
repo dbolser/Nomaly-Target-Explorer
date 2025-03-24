@@ -8,9 +8,14 @@ from blueprints.gwas import format_gwas_results, run_gwas
 # TODO: MAKE A DATA SERVICE FOR THIS!!!!
 from blueprints.nomaly import pharos, pp
 from blueprints.phecode import get_phecode_data
-from blueprints.phecode_term_helper import load_cached_results, save_results
+from blueprints.phecode_term_helper import (
+    CacheMiss,
+    load_cache_results,
+    save_cache_results,
+)
 from data_services import (
     GenotypeService,
+    PhenotypeService,
     ServiceRegistry,
 )
 from db import (
@@ -80,7 +85,7 @@ def show_phecode_term_variant_detail(
     phecode: str,
     term: str,
 ):
-    flush = request.args.get("flush", "False") == "true"
+    flush = request.args.get("flush", "False") == 1
 
     # Get ancestry from session
     ancestry = session.get("ancestry", "EUR")
@@ -90,7 +95,7 @@ def show_phecode_term_variant_detail(
 
     try:
         result = calculate_phecode_term_variant_detail(
-            phecode, term, services.genotype, ancestry, flush
+            phecode, term, services.genotype, services.phenotype, ancestry, flush
         )
     except Exception as e:
         logger.error(f"Error in show_phecode_term_variant_detail: {str(e)}")
@@ -104,14 +109,14 @@ def calculate_phecode_term_variant_detail(
     phecode: str,
     term: str,
     genotype_service: GenotypeService,
+    phenotype_service: PhenotypeService,
     ancestry: str = "EUR",
-    flush: bool = False,
+    no_cache: bool = False,
 ) -> dict:
 
     logger.info(
-        f"Starting variant detail processing for phecode {phecode}, term {term}"
+        f"Getting variant details for phecode/term/ancestry: {phecode}/{term}/{ancestry} (flush: {no_cache})"
     )
-    logger.debug(f"Flush parameter: {flush}")
 
     # Define the columns
     columns = [
@@ -151,40 +156,35 @@ def calculate_phecode_term_variant_detail(
     numeric_columns = ["HMM_Score", "vs00", "vs01", "vs11", "GWAS_P", "GWAS_OR"]
 
     try:
-        logger.info(f"Flush parameter received: {flush}")
+        if not no_cache:
+            try:
+                cached_data = load_cache_results(phecode, term, ancestry)
+                return {
+                    "data": cached_data["data"],
+                    "columns": columns,
+                    "defaultColumns": default_columns,
+                    "numColumns": numeric_columns,
+                }
 
-        # Check cache
-        # TODO: ANCESTRY
-        cached_data = load_cached_results(phecode, term, flush)
-
-        if cached_data is not None and "data" in cached_data:
-            logger.info(f"Using cached data for phecode {phecode}, term {term}")
-            return {
-                "data": cached_data["data"],
-                "columns": columns,
-                "defaultColumns": default_columns,
-                "numColumns": numeric_columns,
-            }
-
-        logger.warning(
-            f"Cache miss or flush requested for phecode {phecode}, term {term}"
-        )
+            except CacheMiss:
+                logger.warning(
+                    f"Cache miss for phecode {phecode}, term {term}, ancestry {ancestry}"
+                )
 
         # Get variants from DB
-        print(f"Fetching variants for term: {term}")
+        logger.info(f"Fetching variants for term: {term}")
         term_df = get_term_variants(term)
-        print(f"Initial term_df shape: {term_df.shape}")
+        logger.debug(f"Initial term_df shape: {term_df.shape}")
 
         # Fill NA values and merge with pharos and pp data
         term_df = term_df.fillna("None")
         term_df = term_df.merge(pharos, on="gene", how="left").fillna("None")
         term_df = term_df.merge(pp, on="gene", how="left").fillna("None")
-        print(f"After merges shape: {term_df.shape}")
+        logger.debug(f"After merges shape: {term_df.shape}")
 
         # Load GWAS data
 
-        # TODO: ANCESTRY
-        gwas_data = run_gwas(phecode)
+        gwas_data = run_gwas(phecode, ancestry, phenotype_service, no_cache=no_cache)
         formatted_gwas = pd.DataFrame(
             format_gwas_results(gwas_data, significance_threshold=0.1)
         )
@@ -268,7 +268,7 @@ def calculate_phecode_term_variant_detail(
 
         # Cache and return results
         # TODO: ANCESTRY
-        save_results(phecode, term, data_records)
+        save_cache_results(phecode, term, ancestry, data_records)
         logger.info(f"\nFinal number of records: {len(data_records)}")
 
         result = {
@@ -283,11 +283,16 @@ def calculate_phecode_term_variant_detail(
     except Exception as e:
         error_msg = f"Error processing phecode {phecode}, term {term}: {str(e)}"
         logger.error(error_msg)
-        logger.error(traceback.format_exc())
         raise e
 
 
 def main():
+    """Main function for testing."""
+
+    from config import Config
+
+    services = ServiceRegistry.from_config(Config)
+
     # phecode = "561"
     # phecode = "564.1"
     # phecode = "338"
@@ -299,20 +304,16 @@ def main():
     # term = "MP:0000948"
     term = "MP:0004986"
 
-    # TODO: INJECT SERVIECS rather than getting them from current_app
-    from app import create_app
+    gwas_data = run_gwas(phecode, "EUR", services.phenotype, no_cache=True)
+    print(gwas_data)
 
-    app = create_app("development")
+    term_data = get_term_variants(term)
+    print(term_data)
 
-    with app.app_context():
-        gwas_data = run_gwas(phecode, no_cache=True)
-        print(gwas_data)
-
-        term_data = get_term_variants(term)
-        print(term_data)
-
-        result = calculate_phecode_term_variant_detail(phecode, term, flush=True)
-        print(result)
+    result = calculate_phecode_term_variant_detail(
+        phecode, term, services.genotype, services.phenotype, no_cache=True
+    )
+    print(result)
 
 
 if __name__ == "__main__":
