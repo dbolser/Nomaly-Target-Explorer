@@ -2,7 +2,6 @@ import json
 import logging
 
 import numpy as np
-import pandas as pd
 from flask import (
     Blueprint,
     current_app,
@@ -25,20 +24,12 @@ from data_services import (
 from db import (
     get_all_phecodes,
     get_phecode_info,
-    get_term_domains,
     get_term_genes,
     get_term_names,
 )
 
 logger = logging.getLogger(__name__)
 phecode_bp = Blueprint("phecode", __name__, template_folder="../templates")
-
-
-@phecode_bp.route("/random_phecode", methods=["GET"])
-def get_random_phecode():
-    """Get a random phecode."""
-    phecodes = get_all_phecodes()
-    return phecodes.sample(1).iloc[0]["phecode"]
 
 
 @phecode_bp.route("/phecode/<string:phecode>", methods=["GET"])
@@ -48,10 +39,6 @@ def show_phecode(phecode):
     # Get Run version and ancestry from session
     run_version = session.get("run_version", "Run-v1")
     ancestry = session.get("ancestry", "EUR")
-
-    # Store values in session to ensure they persist
-    session["run_version"] = run_version
-    session["ancestry"] = ancestry
 
     try:
         # Get services while we're in 'app context'
@@ -78,7 +65,7 @@ def show_phecode(phecode):
 def get_phecode_data(
     phecode,
     phenotype_service: PhenotypeService,
-    ancestry: str,
+    ancestry: str = "EUR",
 ) -> dict:
     """Get the data for a phecode."""
     data = get_phecode_info(phecode)
@@ -86,7 +73,7 @@ def get_phecode_data(
     # Get case counts for the phecode
     case_counts = phenotype_service.get_case_counts_for_phecode(phecode, ancestry)
 
-    data["population"] = ancestry or "EUR"
+    data["population"] = ancestry
     data["affected"] = case_counts["affected"]
     data["excluded"] = case_counts["excluded"]
     data["control"] = case_counts["control"]
@@ -285,7 +272,6 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
     # Remove duplicate terms??
     plot_df_filtered = plot_df_filtered.drop_duplicates(subset="term")
 
-
     # Create the domain column...
 
     # def map_term_to_domain(term):
@@ -400,7 +386,7 @@ def run_task(phecode):
         return jsonify({"status": "failed", "result": error_message}), 500
 
 
-# Add a new route to update session settings
+# Called by phecode.html
 @phecode_bp.route("/update_settings/<string:phecode>", methods=["POST"])
 def update_settings(phecode):
     """Update session settings and redirect back to phecode page."""
@@ -408,13 +394,19 @@ def update_settings(phecode):
     run_version = request.form.get("run_version", "Run-v1")
     ancestry = request.form.get("ancestry", "EUR")
 
-    print(f"Ancestry: {ancestry}")
     # Store in session
     session["run_version"] = run_version
     session["ancestry"] = ancestry
 
     # Redirect back to phecode page
     return redirect(url_for("phecode.show_phecode", phecode=phecode))
+
+
+@phecode_bp.route("/random_phecode", methods=["GET"])
+def get_random_phecode():
+    """Get a random phecode."""
+    phecodes = get_all_phecodes()
+    return phecodes.sample(1).iloc[0]["phecode"]
 
 
 def main():

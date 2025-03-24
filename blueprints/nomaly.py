@@ -33,28 +33,35 @@ def qqstats(dfstats):
     melt_stats = pd.melt(
         dfstats, id_vars=["term"], value_vars=tags, var_name="tag", value_name="P_obs"
     )
+
     melt_stats.dropna(inplace=True)
     # add metric column as tag
     melt_stats["test"] = melt_stats["tag"].apply(lambda x: x.split("_pvalue")[0])
+
     # # drop the tag column
     # melt_stats.drop(columns='tag', inplace=True)
+
     # add -log10(P_obs) column
     try:
         melt_stats["-log10(observed)"] = -np.log10(melt_stats["P_obs"])
     except Exception as e:
         print(f'Exception "{e}" encourterd for {melt_stats["term"][0]}')
+
     # sort the table by P_obs
     melt_stats.sort_values("P_obs", inplace=True)
+
     # add -log10(expected) column
     for tag in tags:
         len_tag = len(melt_stats[melt_stats["tag"] == tag])
         melt_stats.loc[melt_stats["tag"] == tag, "-log10(expected)"] = -np.log10(
             np.linspace(0 + 1 / len_tag, 1 - 1 / len_tag, len_tag)
         )
-    # Merge description column if available
-    if "description" in dfstats.columns:
-        mapping = dfstats.set_index("term")["description"].to_dict()
-        melt_stats["description"] = melt_stats["term"].map(mapping)
+
+    # Merge the term name column (term description) if available
+    if "name" in dfstats.columns:
+        mapping = dfstats.set_index("term")["name"].to_dict()
+        melt_stats["name"] = melt_stats["term"].map(mapping)
+
     return melt_stats
 
 
@@ -96,8 +103,8 @@ def make_qqplot(plot_df):
     xlabel = "-log10(expected)"
     ylabel = "-log10(observed)"
 
-    if "description" in melt_stats.columns:
-        hover_data = {"description": True}
+    if "name" in melt_stats.columns:
+        hover_data = {"name": True}
     else:
         hover_data = None
 
