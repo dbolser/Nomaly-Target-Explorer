@@ -117,11 +117,17 @@ def get_nomaly_stats(phecode, run_version=None, ancestry=None):
         logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
         return jsonify({"error": "Failed to get Nomaly stats"}), 500
 
+    phecode_stats = fuck_with_columns(phecode_stats)
+    phecode_stats = add_term_names(phecode_stats)
+    phecode_stats = add_minrank_column(phecode_stats)
+
+    phecode_stats = phecode_stats.sort_values("minrank")
+
     return prepare_nomaly_stats_response(phecode, phecode_stats)
 
 
-def prepare_nomaly_stats_response(phecode, phecode_stats):
-    """Prepare the JSON response for nomaly stats."""
+def fuck_with_columns(phecode_stats):
+    """Fuck with the columns of the phecode stats dataframe."""
 
     # Rename columns (for some reason)
     renames = {
@@ -132,33 +138,55 @@ def prepare_nomaly_stats_response(phecode, phecode_stats):
     phecode_stats.rename(columns=renames, inplace=True)
 
     # Pull out pvalue_columns into a new dataframe
-    pvalue_columns = [x for x in phecode_stats.columns if x.endswith("_pvalue")]
-    plot_df = phecode_stats.loc[:, pvalue_columns]
+    pvalue_columns = [
+        col
+        for col in phecode_stats.columns
+        if col.endswith("_pvalue")
+        # NOTE: There some pvalues we don't like...
+        and not col.startswith("tti_pvalue")
+        and not col.startswith("lrn_pvalue")
+        and not col.startswith("lrp_protective_pvalue")
+    ]
+    return phecode_stats.loc[:, pvalue_columns]
 
-    # NOTE: There are two pvalues we don't like...
-    plot_df.drop(columns=["lrp_protective_pvalue", "tti_pvalue"], inplace=True)
+
+def add_term_names(phecode_stats):
+    """Add the term names (descriptions) to the phecode stats dataframe."""
+
+    # NOTE: term = term_id = short code, term_name = term description
+    terms = phecode_stats.index
+    phecode_stats["term"] = terms
+
+    term_name_dict = get_term_names(list(terms))
+
+    phecode_stats["name"] = phecode_stats["term"].map(
+        lambda x: term_name_dict.get(x, "-")
+    )
+
+    return phecode_stats
+
+
+def add_minrank_column(phecode_stats):
+    """Add the minrank column to the phecode stats dataframe
+
+    This is calculated as the minimum rank from any of the pvalues.
+    """
+    ranks = phecode_stats.rank(method="min")
+    phecode_stats["minrank"] = ranks.min(axis=1)
+    return phecode_stats
+
+
+def prepare_nomaly_stats_response(phecode, phecode_stats):
+    """Prepare the JSON response for nomaly stats."""
 
     # Set the metric1_pvalue to na if it is 1
     # plot_df[plot_df["metric1_pvalue"].isna(), "metric1_pvalue"] = 1
 
-    # First get the term 'names' for each term (term_id)
-
-    plot_df["term"] = plot_df.index
-
-    # NOTE: term = term_id = short code, term_name = term description)
-    term_list = list(plot_df["term"])
-    term_name_dict = get_term_names(term_list)
-
-    # Add description column before plotting
-    plot_df = plot_df.assign(
-        description=plot_df["term"].map(lambda x: term_name_dict.get(x, "-"))
-    )
-
     # Instead of HTML, send the plot data
-    plot_data = get_qqplot_data(plot_df)
+    plot_data = get_qqplot_data(phecode_stats)
 
     # Format data for table display... why?
-    plot_df = show_datatable_nomaly_stats(plot_df, phecode)
+    plot_df = show_datatable_nomaly_stats(phecode_stats, phecode)
 
     # Add a link to the term page for each term
     # TODO: This should probably be done inside the template!
@@ -166,28 +194,43 @@ def prepare_nomaly_stats_response(phecode, phecode_stats):
         lambda x: f'<a href="{url_for("phecode_term.show_phecode_term", phecode=phecode, term=x)}" target="_blank">{x}</a>'
     )
 
-    pval_nondirect = ["mwu_pvalue", "mcc_pvalue", "yjs_pvalue", "lrp_pvalue"]
-    pval_pos = ["metric1_pvalue"]
-    pval_neg = ["lrn_protective_pvalue"]
-    columns_pval = pval_nondirect + pval_pos + pval_neg
-
     column_display_names = get_column_display_names()
-    base_columns = ["minrank", "term", "name", "domain"]
+
+    columns = [
+        "minrank",
+        "term",
+        "name",
+        "mwu_pvalue",
+        "metric1_pvalue",
+        "mcc_pvalue",
+        "yjs_pvalue",
+        "lrp_pvalue",
+        "lrn_protective_pvalue",
+    ]
 
     response = {
         "plotData": plot_data,  # Send JSON data instead of HTML
-        "affected": phecode_stats["num_rp"].values[0],
-        "control": phecode_stats["num_rn"].values[0],
+        # "affected": phecode_stats["num_rp"].values[0],
+        # "control": phecode_stats["num_rn"].values[0],
         "data": plot_df.replace("nan", "1.00e+00").to_dict(orient="records"),
-        "columns": base_columns + columns_pval,
-        "columnNames": [
-            column_display_names[col]["display"] for col in base_columns + columns_pval
+        "columns": columns,
+        "columnNames": [column_display_names[col]["display"] for col in columns],
+        "columnTooltips": [column_display_names[col]["tooltip"] for col in columns],
+        "defaultColumns": [
+            "minrank",
+            "term",
+            "name",
+            # "domain",
+            "mwu_pvalue",
+            "metric1_pvalue",
+            "mcc_pvalue",
         ],
-        "columnTooltips": [
-            column_display_names[col]["tooltip"] for col in base_columns + columns_pval
-        ],
-        "defaultColumns": base_columns + ["mwu_pvalue", "metric1_pvalue", "mcc_pvalue"],
-        "numColumns": columns_pval,
+        #     "numColumns": [
+        #         "minrank",
+        #         "mwu_pvalue",
+        #         "metric1_pvalue",
+        #         "mcc_pvalue",
+        #     ],
     }
 
     return jsonify(response)
@@ -227,58 +270,38 @@ def get_qqplot_data(plot_df_pval):
 
 def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
     """Format and prepare nomaly stats for datatable display."""
-    pval_nondirect = ["mwu_pvalue", "mcc_pvalue", "yjs_pvalue", "lrp_pvalue"]
-    pval_pos = ["metric1_pvalue"]
-    pval_neg = ["lrn_protective_pvalue"]
-
-    # add minimum rank from any of the pvalues
-    columns_rank = []
-    for col in pval_nondirect + pval_pos:
-        plot_df[col.replace("_pvalue", "_minrank")] = plot_df[col].rank(method="min")
-        columns_rank.append(col.replace("_pvalue", "_minrank"))
-
-    plot_df["minrank"] = plot_df[columns_rank].min(axis=1)
-    plot_df.drop(columns=columns_rank, inplace=True)
-    plot_df.sort_values("minrank", inplace=True)
 
     # limit to top 1000
     plot_df_filtered = plot_df.iloc[:1000]
 
-    # But add the top 50 from lrn_protective_pvalue
-    plot_df_filtered = pd.concat(
-        [
-            plot_df_filtered,
-            plot_df.sort_values("lrn_protective_pvalue", ascending=True)[:50],
-        ]
-    )
+    # get term names and domains
+    # term_name_dict = get_term_names(plot_df_filtered["term"].tolist())
+    # term_domain_dict = get_term_domains(plot_df_filtered["term"].tolist())
 
-    # Remove duplicate terms
+    # plot_df_filtered = plot_df_filtered.assign(
+    #     name=plot_df_filtered["term"].map(lambda x: term_name_dict.get(x, "-"))
+    # )
+
+    # Remove duplicate terms??
     plot_df_filtered = plot_df_filtered.drop_duplicates(subset="term")
 
-    # get term names and domains
-    term_name_dict = get_term_names(plot_df_filtered["term"].tolist())
-    term_domain_dict = get_term_domains(plot_df_filtered["term"].tolist())
-
-    plot_df_filtered = plot_df_filtered.assign(
-        name=plot_df_filtered["term"].map(lambda x: term_name_dict.get(x, "-"))
-    )
 
     # Create the domain column...
 
-    def map_term_to_domain(term):
-        domains = term_domain_dict[term]
-        if len(domains) < 10:
-            return ", ".join(domains)
-        else:
-            return f"{len(domains)} domains"
+    # def map_term_to_domain(term):
+    #    domains = term_domain_dict[term]
+    #    if len(domains) < 10:
+    #        return ", ".join(domains)
+    #    else:
+    #        return f"{len(domains)} domains"
 
-    plot_df_filtered["domain"] = plot_df_filtered["term"].map(map_term_to_domain)
+    # plot_df_filtered["domain"] = plot_df_filtered["term"].map(map_term_to_domain)
 
     if addgene:
         plot_df_filtered = add_gene_info_to_DataTable(plot_df_filtered, phecode)
 
     # Round all P-values to scientific notation
-    pval_columns = pval_nondirect + pval_pos + pval_neg
+    pval_columns = [col for col in plot_df_filtered.columns if col.endswith("_pvalue")]
     for col in pval_columns:
         plot_df_filtered[col] = plot_df_filtered[col].apply(
             lambda x: f"{float(x):0.2e}" if x != "None" else x
