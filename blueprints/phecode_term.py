@@ -1,55 +1,59 @@
 import logging
-import traceback
-from typing import Optional
 
 import pandas as pd
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request, session
 
 from blueprints.gwas import format_gwas_results, run_gwas
 
-
 # TODO: MAKE A DATA SERVICE FOR THIS!!!!
 from blueprints.nomaly import pharos, pp
-
-
+from blueprints.phecode import get_phecode_data
 from blueprints.phecode_term_helper import load_cached_results, save_results
+from data_services import (
+    GenotypeService,
+    ServiceRegistry,
+)
 from db import (
-    get_phecode_info,
     get_term_domains,
     get_term_genes,
     get_term_names,
     get_term_variants,
 )
-from errors import DataNotFoundError
 
 # Create a 'dummy' profile decorator if we don't have line_profiler installed
 try:
-    from line_profiler import profile
+    from line_profiler import profile  # type: ignore
 except ImportError:
 
     def profile(func):
         return func
 
 
-# Create the blueprint
-phecode_term_bp = Blueprint("phecode_term", __name__, template_folder="../templates")
-
 logger = logging.getLogger(__name__)
+phecode_term_bp = Blueprint("phecode_term", __name__, template_folder="../templates")
 
 
 @phecode_term_bp.route(
     "/phecode/<string:phecode>/term/<string:term>", methods=["POST", "GET"]
 )
 def show_phecode_term(phecode, term):
+    # Get ancestry from session
+    ancestry = session.get("ancestry", "EUR")
+
     try:
-        data = get_phecode_info(phecode)
+        # Get services while we're in 'app context'
+        services: ServiceRegistry = current_app.extensions["nomaly_services"]
+
+        # NOTE: We inject the appropriate services into 'backend' functions
+        # (dependency injection)
+        phecode_term_data = get_phecode_data(phecode, services.phenotype, ancestry)
 
         term_name = get_term_names([term])[term]
         term_domains = get_term_domains([term])[term]
         term_gene_df = get_term_genes([term])
 
         # Update data dictionary
-        data.update(
+        phecode_term_data.update(
             {
                 "term": term,
                 "termname": term_name,
@@ -60,17 +64,14 @@ def show_phecode_term(phecode, term):
         )
 
         return render_template(
-            "phecode_term.html", phecode=phecode, term=term, data=data
+            "phecode_term.html", phecode=phecode, term=term, data=phecode_term_data
         )
-
-    except DataNotFoundError as e:
-        logger.warning(f"Data not found: {str(e)}")
-        return render_template("error.html", error=str(e)), 404
     except Exception as e:
-        logger.error(f"Error in show_phecode_term: {str(e)}", exc_info=True)
-        return render_template("error.html", error="An unexpected error occurred"), 500
+        logger.error(f"Failed to get Phecode Term data for {phecode} / {term}: {e}")
+        return jsonify({"error": "Failed to get Phecode / Term data"}), 500
 
 
+# Called by phecode_term.html
 @phecode_term_bp.route(
     "/phecode/<string:phecode>/term/<string:term>/tableVariantDetail",
     methods=["GET", "POST"],
@@ -78,19 +79,18 @@ def show_phecode_term(phecode, term):
 def show_phecode_term_variant_detail(
     phecode: str,
     term: str,
-    sex: Optional[str] = None,
-    ancestry: Optional[str] = None,
-    flush: bool = False,
 ):
-    flush = request.args.get("flush", "false").lower() == "true"  # Handle URL parameter
-    if request.is_json:
-        flush = request.get_json().get(
-            "flush", flush
-        )  # POST body overrides URL parameter if present
+    flush = request.args.get("flush", "False") == "true"
+
+    # Get ancestry from session
+    ancestry = session.get("ancestry", "EUR")
+
+    # Get services while we're in 'app context'
+    services: ServiceRegistry = current_app.extensions["nomaly_services"]
 
     try:
         result = calculate_phecode_term_variant_detail(
-            phecode, term, sex, ancestry, flush
+            phecode, term, services.genotype, ancestry, flush
         )
     except Exception as e:
         logger.error(f"Error in show_phecode_term_variant_detail: {str(e)}")
@@ -103,13 +103,10 @@ def show_phecode_term_variant_detail(
 def calculate_phecode_term_variant_detail(
     phecode: str,
     term: str,
-    sex: Optional[str] = None,
-    ancestry: Optional[str] = None,
+    genotype_service: GenotypeService,
+    ancestry: str = "EUR",
     flush: bool = False,
 ) -> dict:
-    services = current_app.extensions["nomaly_services"]
-    genotype_service = services.genotype
-    assert genotype_service is not None
 
     logger.info(
         f"Starting variant detail processing for phecode {phecode}, term {term}"
@@ -136,7 +133,6 @@ def calculate_phecode_term_variant_detail(
         "GWAS_OR",
         "GWAS_RSID",
     ]
-    logger.debug(f"Defined {len(columns)} columns")
 
     default_columns = [
         "Variant",
@@ -158,6 +154,7 @@ def calculate_phecode_term_variant_detail(
         logger.info(f"Flush parameter received: {flush}")
 
         # Check cache
+        # TODO: ANCESTRY
         cached_data = load_cached_results(phecode, term, flush)
 
         if cached_data is not None and "data" in cached_data:
@@ -185,6 +182,8 @@ def calculate_phecode_term_variant_detail(
         print(f"After merges shape: {term_df.shape}")
 
         # Load GWAS data
+
+        # TODO: ANCESTRY
         gwas_data = run_gwas(phecode)
         formatted_gwas = pd.DataFrame(
             format_gwas_results(gwas_data, significance_threshold=0.1)
@@ -200,7 +199,8 @@ def calculate_phecode_term_variant_detail(
 
             try:
                 # Calculate genotype frequencies
-                counts = genotype_service._hdf.get_variant_counts(
+                # TODO: ANCESTRY
+                counts = genotype_service.get_variant_counts(
                     nomaly_variant_id=nomaly_variant_id
                 )
                 total = counts["total"]
@@ -267,6 +267,7 @@ def calculate_phecode_term_variant_detail(
                 continue
 
         # Cache and return results
+        # TODO: ANCESTRY
         save_results(phecode, term, data_records)
         logger.info(f"\nFinal number of records: {len(data_records)}")
 
@@ -298,6 +299,7 @@ def main():
     # term = "MP:0000948"
     term = "MP:0004986"
 
+    # TODO: INJECT SERVIECS rather than getting them from current_app
     from app import create_app
 
     app = create_app("development")
