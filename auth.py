@@ -51,6 +51,7 @@ def check_page_permission(current_user, path):
         "/nomaly-stats/",
         "/phecode2/",
         # "/nomaly-stats2/",
+        "/update_settings/",
         "/run-task/",
         "/variant_scores/",
         "/stream_progress/",
