@@ -46,6 +46,83 @@ def test_mock_genotype_hdf5_file_with_npy(mock_genotype_hdf5_file_with_npy):
     assert os.path.exists(f"{mock_genotype_hdf5_file_with_npy}.npy")
 
 
+def test_stats_registry(stats_registry):
+    """Test that the stats_registry fixture provides a working registry."""
+    # Check that the registry is initialized
+    assert stats_registry.initialized is True
+
+    # Check that we can get services for different versions
+    service_v1 = stats_registry.get("Run-v1", "EUR")
+    assert service_v1 is not None
+    assert hasattr(service_v1, "_hdf")
+
+    service_v2 = stats_registry.get("Run-v2", "EUR")
+    assert service_v2 is not None
+    assert hasattr(service_v2, "_hdf")
+
+
+def test_stats_service(stats_service):
+    """Test that the stats_service fixture provides a working service."""
+    # Verify basic properties
+    assert stats_service is not None
+    assert hasattr(stats_service, "_hdf")
+
+    # Test accessing the test data through the service
+    df = stats_service.get_phecode_stats("250.2", term="GO:0030800")
+    assert df is not None
+    assert not df.empty
+    assert "num_rp" in df.columns
+    assert df["num_rp"].iloc[0] == 3.0
+
+    # Test the term_stats function
+    df2 = stats_service.get_term_stats("GO:0030800", phecode="250.2")
+    assert df2 is not None
+    assert not df2.empty
+    assert "num_rp" in df2.columns
+    assert df2["num_rp"].iloc[0] == 3.0
+
+
+def test_phenotype_service(phenotype_service):
+    """Test that the phenotype_service fixture provides a working service."""
+    # Verify basic properties
+    assert phenotype_service is not None
+    assert hasattr(phenotype_service, "_hdf")
+
+    # Test the real service implementations using our mock data
+    df = phenotype_service.get_cases_for_phecode("250.2")
+    assert df is not None
+    assert not df.empty
+    assert "eid" in df.columns
+    assert "sex" in df.columns
+    assert "phenotype" in df.columns
+
+
+def test_genotype_service(genotype_service):
+    """Test that the genotype_service fixture provides a working service."""
+    # Verify basic properties
+    assert genotype_service is not None
+    assert hasattr(genotype_service, "_hdf")
+
+    # Check we can access the individuals
+    assert hasattr(genotype_service, "individual")
+    assert len(genotype_service.individual) > 0
+
+
+def test_nomaly_scores_service(nomaly_scores_service):
+    """Test that the nomaly_scores_service fixture provides a working service."""
+    # Verify basic properties
+    assert nomaly_scores_service is not None
+    assert hasattr(nomaly_scores_service, "_hdf")
+
+    # Test the real service implementation
+    import numpy as np
+
+    test_eids = np.array([1001, 1002, 1003])
+    scores = nomaly_scores_service.get_scores_by_eids_unsorted(test_eids)
+    assert scores is not None
+    assert len(scores) == len(test_eids)
+
+
 def test_integration_app(integration_app):
     """Test that integration_app provides an app with real services."""
     with integration_app.app_context():
@@ -71,7 +148,6 @@ def test_integration_app(integration_app):
         assert services.nomaly_score._check_initialized
         assert services.nomaly_data._check_initialized
         assert services.stats_registry._check_initialized
-
 
 
 def test_integration_app_client(integration_app_client):
