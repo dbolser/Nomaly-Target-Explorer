@@ -19,7 +19,7 @@ test_app (session scope)
 └── unit_test_app
     ├── mock_genotype_hdf5_file (session scope)
     │   └── mock_genotype_hdf5_file_with_npy
-    ├── mock_phenotype_file
+    ├── mock_phenotype_hdf5_file
     └── unit_test_app_client
 
 integration_app (session scope)
@@ -30,7 +30,7 @@ integration_app (session scope)
 
 TODOs for later cleanup:
 1. The genotype fixture's matrix shape looks wrong (5x4 instead of 4x5 - variants should be columns)
-2. Some fixture names are inconsistent (`mock_genotype_hdf5_file` vs `mock_phenotype_file`)
+2. Some fixture names are inconsistent (`mock_genotype_hdf5_file` vs `mock_phenotype_hdf5_file`)
 3. The test hierarchy comment could live in a proper docstring at the top of `conftest.py`
 4. `test_tests.py` has some commented-out assertions that should be cleaned up
 5. Integration tests could use better documentation about what real data they expect
@@ -142,7 +142,7 @@ def mock_genotype_hdf5_file_with_npy(mock_genotype_hdf5_file):
 
 
 @pytest.fixture
-def mock_phenotype_file():
+def mock_phenotype_hdf5_file():
     """Create a temporary mock HDF5 file with test phenotype data."""
     with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
         with h5py.File(tmp.name, "w") as f:
@@ -189,7 +189,12 @@ def mock_phenotype_file():
 
 @pytest.fixture
 def unit_test_app(
-    test_app, phenotype_service, genotype_service, stats_service, nomaly_scores_service
+    test_app,
+    phenotype_service,
+    genotype_service,
+    nomaly_scores_service,
+    nomaly_data_service,
+    stats_registry,
 ):
     """App configured for unit tests with mocked services."""
 
@@ -209,8 +214,10 @@ def unit_test_app(
         # Use our mock services instead of creating new ones
         services.genotype = genotype_service
         services.phenotype = phenotype_service
-        services.stats = stats_service
         services.nomaly_score = nomaly_scores_service
+        services.nomaly_data = nomaly_data_service
+
+        services.stats_registry = stats_registry
 
         # Register the services with the app
         test_app.extensions["nomaly_services"] = services
@@ -219,244 +226,240 @@ def unit_test_app(
 
 
 @pytest.fixture
-def phenotype_service():
+def phenotype_service(mock_phenotype_hdf5_file):
     """Mock phenotype service for unit tests."""
-    from unittest.mock import MagicMock
-    import numpy as np
+    from data_services.phenotype import PhenotypeService
 
-    mock_service = MagicMock()
-    mock_hdf = MagicMock()
+    # Create a real PhenotypeService instance with our mock file
+    service = PhenotypeService(mock_phenotype_hdf5_file)
 
-    # Define our standard test cohort
-    # 10 individuals: 3 cases, 5 controls, 2 excluded
-    test_eids = np.array([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010])
-    test_phenotypes = {
-        "250.2": np.array(
-            [1, 1, 1, 0, 0, 0, 0, 0, 9, 9]
-        ),  # 1=case, 0=control, 9=excluded
-        "290.11": np.array(
-            [0, 1, 1, 0, 0, 1, 0, 0, 9, 9]
-        ),  # Different pattern for another disease
-        "401.1": np.array(
-            [1, 0, 1, 1, 0, 0, 0, 0, 9, 9]
-        ),  # Different pattern for another disease
-    }
-
-    def mock_get_cases_for_phecode(phecode, population=None, biological_sex=None):
-        """Return test phenotype data for the given phecode."""
-        if phecode not in test_phenotypes:
-            # Return default pattern for unknown phecodes
-            return test_eids, test_phenotypes["250.2"]
-        return test_eids, test_phenotypes[phecode]
-
-    mock_hdf.get_cases_for_phecode = mock_get_cases_for_phecode
-    mock_service._hdf = mock_hdf
-
-    return mock_service
+    return service
 
 
 @pytest.fixture
-def genotype_service():
+def genotype_service(mock_genotype_hdf5_file_with_npy):
     """Mock genotype service for unit tests."""
-    from unittest.mock import MagicMock
-    import numpy as np
+    from data_services.genotype import GenotypeService
 
-    mock_service = MagicMock()
-    mock_hdf = MagicMock()
+    # Create a real GenotypeService instance with our mock file
+    service = GenotypeService(mock_genotype_hdf5_file_with_npy)
 
-    # Define our standard test cohort - must match phenotype_service
-    test_eids = np.array([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010])
-
-    # Define test genotypes for specific variants
-    # 0=homozygous ref, 1=heterozygous, 2=homozygous alt, -1=missing
-    test_genotypes = {
-        "1_186977737_A/G": np.array([2, 1, 0, 1, 0, 0, 1, 0, 0, 0]),  # Common variant
-        "1_186977780_G/A": np.array([1, 2, 0, 0, 1, 0, 0, 0, 0, 0]),  # Less common
-        "1_46813503_C/T": np.array([0, 1, 2, 0, 0, 1, 0, 0, 0, 0]),  # Rare variant
-        # Add more variants as needed for different test scenarios
-    }
-
-    def mock_query_variantID_genotypes(variant_id):
-        """Return genotypes for specific variants."""
-        if variant_id in test_genotypes:
-            return test_eids, test_genotypes[variant_id]
-        # Return None for unknown variants (matches real behavior)
-        return None
-
-    def mock_get_genotypes(eids=None, vids=None, nomaly_ids=True):
-        """Return a genotype matrix for the given eids and variants."""
-        if eids is None:
-            eids = test_eids
-        if vids is None:
-            return np.zeros((len(eids), 0))
-
-        # Create matrix with genotypes for requested variants
-        genotype_matrix = np.zeros((len(eids), len(vids)))
-        for i, vid in enumerate(vids):
-            if vid in test_genotypes:
-                # Find indices of requested eids in our test data
-                eid_indices = np.searchsorted(test_eids, eids)
-                genotype_matrix[:, i] = test_genotypes[vid][eid_indices]
-
-        return genotype_matrix
-
-    # Set up the mock
-    mock_hdf.query_variantID_genotypes = mock_query_variantID_genotypes
-    mock_hdf.get_genotypes = mock_get_genotypes
-    mock_hdf.individual = test_eids
-
-    mock_service._hdf = mock_hdf
-
-    return mock_service
+    return service
 
 
 @pytest.fixture
-def stats_service():
-    """Mock stats service for unit tests."""
-    from unittest.mock import MagicMock
-    import numpy as np
-    import pandas as pd
+def mock_stats_hdf5_file():
+    """Create a temporary mock HDF5 file with test stats data."""
+    with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
+        with h5py.File(tmp.name, "w") as f:
+            # Define our test data
+            # The stats are stored in a 3D array: (term, phecode, stat_type)
 
-    mock_service = MagicMock()
-    mock_hdf = MagicMock()
+            # Define the terms we support
+            terms = np.array([b"GO:0030800", b"MP:0005179", b"GO:0006915"])
 
-    # Define test statistics that match our phenotype data
-    # These values should align with the phenotype_service fixture
-    test_stats = {
-        ("GO:0030800", "250.2"): {
-            "num_rp": 3.0,  # 3 cases in phenotype data
-            "num_rn": 5.0,  # 5 controls in phenotype data
-            "metric1_pvalue": 0.0026,
-            "metric1_tp": 2,
-            "metric1_tn": 685,
-            "metric1_fp": 257045,
-            "metric1_fn": 532,
-            "metric1_threshold": 0.022,
-            # MCC stats
-            "roc_stats_mcc_pvalue": 0.0015,
-            "roc_stats_mcc_or": 2.5,
-            "roc_stats_mcc_threshold": 0.025,
-            "roc_stats_mcc_tp": 2,
-            "roc_stats_mcc_tn": 4,
-            "roc_stats_mcc_fp": 1,
-            "roc_stats_mcc_fn": 1,
-            # YJS stats
-            "roc_stats_yjs_pvalue": 0.045,
-            "roc_stats_yjs_or": 3.0,
-            "roc_stats_yjs_threshold": 0.02,
-            "roc_stats_yjs_tp": 2,
-            "roc_stats_yjs_tn": 3,
-            "roc_stats_yjs_fp": 2,
-            "roc_stats_yjs_fn": 1,
-            # LRP stats
-            "roc_stats_lrp_pvalue": 0.16,
-            "roc_stats_lrp_or": 2.0,
-            "roc_stats_lrp_threshold": 0.03,
-            "roc_stats_lrp_tp": 1,
-            "roc_stats_lrp_tn": 4,
-            "roc_stats_lrp_fp": 1,
-            "roc_stats_lrp_fn": 2,
-            # Protective stats
-            "roc_stats_lrn_protective_pvalue": 1.0,
-            "roc_stats_lrn_protective_or": 0.5,
-            "roc_stats_lrn_protective_threshold": 0.0303,
-            "roc_stats_lrn_protective_tp": 0,
-            "roc_stats_lrn_protective_tn": 247353,
-            "roc_stats_lrn_protective_fp": 84,
-            "roc_stats_lrn_protective_fn": 497,
-        }
-    }
+            # Define the phecodes we support
+            phecodes = np.array([b"250.2", b"290.11", b"401.1", b"635.2", b"601.1"])
 
-    def mock_get_stats_by_term_phecode(term, phecode, statstype=None):
-        """Return statistics for a specific term and phecode combination."""
-        key = (term, phecode)
-        if key not in test_stats:
-            raise ValueError(f"No test stats for term={term}, phecode={phecode}")
+            # Define the stat types
+            stats_types = np.array(
+                [
+                    b"num_rp",
+                    b"num_rn",
+                    b"metric1_pvalue",
+                    b"metric1_tp",
+                    b"metric1_tn",
+                    b"metric1_fp",
+                    b"metric1_fn",
+                    b"metric1_threshold",
+                    b"roc_stats_mcc_pvalue",
+                    b"roc_stats_mcc_or",
+                    b"roc_stats_mcc_threshold",
+                    b"roc_stats_mcc_tp",
+                    b"roc_stats_mcc_tn",
+                    b"roc_stats_mcc_fp",
+                    b"roc_stats_mcc_fn",
+                    b"roc_stats_yjs_pvalue",
+                    b"roc_stats_yjs_or",
+                    b"roc_stats_yjs_threshold",
+                    b"roc_stats_yjs_tp",
+                    b"roc_stats_yjs_tn",
+                    b"roc_stats_yjs_fp",
+                    b"roc_stats_yjs_fn",
+                    b"roc_stats_lrp_pvalue",
+                    b"roc_stats_lrp_or",
+                    b"roc_stats_lrp_threshold",
+                    b"roc_stats_lrp_tp",
+                    b"roc_stats_lrp_tn",
+                    b"roc_stats_lrp_fp",
+                    b"roc_stats_lrp_fn",
+                    b"roc_stats_lrn_protective_pvalue",
+                    b"roc_stats_lrn_protective_or",
+                    b"roc_stats_lrn_protective_threshold",
+                    b"roc_stats_lrn_protective_tp",
+                    b"roc_stats_lrn_protective_tn",
+                    b"roc_stats_lrn_protective_fp",
+                    b"roc_stats_lrn_protective_fn",
+                ]
+            )
 
-        if statstype is None:
-            return test_stats[key]
+            # Create a 3D array to hold the data
+            data = np.zeros((len(terms), len(phecodes), len(stats_types)))
 
-        if isinstance(statstype, str):
-            return {statstype: test_stats[key][statstype]}
+            # Fill in test data for GO:0030800 + 250.2 combination
+            # Get the indices for our combination
+            term_idx = np.where(terms == b"GO:0030800")[0][0]
+            phecode_idx = np.where(phecodes == b"250.2")[0][0]
 
-        return {
-            stat: test_stats[key][stat] for stat in statstype if stat in test_stats[key]
-        }
+            # Create a dictionary mapping stat type to value for our test combo
+            test_stats = {
+                "num_rp": 3.0,
+                "num_rn": 5.0,
+                "metric1_pvalue": 0.0026,
+                "metric1_tp": 2,
+                "metric1_tn": 685,
+                "metric1_fp": 257045,
+                "metric1_fn": 532,
+                "metric1_threshold": 0.022,
+                # MCC stats
+                "roc_stats_mcc_pvalue": 0.0015,
+                "roc_stats_mcc_or": 2.5,
+                "roc_stats_mcc_threshold": 0.025,
+                "roc_stats_mcc_tp": 2,
+                "roc_stats_mcc_tn": 4,
+                "roc_stats_mcc_fp": 1,
+                "roc_stats_mcc_fn": 1,
+                # YJS stats
+                "roc_stats_yjs_pvalue": 0.045,
+                "roc_stats_yjs_or": 3.0,
+                "roc_stats_yjs_threshold": 0.02,
+                "roc_stats_yjs_tp": 2,
+                "roc_stats_yjs_tn": 3,
+                "roc_stats_yjs_fp": 2,
+                "roc_stats_yjs_fn": 1,
+                # LRP stats
+                "roc_stats_lrp_pvalue": 0.16,
+                "roc_stats_lrp_or": 2.0,
+                "roc_stats_lrp_threshold": 0.03,
+                "roc_stats_lrp_tp": 1,
+                "roc_stats_lrp_tn": 4,
+                "roc_stats_lrp_fp": 1,
+                "roc_stats_lrp_fn": 2,
+                # Protective stats
+                "roc_stats_lrn_protective_pvalue": 1.0,
+                "roc_stats_lrn_protective_or": 0.5,
+                "roc_stats_lrn_protective_threshold": 0.0303,
+                "roc_stats_lrn_protective_tp": 0,
+                "roc_stats_lrn_protective_tn": 247353,
+                "roc_stats_lrn_protective_fp": 84,
+                "roc_stats_lrn_protective_fn": 497,
+            }
 
-    # Set up the mock
-    mock_hdf.get_stats_by_term_phecode = mock_get_stats_by_term_phecode
+            # Populate data for our test combination
+            for stat_name, value in test_stats.items():
+                stat_idx = np.where(stats_types == stat_name.encode())[0][0]
+                data[term_idx, phecode_idx, stat_idx] = value
 
-    # Add get_stats_by_phecode method for completeness
-    def mock_get_stats_by_phecode(phecode, statstype=None):
-        """Return statistics for a specific phecode."""
-        # Create a simple DataFrame with stats for all terms for this phecode
-        result = {}
-        for key in test_stats:
-            if key[1] == phecode:
-                result[key[0]] = test_stats[key]
+            # Save datasets to file
+            f.create_dataset("data", data=data)
+            f.create_dataset("term", data=terms)
+            f.create_dataset("phecode", data=phecodes)
+            f.create_dataset("stats_type", data=stats_types)
 
-        if not result:
-            raise ValueError(f"No test stats for phecode={phecode}")
-
-        # Convert to DataFrame
-        df = pd.DataFrame(result).T
-
-        if statstype is None:
-            return df
-        elif isinstance(statstype, str):
-            return df[statstype]
-        else:
-            return df[statstype]
-
-    mock_hdf.get_stats_by_phecode = mock_get_stats_by_phecode
-
-    mock_service._hdf = mock_hdf
-
-    return mock_service
+        yield tmp.name
 
 
 @pytest.fixture
-def nomaly_scores_service():
+def stats_registry(mock_stats_hdf5_file):
+    """Mock stats registry using real StatsRegistry with mock file."""
+    from data_services.stats import StatsRegistry
+    from pathlib import Path
+
+    # Create the selector dictionary in the format expected by StatsRegistry
+    # {run_version: {ancestry: path}}
+    selector = {
+        "Run-v1": {"EUR": Path(mock_stats_hdf5_file)},
+        "Run-v2": {"EUR": Path(mock_stats_hdf5_file)},
+    }
+
+    # Create a real StatsRegistry with our mock selector
+    registry = StatsRegistry(selector)
+
+    return registry
+
+
+@pytest.fixture
+def stats_service(stats_registry):
+    """Get a stats service from the registry for tests that need it directly."""
+    # Get the default service (Run-v1, EUR)
+    return stats_registry.get("Run-v1", "EUR")
+
+
+@pytest.fixture
+def mock_nomaly_scores_hdf5_file():
+    """Create a temporary mock HDF5 file with test nomaly scores data."""
+    with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
+        with h5py.File(tmp.name, "w") as f:
+            # Create required datasets
+
+            # Individual IDs - should match those used in other fixtures
+            test_eids = np.array(
+                [1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010]
+            )
+            f.create_dataset("eid", data=test_eids)
+
+            # Define some terms
+            terms = np.array([b"GO:0030800", b"MP:0005179", b"GO:0006915"])
+            f.create_dataset("term", data=terms)
+
+            # Create score matrix (eids x terms)
+            # Define scores that align with our test cases/controls
+            scores = np.array(
+                [
+                    [0.03, 0.02, 0.01],  # 1001 (case)
+                    [0.025, 0.015, 0.02],  # 1002 (case)
+                    [0.01, 0.03, 0.015],  # 1003 (case)
+                    [0.005, 0.01, 0.02],  # 1004 (control)
+                    [0.015, 0.005, 0.01],  # 1005 (control)
+                    [0.03, 0.015, 0.008],  # 1006 (control)
+                    [0.01, 0.005, 0.002],  # 1007 (control)
+                    [0.005, 0.01, 0.005],  # 1008 (control)
+                    [0.0, 0.0, 0.0],  # 1009 (excluded)
+                    [0.0, 0.0, 0.0],  # 1010 (excluded)
+                ]
+            )
+            f.create_dataset("scores", data=scores)
+
+        # Create the required .npy file
+        np.save(f"{tmp.name}.npy", scores)
+
+        yield Path(tmp.name)
+
+        # Clean up the .npy file
+        try:
+            os.unlink(f"{tmp.name}.npy")
+        except OSError:
+            pass
+
+
+@pytest.fixture
+def nomaly_scores_service(mock_nomaly_scores_hdf5_file):
     """Mock nomaly scores service for unit tests."""
+    from data_services.nomaly_score import NomalyScoreService
+
+    # Create a real NomalyScoreService instance with our mock file
+    service = NomalyScoreService(mock_nomaly_scores_hdf5_file)
+
+    return service
+
+
+@pytest.fixture
+def nomaly_data_service():
+    """Mock nomaly data service for unit tests."""
     from unittest.mock import MagicMock
-    import numpy as np
 
-    # Create a mock service with the necessary methods
+    # Create a mock nomaly data service
     mock_service = MagicMock()
-
-    # Create a mock _hdf attribute
-    mock_hdf = MagicMock()
-
-    # Define the test case and control scores as in the original test
-    case_scores = np.array([0.03, 0.025, 0.01])  # 2 out of 3 cases above threshold
-    control_scores = np.array(
-        [0.005, 0.015, 0.03, 0.01, 0.005]
-    )  # 1 out of 5 controls above threshold
-
-    # Map of eids to their scores - include all eids from our test cohort
-    eid_to_score = {
-        1001: 0.03,  # case
-        1002: 0.025,  # case
-        1003: 0.01,  # case
-        1004: 0.005,  # control
-        1005: 0.015,  # control
-        1006: 0.03,  # control
-        1007: 0.01,  # control
-        1008: 0.005,  # control
-        1009: 0.0,  # excluded - no score
-        1010: 0.0,  # excluded - no score
-    }
-
-    def mock_get_scores_by_eids_unsorted(eids, terms=None):
-        """Return scores for the given eids."""
-        return np.array([eid_to_score.get(eid, 0.0) for eid in eids])
-
-    # Assign method to mock
-    mock_hdf.get_scores_by_eids_unsorted = mock_get_scores_by_eids_unsorted
-
-    # Assign the mock HDF5 object to the service
-    mock_service._hdf = mock_hdf
-
     return mock_service
 
 
@@ -478,31 +481,6 @@ def integration_app():
             "APPLICATION_ROOT": "/",
         }
     )
-
-    # # Ensure the app context is active when initializing services
-    # with _app.app_context():
-    #     # We need to manually initialize services because ServiceRegistry
-    #     # doesn't initialize them when TESTING=True
-    #     from data_services.registry import ServiceRegistry
-
-    #     # Create service registry and force initialization
-    #     services = ServiceRegistry()
-
-    #     # Manually set up mock services for testing
-    #     services.genotype = MagicMock()
-    #     services.genotype._hdf = MagicMock()
-
-    #     services.phenotype = MagicMock()
-    #     services.phenotype._hdf = MagicMock()
-
-    #     services.stats = MagicMock()
-    #     services.stats._hdf = MagicMock()
-
-    #     services.nomaly_score = MagicMock()
-    #     services.nomaly_score._hdf = MagicMock()
-
-    #     # Register with the app
-    #     _app.extensions["nomaly_services"] = services
 
     return _app
 
