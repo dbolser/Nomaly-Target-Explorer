@@ -1,22 +1,21 @@
 import pandas as pd
+from pathlib import Path
 
 
 class NomalyDataService:
     """Service for accessing Nomaly variant mapping data."""
 
-    def __init__(self, variants_file_path):
+    def __init__(self, variants_file_path: Path | str | None = None):
         """Initialize the service with the path to the variants file."""
         self.variants_file_path = variants_file_path
-        self._df = None
-        self._variant_map_nomaly = None
-        self._variant_map_plink = None
+        self.initialized = variants_file_path is not None
 
-    @property
-    def df(self):
-        """Lazy load the variant mapping dataframe."""
-        if self._df is None:
-            self._df = pd.read_csv(self.variants_file_path, sep="\t")
-        return self._df
+        if variants_file_path is not None:
+            self.df = pd.read_csv(variants_file_path, sep="\t")
+
+    def _check_initialized(self):
+        if not self.initialized:
+            raise ValueError("Service not properly initialized: missing filename")
 
     def get_variant_info_nomaly(self, nomaly_variant):
         """Get information about a specific variant by its nomaly_variant ID."""

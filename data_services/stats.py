@@ -9,7 +9,7 @@ import pandas as pd
 class StatsRegistry:
     """Registry for managing multiple StatsService instances."""
 
-    def __init__(self, stats_selector: Dict | None = None):
+    def __init__(self, stats_selector: Dict[str, Dict[str, Path]] | None = None):
         self.stats_selector = stats_selector
         self.initialized = stats_selector is not None
         self._services: Dict[Tuple[str, str], StatsService] = {}

@@ -4,16 +4,17 @@ from data_services.genotype import GenotypeService
 from data_services.nomaly_data import NomalyDataService
 from data_services.nomaly_score import NomalyScoreService
 from data_services.phenotype import PhenotypeService
-from data_services.stats import StatsRegistry, StatsService
+from data_services.stats import StatsRegistry
 
 
 class ServiceRegistry:
     def __init__(self, app=None):
         self.genotype = GenotypeService()
         self.phenotype = PhenotypeService()
-        self.stats_registry: StatsRegistry = StatsRegistry()
-        self.nomaly_score: NomalyScoreService = NomalyScoreService()
+        self.nomaly_score = NomalyScoreService()
         self.nomaly_data: Optional[NomalyDataService] = None
+
+        self.stats_registry: StatsRegistry = StatsRegistry()
 
         # If TESTING is True, we don't want to initialise the data services
         if app is not None and not app.config.get("TESTING"):

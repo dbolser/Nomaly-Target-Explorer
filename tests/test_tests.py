@@ -23,14 +23,12 @@ def test_unit_test_app(unit_test_app):
         # Check that all services are properly mocked
         assert services.genotype._hdf is not None
         assert services.phenotype._hdf is not None
-        assert services.stats._hdf is not None
         assert services.nomaly_score._hdf is not None
 
         # Check that our mock services have the expected methods
         assert hasattr(services.phenotype._hdf, "get_cases_for_phecode")
         assert hasattr(services.genotype._hdf, "query_variantID_genotypes")
         assert hasattr(services.genotype._hdf, "get_genotypes")
-        assert hasattr(services.stats._hdf, "get_stats_by_term_phecode")
         assert hasattr(services.nomaly_score._hdf, "get_scores_by_eids_unsorted")
 
 
@@ -62,14 +60,17 @@ def test_integration_app(integration_app):
         # Check that all required services exist
         assert hasattr(services, "genotype")
         assert hasattr(services, "phenotype")
-        assert hasattr(services, "stats")
         assert hasattr(services, "nomaly_score")
+        assert hasattr(services, "nomaly_data")
 
-        # Check that each service has the _hdf attribute
-        assert hasattr(services.genotype, "_hdf")
-        assert hasattr(services.phenotype, "_hdf")
-        # assert hasattr(services.stats, "_hdf")
-        assert hasattr(services.nomaly_score, "_hdf")
+        assert hasattr(services, "stats_registry")
+
+        # Check that each service has the 'initalised' attribute
+        assert services.genotype._check_initialized
+        assert services.phenotype._check_initialized
+        assert services.nomaly_score._check_initialized
+        assert services.nomaly_data._check_initialized
+        assert services.stats_registry._check_initialized
 
 
 

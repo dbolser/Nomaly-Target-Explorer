@@ -7,7 +7,8 @@ import numpy as np
 class NomalyScoreService:
     """Service for getting nomaly scores."""
 
-    def __init__(self, hdf5_file: Path | str | None = None):
+    def __init__(self, hdf5_file: Path | None = None):
+        """Initialize the service with the path to the HDF5 file."""
         self.hdf5_file = hdf5_file
         self.initialized = hdf5_file is not None
 
