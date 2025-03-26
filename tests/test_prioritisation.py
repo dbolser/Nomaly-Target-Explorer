@@ -12,9 +12,7 @@ from blueprints.prioritisation_by_nomaly_scores_refactored import (
     read_nomaly_filtered_genotypes_new,
     fetch_phenotype_data,
     fetch_nomaly_scores,
-    fetch_stats_data,
-    compute_derived_stats,
-    process_statistic,
+    add_threshold_and_t_table_for_metric1,
     term_variant_prioritisation,
     process_gene_level_stats,
 )
@@ -148,7 +146,7 @@ def test_compute_derived_stats():
     control_scores = np.array([0.005, 0.015, 0.03, 0.01, 0.005])  # 1 above threshold
     phecode = "571.5"
 
-    result = compute_derived_stats(
+    result = add_threshold_and_t_table_for_metric1(
         stats, case_eids, control_eids, case_scores, control_scores, phecode
     )
 

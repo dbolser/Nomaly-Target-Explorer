@@ -388,6 +388,39 @@ def mock_stats_hdf5_file():
         yield tmp.name
 
 
+# TODO: Move these to conftest.py and put it into the service registry
+@pytest.fixture
+def mock_stats_data():
+    """Create mock stats data for testing."""
+    # Create a simple DataFrame that mimics the structure we expect
+    diseasestats = pd.DataFrame(
+        {
+            "num_rp": [100.0],
+            "num_rn": [1000.0],
+            "mwu_pvalue": [0.001],
+            "mcc_pvalue": [0.002],
+            "yjs_pvalue": [0.003],
+            "lrp_pvalue": [0.004],
+            "metric1_pvalue": [0.005],
+            "lrn_protective_pvalue": [0.006],
+        }
+    )
+
+    plot_df = pd.DataFrame(
+        {
+            "term": ["CC:TERM:123"],
+            "mwu_pvalue": [0.001],
+            "mcc_pvalue": [0.002],
+            "yjs_pvalue": [0.003],
+            "lrp_pvalue": [0.004],
+            "metric1_pvalue": [0.005],
+            "lrn_protective_pvalue": [0.006],
+        }
+    )
+
+    return diseasestats, plot_df
+
+
 @pytest.fixture
 def stats_registry(mock_stats_hdf5_file):
     """Mock stats registry using real StatsRegistry with mock file."""

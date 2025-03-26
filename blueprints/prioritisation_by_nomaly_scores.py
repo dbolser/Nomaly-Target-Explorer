@@ -1,6 +1,7 @@
 """
 Prioritisation of individual variants by Nomaly prediction scores and disease status.
 per disease and term.
+
 Genes are prioritised by the sum of Nomaly scores of their variants.
 """
 
@@ -30,11 +31,9 @@ from blueprints.phecode import get_phecode_data
 from config import Config
 from data_services import (
     GenotypeService,
-    NomalyDataService,
     NomalyScoreService,
     PhenotypeService,
     ServiceRegistry,
-    StatsRegistry,
     StatsService,
 )
 from db import get_term_domains, get_term_genes, get_term_names, get_term_variants
@@ -122,25 +121,6 @@ def read_cases_for_disease_code(phecode: str) -> dict:
     return cases
 
 
-def read_nomaly_filtered_genotypes_new(
-    eids: np.ndarray,
-    vids: np.ndarray,
-    genotype_service: GenotypeService,
-) -> Dict[str, Any]:
-    """Read genotypes using the new genotype service method."""
-    genotypes = genotype_service.get_genotypes(eids=eids, vids=vids, nomaly_ids=True)
-
-    # Transpose the genotypes matrix
-    genotypes = genotypes.T
-
-    return {
-        "row_eids": eids,
-        "col_variants": vids,
-        "data": genotypes,
-        "error_variants": [],
-    }
-
-
 # @profile
 def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
     """Return numpy array of variant scores for the selected variants."""
@@ -217,29 +197,32 @@ def term_variant_prioritisation(
     term_variants_genes = vids.groupby("variant_id")["gene"].apply(list).reset_index()
     term_variants_hmmsc = vids.groupby("variant_id")["hmm_score"].max().reset_index()
     vids = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
+    vids_array = vids["variant_id"].to_numpy()
 
     log_and_stream(f"Reading genotypes for {len(vids)} variants", stream_logger)
 
-    sel_genotypes = read_nomaly_filtered_genotypes_new(
-        eids, vids["variant_id"].to_numpy(), genotype_service
+    genotypes = genotype_service.get_genotypes(
+        eids=eids, vids=vids_array, nomaly_ids=True
     )
+
+    sel_genotypes = {
+        "row_eids": eids,
+        "col_variants": vids_array,
+        "data": genotypes.T,
+        "error_variants": [],
+    }
 
     log_and_stream(
         f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read.",
         stream_logger,
     )
-    if len(sel_genotypes["error_variants"]) > 0:
-        log_and_stream(
-            f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants.",
-            stream_logger,
-            level="warning",
-        )
 
     variant_scores_table = variant_scores.loc[sel_genotypes["col_variants"]]
     term_variant_scores = variant_scores_table[["vs00", "vs01", "vs11"]]
 
-    print(
-        f"We read {len(term_variant_scores)} variant scores for our {len(vids)} variants"
+    log_and_stream(
+        f"We read {len(term_variant_scores)} variant scores for our {len(vids)} variants",
+        stream_logger,
     )
 
     # TODO:This is now the bottleneck!
@@ -247,8 +230,9 @@ def term_variant_prioritisation(
         sel_genotypes, term_variant_scores
     )
 
-    print(
-        f"For some reason, we get just {len(ind_top_variants_df)} top variants for {len(sel_genotypes['row_eids'])} individuals"
+    log_and_stream(
+        f"For some reason, we get {len(ind_top_variants_df)} top variants for {len(sel_genotypes['row_eids'])} individuals",
+        stream_logger,
     )
 
     top_variants = vids.join(ind_top_variants_df, on="variant_id", how="right")
@@ -321,7 +305,10 @@ def save_results_to_cache(
 def get_top_variants(
     phecode: str,
     term: str,
-    services: ServiceRegistry,
+    phenotype_service: PhenotypeService,
+    genotype_service: GenotypeService,
+    nomaly_scores_service: NomalyScoreService,
+    stats_service: StatsService,
     run_version: str,
     ancestry: str,
     stream_logger=None,
@@ -348,7 +335,7 @@ def get_top_variants(
     )
 
     # Get phenotype data for the given phecode...
-    phenotypes = services.phenotype.get_cases_for_phecode(phecode, ancestry)
+    phenotypes = phenotype_service.get_cases_for_phecode(phecode, ancestry)
 
     log_and_stream(
         f"Got {len(phenotypes)} samples for phecode {phecode} with ancestry {ancestry}",
@@ -378,24 +365,17 @@ def get_top_variants(
     # Assert that the case eids are sorted
     assert np.all(np.diff(case_eids) > 0), "case_eids are not sorted!"
 
-    case_scores = services.nomaly_score.get_scores_by_eids_unsorted(
+    case_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
         case_eids, terms=np.array([term])
     )
 
     assert len(case_eids) == len(case_scores)
 
-    ctrl_scores = services.nomaly_score.get_scores_by_eids_unsorted(
+    ctrl_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
         ctrl_eids, terms=np.array([term])
     )
 
     assert len(ctrl_eids) == len(ctrl_scores)
-
-    # TODO: Not sure the stats service can access this funciton, we need to use
-    # the registry here to get the appropriate service for hte run and
-    # population
-
-    stats_registry: StatsRegistry = services.stats_registry
-    stats_service: StatsService = stats_registry.get(run_version, ancestry)
 
     stats = stats_service.get_term_stats(term=term, phecode=phecode)
 
@@ -414,15 +394,20 @@ def get_top_variants(
     if pd.isna(stats["metric1_pvalue"]):
         stats["metric1_pvalue"] = 1
 
-
     # TODO: Something is wrong somewhere...
-    if len(case_eids) != stats["num_rp"] or len(ctrl_eids) != stats["num_rn"]:
-        # TODO: DEBUG THIS!
+    if len(case_eids) != stats["num_rp"]:
         logger.warning(
-            f"Phecode {phecode} has {len(case_eids)} / {len(ctrl_eids)} cases and controls"
-            f" from phenotype service but {stats['num_rp']} / {stats['num_rn']} cases and controls"
-            f" from stats service! (Excludes = {len(excl_eids)}).\n"
-            "I THINK THIS IS TODO WITH EXCLUDED SEX-MATCHED CONTROLS!"
+            f"""Phecode {phecode} has {len(case_eids)} cases
+            from phenotype service but {stats["num_rp"]} cases
+            from stats service!"""
+        )
+
+    if len(ctrl_eids) != stats["num_rn"]:
+        logger.info(
+            f"""Phecode {phecode} has {len(ctrl_eids)} controls
+            from phenotype service but {stats["num_rn"]} controls
+            from stats service!
+            I THINK THIS IS TODO WITH EXCLUDED SEX-MATCHED CONTROLS!"""
         )
 
     # Fill in the 'missing' values for metric1
@@ -489,7 +474,7 @@ def get_top_variants(
             term_variant_ids,
             case_eids_above_threshold,
             ancestry,
-            services.genotype,
+            genotype_service,
             stream_logger,
         )
 
@@ -554,6 +539,7 @@ def show_variant_scores(
     flush = bool(request.args.get("flush", False))
 
     # Get run version and ancestry from the session
+    # TODO: Implement run version!
     run_version = session.get("run_version", "Run-v1")
     ancestry = session.get("ancestry", "EUR")
 
@@ -611,7 +597,10 @@ def stream_progress(
     def process_variants(
         disease_code: str,
         term: str,
-        services: ServiceRegistry,
+        phenotype_service: PhenotypeService,
+        genotype_service: GenotypeService,
+        nomaly_scores_service: NomalyScoreService,
+        stats_service: StatsService,
         run_version: str,
         ancestry: str,
         message_queue: Queue,
@@ -624,7 +613,10 @@ def stream_progress(
             data = get_top_variants(
                 disease_code,
                 term,
-                services,
+                phenotype_service,
+                genotype_service,
+                nomaly_scores_service,
+                stats_service,
                 run_version,
                 ancestry,
                 stream_logger,
@@ -740,7 +732,10 @@ def stream_progress(
                         process_variants(
                             disease_code,
                             term,
-                            services,
+                            phenotype_service,
+                            genotype_service,
+                            nomaly_scores_service,
+                            stats_service,
                             run_version,
                             ancestry,
                             message_queue,
@@ -776,7 +771,10 @@ def stream_progress(
                 process_variants,
                 disease_code,
                 term,
-                services,
+                services.phenotype,
+                services.genotype,
+                services.nomaly_score,
+                services.stats_registry.get(run_version, ancestry),
                 run_version,
                 ancestry,
                 message_queue,
@@ -810,40 +808,41 @@ def stream_progress(
     return Response(stream_with_context(generate()), mimetype="text/event-stream")
 
 
+# Search for values that will cause problems in JavaScript JSON parsing
+def check_json_safety(obj):
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if value is None:
+                print(f"Found None value for key: {key}")
+                obj[key] = ""  # Replace None with empty string
+            else:
+                check_json_safety(value)
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            if item is None:
+                print(f"Found None value for index: {i}")
+                obj[i] = ""  # Replace None with empty string
+            else:
+                check_json_safety(item)
+    return obj
+
+
 def main():
     """This code exists for debugging purposes."""
 
-    # disease_code = "290.11"
-    # term = "GO:0016861"
-
-    # disease_code = "290.11"
-    # term = "CD:MESH:D009139"
-
-    # disease_code = "334.2"
-    # term = "GO:0044559"
-
-    # disease_code = "334.2"
-    # term = "GO:0044559"
-
-    # disease_code = "324.1"
-    # term = "GO:0009225"
-
-    phecode = "332"
-    term = "GO:0030800"
-    term = "MP:0004986"
-
-    # disease_code = "300.13"
-    # term = "GO:1901136"
-
-    # disease_code = "334.2"
-    # term = "CD:MESH:D009139"
-
-    # disease_code = "705"
-    # term = "GO:0034081"
-    # term = "GO:0003960"
-
-    phecode = "256"
-    term = "MP:0004819"
+    phecodes = ["332", "324.1", "334.2", "300.13", "705", "256", "290.11"]
+    terms = [
+        "GO:1901136",
+        "GO:0044559",
+        "GO:0030800",
+        "GO:0034081",
+        "GO:0003960",
+        "GO:0016861",
+        "GO:0009225",
+        "CD:MESH:D009139",
+        "MP:0004986",
+        "MP:0004819",
+    ]
 
     from app import create_app
 
@@ -852,48 +851,35 @@ def main():
     with app.app_context():
         services = current_app.extensions["nomaly_services"]
 
-        data = get_top_variants(
-            phecode,
-            term,
-            services,
-            run_version="Run-v1",
-            ancestry="EUR",
-            no_cache=True,
-            protective=True,
-        )
+        for phecode in phecodes:
+            for term in terms:
+                data = get_top_variants(
+                    phecode,
+                    term,
+                    services.phenotype,
+                    services.genotype,
+                    services.nomaly_score,
+                    services.stats_registry.get("Run-v1", "EUR"),
+                    run_version="Run-v1",
+                    ancestry="EUR",
+                    no_cache=True,
+                    # protective=True,
+                )
 
-        # Search for values that will cause problems in JavaScript JSON parsing
-        def check_json_safety(obj):
-            if isinstance(obj, dict):
-                for key, value in obj.items():
-                    if value is None:
-                        print(f"Found None value for key: {key}")
-                        obj[key] = ""  # Replace None with empty string
-                    else:
-                        check_json_safety(value)
-            elif isinstance(obj, list):
-                for i, item in enumerate(obj):
-                    if item is None:
-                        print(f"Found None value for index: {i}")
-                        obj[i] = ""  # Replace None with empty string
-                    else:
-                        check_json_safety(item)
-            return obj
+                # Clean up any None/null values that would break JavaScript
+                data = check_json_safety(data)
+                data = convert_numpy_types(data)
 
-        # Clean up any None/null values that would break JavaScript
-        data = check_json_safety(data)
+                # print(json.dumps(data, indent=2, sort_keys=True))
 
-        # print(json.dumps(data, indent=2, sort_keys=True))
+                for key, value in data.items():
+                    if "top_variants" in key or "top_gene_set" in key:
+                        print(f"{key}: {len(data[key])}")
+                        data[key] = len(data[key])
 
-        for key, value in data.items():
-            if "top_variants" in key or "top_gene_set" in key:
-                data[key] = len(data[key])
+                # print(json.dumps(data, indent=2, sort_keys=True))
 
-        data = convert_numpy_types(data)
-
-        print(json.dumps(data, indent=2, sort_keys=True))
-
-    print("OK")
+            print("OK")
 
 
 if __name__ == "__main__":

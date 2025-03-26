@@ -5,17 +5,16 @@ The original mega-function has been broken down into smaller, more focused funct
 
 import json
 import logging
-from typing import Any, Dict, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, Sequence, Tuple, cast
 
 import numpy as np
 import pandas as pd
 
-
+from data_services.genotype import GenotypeService
 from blueprints.prioritisation_by_nomaly_scores import (
     convert_numpy_types,
     load_cached_results,
     save_results_to_cache,
-    read_nomaly_filtered_genotypes_new,
     process_individual_variants,
     variant_scores,
     log_and_stream,
@@ -53,28 +52,36 @@ def term_variant_prioritisation(
     term_variants_hmmsc = vids.groupby("variant_id")["hmm_score"].max().reset_index()
     vids = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
 
-    log_and_stream(f"Reading genotypes for {len(vids)} variants", stream_logger)
+    vids_array = vids["variant_id"].values
 
-    sel_genotypes = read_nomaly_filtered_genotypes_new(
-        eids, vids["variant_id"], ancestry, genotype_service
+    log_and_stream(f"Reading genotypes for {len(vids_array)} variants", stream_logger)
+
+    # NOTE: This call is filtered by eids.
+    # TODO:Confirm that eids are filtered by ancestry at this point?
+    genotypes = genotype_service.get_genotypes(
+        eids=eids, vids=vids_array, nomaly_ids=True
     )
+
+    sel_genotypes = {
+        "row_eids": eids,
+        "col_variants": vids_array,
+        "data": genotypes.T,
+        "error_variants": [],
+    }
 
     log_and_stream(
-        f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read.",
+        f"""Genotypes for {len(sel_genotypes["row_eids"])} individuals and
+        {len(sel_genotypes["col_variants"])} variants are read.""",
         stream_logger,
     )
-    if len(sel_genotypes["error_variants"]) > 0:
-        log_and_stream(
-            f"Failed to get genotype data for {len(sel_genotypes['error_variants'])} variants.",
-            stream_logger,
-            level="warning",
-        )
 
-    variant_scores_table = variant_scores.loc[sel_genotypes["col_variants"]]
-    term_variant_scores = variant_scores_table[["vs00", "vs01", "vs11"]]
+    term_variant_scores = variant_scores.loc[
+        sel_genotypes["col_variants"], ["vs00", "vs01", "vs11"]
+    ]
 
-    print(
-        f"We read {len(term_variant_scores)} variant scores for our {len(vids)} variants"
+    log_and_stream(
+        f"We read {len(term_variant_scores)} variant scores for our {len(vids)} variants",
+        stream_logger,
     )
 
     # TODO:This is now the bottleneck!
@@ -82,8 +89,10 @@ def term_variant_prioritisation(
         sel_genotypes, term_variant_scores
     )
 
-    print(
-        f"For some reason, we get just {len(ind_top_variants_df)} top variants for {len(sel_genotypes['row_eids'])} individuals"
+    log_and_stream(
+        f"""For some reason, we get {len(ind_top_variants_df)} top variants for
+        {len(sel_genotypes["row_eids"])} individuals""",
+        stream_logger,
     )
 
     top_variants = vids.join(ind_top_variants_df, on="variant_id", how="right")
@@ -104,9 +113,9 @@ def term_variant_prioritisation(
 def fetch_phenotype_data(
     phecode: str,
     phenotype_service,
-    population: str = "EUR",
+    ancestry: str = "EUR",
     stream_logger=None,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Fetch phenotype data and separate cases, controls, and excludes.
 
@@ -120,30 +129,22 @@ def fetch_phenotype_data(
         Tuple containing (case_eids, control_eids, exclude_eids, all_eids, phenotypes)
     """
     # Get phenotype data for the given phecode
-    eids, phenotypes = phenotype_service.get_cases_for_phecode(phecode, population)
+    phenotype_df = phenotype_service.get_cases_for_phecode(phecode, ancestry)
 
     log_and_stream(
-        f"Got {len(eids)} samples for phecode {phecode} with population {population}",
+        f"Got {len(phenotype_df)} samples for phecode {phecode} with population {ancestry}",
         stream_logger,
     )
 
     # Separate cases, controls, and excludes
-    case_eids = eids[phenotypes == 1]
-    control_eids = eids[phenotypes == 0]
-    exclude_eids = eids[phenotypes == 9]
+    case_eids = phenotype_df.loc[phenotype_df["phenotype"] == 1, "eid"].values
+    ctrl_eids = phenotype_df.loc[phenotype_df["phenotype"] == 0, "eid"].values
+    excl_eids = phenotype_df.loc[phenotype_df["phenotype"] == 9, "eid"].values
 
     # Verify that all eids are accounted for
-    assert len(eids) == len(case_eids) + len(control_eids) + len(exclude_eids)
+    assert len(phenotype_df) == len(case_eids) + len(ctrl_eids) + len(excl_eids)
 
-    log_and_stream(
-        f"Got {len(case_eids)} cases for {phecode} with population {population}",
-        stream_logger,
-    )
-
-    # Assert that the case eids are sorted
-    assert np.all(np.diff(case_eids) > 0), "case_eids are not sorted!"
-
-    return case_eids, control_eids, exclude_eids, eids, phenotypes
+    return case_eids, ctrl_eids
 
 
 def fetch_nomaly_scores(
@@ -172,60 +173,6 @@ def fetch_nomaly_scores(
     assert len(control_eids) == len(control_scores)
 
     return case_scores, control_scores
-
-
-def fetch_stats_data(term: str, phecode: str, stats_service) -> Dict[str, Any]:
-    """
-    Fetch statistics for the given term and phecode.
-
-    Args:
-        term: Term to get stats for
-        phecode: Disease code to get stats for
-        stats_service: Service to fetch stats
-
-    Returns:
-        Dictionary of statistics
-    """
-    stats = stats_service.get_stats_by_term_phecode(
-        term=term,
-        phecode=phecode,
-        statstype=[
-            "num_rp",
-            "num_rn",
-            "metric1_pvalue",
-            "roc_stats_mcc_pvalue",
-            "roc_stats_mcc_or",
-            "roc_stats_mcc_threshold",
-            "roc_stats_mcc_all_index",
-            "roc_stats_mcc_tp",
-            "roc_stats_mcc_fp",
-            "roc_stats_mcc_fn",
-            "roc_stats_mcc_tn",
-            "roc_stats_yjs_pvalue",
-            "roc_stats_yjs_or",
-            "roc_stats_yjs_threshold",
-            "roc_stats_yjs_tp",
-            "roc_stats_yjs_fp",
-            "roc_stats_yjs_fn",
-            "roc_stats_yjs_tn",
-            "roc_stats_lrp_pvalue",
-            "roc_stats_lrp_or",
-            "roc_stats_lrp_threshold",
-            "roc_stats_lrp_tp",
-            "roc_stats_lrp_fp",
-            "roc_stats_lrp_fn",
-            "roc_stats_lrp_tn",
-            "roc_stats_lrn_protective_pvalue",
-            "roc_stats_lrn_protective_or",
-            "roc_stats_lrn_protective_threshold",
-            "roc_stats_lrn_protective_tp",
-            "roc_stats_lrn_protective_fp",
-            "roc_stats_lrn_protective_fn",
-            "roc_stats_lrn_protective_tn",
-        ],
-    )
-
-    return clean_stats_data(stats)
 
 
 def clean_stats_data(stats: Dict[str, Any]) -> Dict[str, Any]:
@@ -257,7 +204,7 @@ def clean_stats_data(stats: Dict[str, Any]) -> Dict[str, Any]:
     return stats
 
 
-def compute_derived_stats(
+def add_threshold_and_t_table_for_metric1(
     stats: Dict[str, Any],
     case_eids: np.ndarray,
     control_eids: np.ndarray,
@@ -265,29 +212,22 @@ def compute_derived_stats(
     control_scores: np.ndarray,
     phecode: str,
 ) -> Dict[str, Any]:
-    """
-    Compute derived statistics from base stats.
-
-    Args:
-        stats: Base statistics
-        case_eids: EIDs for cases
-        control_eids: EIDs for controls
-        case_scores: Nomaly scores for cases
-        control_scores: Nomaly scores for controls
-        phecode: Disease code
-
-    Returns:
-        Updated statistics dictionary
-    """
-    # Make a copy to avoid modifying the original
-    stats = stats.copy()
+    """Add 'missing' threshold and t-table for metric1"""
 
     # Check for mismatches between phenotype and stats services
-    if len(case_eids) != stats["num_rp"] or len(control_eids) != stats["num_rn"]:
+    if len(case_eids) != stats["num_rp"]:
         logger.warning(
-            f"Phecode {phecode} has {len(case_eids)} / {len(control_eids)} cases and controls"
-            + f" from phenotype service but {stats['num_rp']} / {stats['num_rn']} cases and controls"
-            + " from stats service!"
+            f"Phecode {phecode} has",
+            f" {len(case_eids)} cases from phenotype service but",
+            f" {stats['num_rp']} cases from stats service!",
+        )
+
+    if len(control_eids) != stats["num_rn"]:
+        logger.info(
+            f"Phecode {phecode} has",
+            f" {len(control_eids)} controls from phenotype service but",
+            f" {stats['num_rn']} controls from stats service!",
+            "Probably controls removed during the stats's 'sex-matching' step",
         )
 
     # Fill in the 'missing' values for metric1
@@ -310,7 +250,7 @@ def process_statistic(
     case_scores: np.ndarray,
     control_scores: np.ndarray,
     term_variants: pd.DataFrame,  # Changed from List[str] to match actual usage
-    genotype_service,
+    genotype_service: GenotypeService,
     phecode: str,
     ancestry: str,
     stream_logger=None,
@@ -333,14 +273,14 @@ def process_statistic(
     Returns:
         Updated statistics dictionary with computed values for this statistic
     """
-    # Make a copy to avoid modifying the original
-    stats = stats.copy()
-
     # Handle edge case where threshold is 0 and tp is 0
     if stats[f"{stat}_threshold"] <= 0 and stats[f"{stat}_tp"] == 0:
+        logger.warning(
+            f"Threshold is 0 and tp is 0 for {stat}! Setting threshold to 1e308"
+        )
         stats[f"{stat}_threshold"] = 1e308
 
-    # Get case EIDs above threshold
+    # If protecive, we count control EIDs above the threshold
     if stat.endswith("protective"):
         eids_above_threshold = control_eids[
             control_scores >= stats[f"{stat}_threshold"]
@@ -348,17 +288,18 @@ def process_statistic(
     else:
         eids_above_threshold = case_eids[case_scores >= stats[f"{stat}_threshold"]]
 
-    if stream_logger:
-        stream_logger.info(
-            f"Processing statistic {stat} with {len(eids_above_threshold)} individuals"
-        )
+    log_and_stream(
+        f"Processing statistic {stat} with {len(eids_above_threshold)} individuals",
+        stream_logger,
+    )
+
     print(f"Selected for statistic {stat}: {len(eids_above_threshold)}")
 
     # Check for mismatches between computed TP and stats service TP
     if len(eids_above_threshold) != stats[f"{stat}_tp"]:
         logger.warning(
             f"Phecode {phecode} has {len(eids_above_threshold)} True Positives for {stat} from "
-            + f"nomaly scores but {stats[f'{stat}_tp']} True Positives from stats service!"
+            f"nomaly scores but {stats[f'{stat}_tp']} True Positives from stats service!"
         )
 
     # Calculate derived metrics
@@ -395,6 +336,9 @@ def process_gene_level_stats(top_variants: pd.DataFrame) -> Sequence[Dict[str, A
     Returns:
         Sequence of dictionaries with gene-level statistics
     """
+    if top_variants.empty:
+        return []
+
     # Explode genes (one variant might be associated with multiple genes)
     # First, convert any string genes to lists for consistent processing
     if top_variants["gene"].dtype == object and isinstance(
@@ -489,8 +433,8 @@ def get_top_variants_refactored(
 
     try:
         # Step 1: Fetch phenotype data
-        case_eids, control_eids, exclude_eids, all_eids, phenotypes = (
-            fetch_phenotype_data(phecode, phenotype_service, ancestry, stream_logger)
+        case_eids, control_eids = fetch_phenotype_data(
+            phecode, phenotype_service, ancestry, stream_logger
         )
 
         # Step 2: Get term variants
@@ -500,16 +444,19 @@ def get_top_variants_refactored(
         )
 
         # Step 3: Fetch Nomaly scores
+        # TODO: ADD RUN VERSION HERE!
         case_scores, control_scores = fetch_nomaly_scores(
             case_eids, control_eids, score_service, term
         )
 
         # Step 4: Fetch stats data
-        stats = fetch_stats_data(term, phecode, stats_service)
+        stats = stats_service.get_term_stats(term, phecode=phecode)
+
+        stats_dict = stats.to_dict(orient="records")[0]
 
         # Step 5: Compute derived statistics
-        stats = compute_derived_stats(
-            stats, case_eids, control_eids, case_scores, control_scores, phecode
+        stats = add_threshold_and_t_table_for_metric1(
+            stats_dict, case_eids, control_eids, case_scores, control_scores, phecode
         )
 
         # Step 6: Determine which statistics to process

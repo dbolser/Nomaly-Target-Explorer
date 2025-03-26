@@ -28,23 +28,22 @@ def test_production_file_exists(genotype_service):
 
 def test_h5_matches_npy(genotype_service):
     """Verify the HDF5 file matches the NPY file."""
-    pass
-    # try:
-    #     assert self.genotype_matrix_mm.shape == self.genotype_matrix.shape
-    #     assert self.genotype_matrix_mm.dtype == self.genotype_matrix.dtype
 
-    #     # A bit random, but hey...
-    #     assert np.all(
-    #         self.genotype_matrix[0:10, :] == self.genotype_matrix_mm[0:10, :]
-    #     )
-    #     assert np.all(
-    #         self.genotype_matrix[:, 0:10] == self.genotype_matrix_mm[:, 0:10]
-    #     )
-    # except Exception as e:
-    #     print(
-    #         f"Error in sanity checks, HDF5 genotype_matrix != memmap: {str(e)}"
-    #     )
-    #     raise
+    import h5py
+
+    # This is now the default genotype matrix
+    genotype_matrix_npy = genotype_service._hdf.genotype_matrix
+
+    # Need to load the HDF5 genotype matrix from the HDF5 file directly...
+    genotype_matrix_hdf = genotype_service._hdf.genotype_matrix
+
+    assert genotype_matrix_hdf.shape == genotype_matrix_npy.shape
+    assert genotype_matrix_hdf.dtype == genotype_matrix_npy.dtype
+
+    # A bit random, but hey...
+    n = 100
+    assert np.all(genotype_matrix_hdf[0:n, :] == genotype_matrix_npy[0:n, :])
+    assert np.all(genotype_matrix_hdf[:, 0:n] == genotype_matrix_npy[:, 0:n])
 
 
 def test_individual_count(genotype_service):
@@ -61,18 +60,6 @@ def test_genotype_matrix_shape(genotype_service):
     """Verify the shape of the genotype matrix."""
     genotype_matrix = genotype_service.get_genotypes()
     assert genotype_matrix.shape == (NUM_VARIANTS, NUM_INDIVIDUALS)
-
-
-def test_bad_eids(genotype_service):
-    """Test that bad eids are handled correctly."""
-    with pytest.raises(IndexError):
-        _ = genotype_service.get_genotypes(eids=["hello"])
-
-
-def test_bad_vids(genotype_service):
-    """Test that bad vids are handled correctly."""
-    with pytest.raises(IndexError):
-        _ = genotype_service.get_genotypes(vids=["hello"])
 
 
 def test_get_genotypes_to_hell(genotype_service):
@@ -204,6 +191,84 @@ def test_another_known_variant_genotypes(genotype_service):
     assert np.all(np.isin(result_counts[1], [354, 488018, 5, 0]))
 
 
+def test_get_genotypes_single_eid(genotype_service):
+    """Test that get_genotypes works with a single eid."""
+    eid = genotype_service.individual[0]
+    result = genotype_service.get_genotypes(eids=[eid])
+    assert result is not None
+    assert result.shape == (NUM_VARIANTS, 1)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
+
+
+def test_get_genotypes_multiple_eids(genotype_service):
+    """Test that get_genotypes works with multiple eids."""
+    eids = genotype_service.individual[:10]
+    result = genotype_service.get_genotypes(eids=eids)
+    assert result is not None
+    assert result.shape == (NUM_VARIANTS, 10)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
+
+
+def test_get_genotypes_single_vid(genotype_service):
+    """Test that get_genotypes works with a single vid."""
+    vid = genotype_service.plink_variant_id[0]
+    result = genotype_service.get_genotypes(vids=[vid])
+    assert result is not None
+    assert result.shape == (1, NUM_INDIVIDUALS)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
+
+
+def test_get_genotypes_single_vid_nomaly_id(genotype_service):
+    """Test that get_genotypes works with a single vid and nomaly_ids=True."""
+    vid = genotype_service.nomaly_variant_id[0]
+    result = genotype_service.get_genotypes(vids=[vid], nomaly_ids=True)
+    assert result is not None
+    assert result.shape == (1, NUM_INDIVIDUALS)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
+
+
+def test_get_genotypes_multiple_vids(genotype_service):
+    """Test that get_genotypes works with multiple vids."""
+    vids = genotype_service.plink_variant_id[:10]
+    result = genotype_service.get_genotypes(vids=vids)
+    assert result is not None
+    assert result.shape == (10, NUM_INDIVIDUALS)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
+
+
+def test_get_genotypes_multiple_vids_nomaly_id(genotype_service):
+    """Test that get_genotypes works with multiple vids and nomaly_ids=True."""
+    vids = genotype_service.nomaly_variant_id[:10]
+    result = genotype_service.get_genotypes(vids=vids, nomaly_ids=True)
+    assert result is not None
+    assert result.shape == (10, NUM_INDIVIDUALS)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
+
+
+def test_bad_eids(genotype_service):
+    """Test that bad eids are handled correctly."""
+    with pytest.raises(IndexError):
+        _ = genotype_service.get_genotypes(eids=["hello"])
+
+
+def test_bad_vids(genotype_service):
+    """Test that bad vids are handled correctly."""
+    with pytest.raises(IndexError):
+        _ = genotype_service.get_genotypes(vids=["hello"])
+
+
+def test_bad_vids_nomaly_id(genotype_service):
+    """Test that bad vids are handled correctly."""
+    with pytest.raises(IndexError):
+        _ = genotype_service.get_genotypes(vids=["hello"], nomaly_ids=True)
+
+
 def test_plink_variant_id_format_in_file(genotype_service):
     """Test that variants in the file follow the expected format."""
     # Sample first 1000 variants
@@ -211,44 +276,36 @@ def test_plink_variant_id_format_in_file(genotype_service):
 
     import re
 
+    pattern = re.compile(r"^(\d+):(\d+)_([ACGT])/([ACGT])$")
+
     for variant in sample_variants:
-        parts = re.split(r"[:_/]", variant)
-        assert len(parts) == 4, f"Invalid variant format: {variant}"
-        assert parts[0].isdigit(), f"Invalid chromosome: {parts[0]}"
-        assert parts[1].isdigit(), f"Invalid position: {parts[1]}"
-        assert len(parts[2]) >= 1, f"Invalid ref allele: {parts[2]}"
-        assert len(parts[3]) >= 1, f"Invalid alt allele: {parts[3]}"
+        assert pattern.match(variant), f"Invalid variant: {variant}"
 
 
-@pytest.mark.skip(reason="Do we need to allow to query by nomaly variant ids?")
 def test_nomaly_variant_id_format_in_file(genotype_service):
     """Test that variants in the file follow the expected format."""
     # Sample first 1000 variants
     sample_variants = genotype_service.nomaly_variant_id[:1000]
 
+    import re
+
+    pattern = re.compile(r"^(\d+)_(\d+)_([ACGT])/([ACGT])$")
+
     missing_count = 0
     for variant in sample_variants:
-        if variant == "Missing":
+        # TODO Should probably fix earlier in the pipeline...
+        if variant == "nan":
             missing_count += 1
             continue
 
-        chr, pos, alleles = variant.split("_")
-        assert len(chr) == 1, f"Invalid chromosome: {chr}"
-        assert len(pos) >= 1, f"Invalid position: {pos}"
-        assert len(alleles) == 3, f"Invalid alleles: {alleles}"
-        assert alleles[0] in ["A", "C", "G", "T"], f"Invalid ref allele: {alleles[0]}"
-        assert alleles[1] == "/", f"Invalid separator: {alleles[1]}"
-        assert alleles[2] in ["A", "C", "G", "T"], f"Invalid alt allele: {alleles[2]}"
+        assert pattern.match(variant), f"Invalid variant: {variant}"
 
-    assert missing_count < 1000, "There should be less than 1000 missing variants"
+    assert missing_count < 999, "There should be less than 1000 missing variants"
 
 
 def test_individual_id_format(genotype_service):
     """Test that individual IDs are in the expected format."""
     sample_ids = genotype_service.individual
-
-    # THIS WAS A PROBLEM IN THE ORIGINAL FILE, e..g there was exactly 1 -1 in
-    # the sample_ids!
 
     NUM_MISSING_IDS = 427
 

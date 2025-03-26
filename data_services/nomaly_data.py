@@ -10,6 +10,8 @@ class NomalyDataService:
         """Initialize the service with the path to the variants file."""
         self.variants_file_path = variants_file_path
         self.initialized = variants_file_path is not None
+        self._variant_map_nomaly = None
+        self._variant_map_plink = None
 
         if variants_file_path is not None:
             self.df = pd.read_csv(variants_file_path, sep="\t")

@@ -27,13 +27,6 @@ class GenotypeService:
         if not self.initialized:
             raise ValueError("Service not properly initialized: missing filename")
 
-    def query_variantID_genotypes(
-        self, variant: str
-    ) -> tuple[np.ndarray, np.ndarray] | None:
-        """Delegate to the underlying HDF5 file's query_variantID_genotypes method."""
-        self._check_initialized()
-        return self._hdf.query_variantID_genotypes(variant)
-
     def get_genotypes(self, eids=None, vids=None, nomaly_ids=False) -> np.ndarray:
         """Delegate to the underlying HDF5 file's get_genotypes method."""
         self._check_initialized()
@@ -60,6 +53,12 @@ class GenotypeService:
         """Delegate to the underlying HDF5 file's genotype_variant_id property."""
         self._check_initialized()
         return self._hdf.plink_variant_id
+
+    @property
+    def nomaly_variant_id(self):
+        """Delegate to the underlying HDF5 file's genotype_variant_id property."""
+        self._check_initialized()
+        return self._hdf.nomaly_variant_id
 
 
 class GenotypesHDF5:
@@ -283,7 +282,7 @@ class GenotypesHDF5:
             eid_bad = self.individual[eid_idx] != eids
             if np.any(eid_bad):
                 raise IndexError(
-                    f"Individual {eids[eid_bad]} not found in genotype file. Please check your individual IDs."
+                    f"Individual {eids} not found in genotype file. Please check your individual IDs."
                 )
 
             # NOTE: One option would be to return a matrix with -9s for the
@@ -300,7 +299,7 @@ class GenotypesHDF5:
 
             if np.any(vid_bad):
                 raise IndexError(
-                    f"Variant {vids[vid_bad]} not found in genotype file. Please check your variant IDs."
+                    f"Variant {vids} not found in genotype file. Please check your variant IDs."
                 )
             # NOTE: One option would be to return a matrix with -9s for the
             # missing values (corresponding to non-existant vids)...

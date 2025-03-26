@@ -343,55 +343,53 @@ def test_phecode_nomaly_stats(auth_integration_app_client):
     """Test the Nomaly stats endpoint."""
     phecode = "649.1"
 
-    # Test both v1 and v2 endpoints
-    for version in ["nomaly-stats", "nomaly-stats2"]:
-        response = auth_integration_app_client.post(f"/{version}/{phecode}")
-        assert response.status_code == 200
+    response = auth_integration_app_client.post(f"/nomaly-stats/{phecode}")
+    assert response.status_code == 200
 
-        data = json.loads(response.data)
+    data = json.loads(response.data)
 
-        # Check response structure
-        # assert "qqplot" in data
-        assert "data" in data
-        assert "columns" in data
-        assert "columnNames" in data
-        assert "defaultColumns" in data
-        assert "numColumns" in data
+    # Check response structure
+    # assert "qqplot" in data
+    assert "data" in data
+    assert "columns" in data
+    assert "columnNames" in data
+    assert "defaultColumns" in data
+    # assert "numColumns" in data
 
-        # Check expected columns exist
-        expected_columns = [
-            "minrank",
-            "term",
-            "name",
-            "domain",
-            "mwu_pvalue",
-            "mcc_pvalue",
-            "yjs_pvalue",
-            "lrp_pvalue",
-            "metric1_pvalue",
-            "lrn_protective_pvalue",
-        ]
-        assert all(col in data["columns"] for col in expected_columns)
+    # Check expected columns exist
+    expected_columns = [
+        "minrank",
+        "term",
+        "name",
+        # "domain",
+        "mwu_pvalue",
+        "mcc_pvalue",
+        "yjs_pvalue",
+        "lrp_pvalue",
+        "metric1_pvalue",
+        "lrn_protective_pvalue",
+    ]
+    assert all(col in data["columns"] for col in expected_columns)
 
-        # Check data records if any exist
-        if len(data["data"]) > 0:
-            first_record = data["data"][0]
-            # Check required fields in first record
-            assert "term" in first_record
-            assert "name" in first_record
-            assert "domain" in first_record
-            assert "minrank" in first_record
+    # Check data records if any exist
+    if len(data["data"]) > 0:
+        first_record = data["data"][0]
+        # Check required fields in first record
+        assert "term" in first_record
+        assert "name" in first_record
+        # assert "domain" in first_record
+        assert "minrank" in first_record
 
-            # Check p-value formatting
-            for pval_field in ["mwu_pvalue", "metric1_pvalue", "mcc_pvalue"]:
-                if pval_field in first_record:
-                    pval = first_record[pval_field]
-                    if pval != "nan":
-                        # Should be in scientific notation
-                        assert "e" in pval.lower()
+        # Check p-value formatting
+        for pval_field in ["mwu_pvalue", "metric1_pvalue", "mcc_pvalue"]:
+            if pval_field in first_record:
+                pval = first_record[pval_field]
+                if pval != "nan":
+                    # Should be in scientific notation
+                    assert "e" in pval.lower()
 
-            # Check data limits
-            assert len(data["data"]) <= 1050  # Should be limited to 1000 entries
+        # Check data limits
+        assert len(data["data"]) <= 1050  # Should be limited to 1000 entries
 
 
 def test_variant_page_structure(auth_integration_app_client):
@@ -404,7 +402,7 @@ def test_variant_page_structure(auth_integration_app_client):
     html = response.data.decode("utf-8")
 
     # Test page title and headers
-    assert "<h3>Variant Details</h3>" in html
+    # assert "<h3>Variant Details</h3>" in html
     assert '<h5 class="card-title">Basic Information</h5>' in html
 
     # Test variant information

@@ -4,6 +4,10 @@ import traceback
 import re
 
 from blueprints.phewas import get_formatted_phewas_data
+from data_services import (
+    NomalyDataService,
+    ServiceRegistry,
+)
 
 
 # Create the blueprint
@@ -41,17 +45,15 @@ def show_variant(variant):
         # Now we use the 'nomaly_data service' to lookup comprehensive variant
         # information from the 'mapping' hack.
         app = current_app
-        services = app.extensions["nomaly_services"]
+        services: ServiceRegistry = app.extensions["nomaly_services"]
+        nomaly_data_service: NomalyDataService = services.nomaly_data
 
-        variant_info = (
-            False
-            or services.nomaly_data.get_variant_info_nomaly(nomalized_variant)
-            or services.nomaly_data.get_variant_info_plinky(plnkified_variant)
-        )
+        variant_info = nomaly_data_service.get_variant_info_nomaly(nomalized_variant)
 
         if not variant_info:
             return render_template(
-                "error.html", error="Variant not found in the Nomaly mapping data."
+                "error.html",
+                error="Variant not found as a Nomaly Variant ID in the Nomaly mapping data.",
             )
 
         # Finally get the data we want... easy eh?
