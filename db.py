@@ -78,6 +78,12 @@ def get_phecode_info(phecode: str) -> dict:
 
 
 def get_term_names(terms_list: List[str]) -> Dict[str, str]:
+    """Get the names of a list of terms."""
+
+    if not terms_list:
+        logger.warning("No terms provided")
+        return {}
+
     try:
         with get_db_connection() as conn:
             with conn.cursor(dictionary=True) as cur:

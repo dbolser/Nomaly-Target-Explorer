@@ -7,7 +7,7 @@ import numpy as np
 
 
 def main():
-    genotypes = GenotypesHDF5(Config.GENOTYPES_H5)
+    genotypes = GenotypesHDF5(Config.GENOTYPES_HDF)
     genotypes.allele_flipped_in_genotype_file_relative_to_nomaly_variant_id
 
     print(genotypes.genotype_matrix.shape)  # (83011, 487950)

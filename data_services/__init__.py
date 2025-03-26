@@ -10,17 +10,21 @@ NOTE(S):
     - We could also set up 'package level logging' here.
 """
 
-from .genotype import GenotypeService
-from .nomaly_score import NomalyScoreService
-from .phenotype import PhenotypeService
 from .registry import ServiceRegistry
-from .stats import StatsService, StatsRegistry
+
+from .genotype import GenotypeService
+from .phenotype import PhenotypeService
+from .nomaly_data import NomalyDataService
+from .nomaly_score import NomalyScoreService
+
+from .stats import StatsRegistry, StatsService
 
 __all__ = [
     "ServiceRegistry",
     "GenotypeService",
     "PhenotypeService",
+    "NomalyDataService",
     "NomalyScoreService",
-    "StatsService",
     "StatsRegistry",
+    "StatsService",
 ]

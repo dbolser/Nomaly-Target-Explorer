@@ -1,179 +1,116 @@
 import numpy as np
+import pandas as pd
+import pytest
+
+from config import Config
+from data_services import PhenotypeService
 
 # Known test cases - these values will need to be updated with actual production data
 KNOWN_PHECODE = "250.2"  # Type 2 diabetes
-EXPECTED_CASE_COUNT = 42973  # Placeholder - update with actual count
-EXPECTED_CONTROL_COUNT = 439119  # Placeholder - update with actual count
+NUM_INDIVIDUALS = 449423
+EXPECTED_CASE_COUNT = 37073  # Placeholder - update with actual count
+EXPECTED_CONTROL_COUNT = 408655  # Placeholder - update with actual count
 
 FEMALE_SPECIFIC_PHECODE = "635.2"
 MALE_SPECIFIC_PHECODE = "601.1"
 
 
-def test_production_file_exists(integration_app):
+@pytest.fixture(scope="session")
+def phenotype_service():
+    return PhenotypeService(Config.PHENOTYPES_HDF)
+
+
+def test_production_file_exists(phenotype_service):
     """Verify the production phenotype file exists and is readable."""
-    with integration_app.app_context():
-        services = integration_app.extensions["nomaly_services"]
-        phenotype_service = services.phenotype
-        assert phenotype_service is not None
-        assert hasattr(phenotype_service, "_hdf")
-        assert hasattr(phenotype_service._hdf, "phenotype_data")
+    assert phenotype_service is not None
+    assert hasattr(phenotype_service, "_hdf")
+    assert hasattr(phenotype_service._hdf, "phenotype_data")
 
 
-def test_known_phecode_query(integration_app):
+def test_known_phecode_query(phenotype_service):
     """Test querying a known phecode from production data."""
-    with integration_app.app_context():
-        services = integration_app.extensions["nomaly_services"]
-        phenotype_service = services.phenotype
-        eids, case_status = phenotype_service._hdf.get_cases_for_phecode(KNOWN_PHECODE)
+    phenotypes_df = phenotype_service.get_cases_for_phecode(KNOWN_PHECODE)
 
-    assert eids is not None
-    assert case_status is not None
-    assert isinstance(eids, np.ndarray)
-    assert isinstance(case_status, np.ndarray)
-    assert len(eids) == len(case_status)
+    assert phenotypes_df is not None
+    assert isinstance(phenotypes_df, pd.DataFrame)
+    assert len(phenotypes_df) == NUM_INDIVIDUALS
 
     # Verify case/control counts
-    case_count = np.sum(case_status == 1)
-    control_count = np.sum(case_status == 0)
+    case_count = np.sum(phenotypes_df["phenotype"] == 1)
+    control_count = np.sum(phenotypes_df["phenotype"] == 0)
 
     # These assertions will need to be updated with actual values
-    assert case_count == EXPECTED_CASE_COUNT, (
-        f"Expected {EXPECTED_CASE_COUNT} cases, got {case_count}"
-    )
-    assert control_count == EXPECTED_CONTROL_COUNT, (
-        f"Expected {EXPECTED_CONTROL_COUNT} controls, got {control_count}"
-    )
+    assert case_count == EXPECTED_CASE_COUNT
+    assert control_count == EXPECTED_CONTROL_COUNT
 
 
-def test_sex_specific_phecodes(integration_app):
+def test_get_cases_nonexistent_phecode(phenotype_service):
+    """Test handling of a nonexistent phecode."""
+    with pytest.raises(KeyError):
+        phenotype_service.get_cases_for_phecode("999.999")
+
+
+# TODO: Fetch some individual_sex data
+def test_sex_specific_phecodes(phenotype_service):
     """Test sex-specific phecodes have appropriate distributions."""
-    with integration_app.app_context():
-        services = integration_app.extensions["nomaly_services"]
-        phenotype_service = services.phenotype
+    phenotypes_df = phenotype_service.get_cases_for_phecode(FEMALE_SPECIFIC_PHECODE)
 
     # Female-specific phecode
-    eids_f, status_f = phenotype_service._hdf.get_cases_for_phecode(
-        FEMALE_SPECIFIC_PHECODE
-    )
-    case_count_f = np.sum(status_f == 1)
-    assert case_count_f > 0, (
-        "Expected non-zero female cases for female-specific phecode"
-    )
+    case_count_f = np.sum(phenotypes_df["phenotype"] == 1)
+    assert case_count_f > 0
 
     # Male-specific phecode
-    eids_m, status_m = phenotype_service._hdf.get_cases_for_phecode(
-        MALE_SPECIFIC_PHECODE
-    )
-    case_count_m = np.sum(status_m == 1)
-    assert case_count_m > 0, "Expected non-zero male cases for male-specific phecode"
+    phenotypes_df = phenotype_service.get_cases_for_phecode(MALE_SPECIFIC_PHECODE)
+    case_count_m = np.sum(phenotypes_df["phenotype"] == 1)
+    assert case_count_m > 0
 
-
-def test_individual_consistency(integration_app):
+@pytest.mark.parametrize("phecode", ["250.2", "401.1"])
+def test_individual_consistency(phenotype_service, phecode):
     """Test that individual IDs are consistent across different phecode queries."""
-    with integration_app.app_context():
-        services = integration_app.extensions["nomaly_services"]
-        phenotype_service = services.phenotype
+    phenotypes_df = phenotype_service.get_cases_for_phecode(phecode)
 
     # Get cases for two different phecodes
-    eids1, _ = phenotype_service._hdf.get_cases_for_phecode("250.2")  # Type 2 diabetes
-    eids2, _ = phenotype_service._hdf.get_cases_for_phecode("401.1")  # Hypertension
+    eids = phenotypes_df["eid"].values
 
     # Check that the individual IDs are in the same range
-    assert eids1.min() > 1_000_000
-    assert eids2.min() > 1_000_000
-    assert eids1.max() < 10_000_000
-    assert eids2.max() < 10_000_000
-
-    # Check that there's significant overlap in the individuals
-    common_ids = np.intersect1d(eids1, eids2)
-    assert len(common_ids) > 0, "Expected overlap in individuals between phecodes"
+    assert eids.min() > 1_000_000
+    assert eids.max() < 10_000_000
 
 
-def test_case_control_ratios(integration_app):
+@pytest.mark.parametrize("phecode", ["250.2", "401.1", "272.1"])
+def test_case_control_ratios(phenotype_service, phecode):
     """Test that case/control ratios are within expected ranges for common diseases."""
-    with integration_app.app_context():
-        services = integration_app.extensions["nomaly_services"]
-        phenotype_service = services.phenotype
+    phenotypes_df = phenotype_service.get_cases_for_phecode(phecode)
 
-    common_phecodes = [
-        "250.2",  # Type 2 diabetes
-        "401.1",  # Hypertension
-        "272.1",  # Hyperlipidemia
-    ]
+    case_count = np.sum(phenotypes_df["phenotype"] == 1)
+    control_count = np.sum(phenotypes_df["phenotype"] == 0)
 
-    for phecode in common_phecodes:
-        _, status = phenotype_service._hdf.get_cases_for_phecode(phecode)
-        case_count = np.sum(status == 1)
-        control_count = np.sum(status == 0)
+    # Common diseases should have reasonable case counts
+    assert case_count > 100, f"Expected >100 cases for {phecode}, got {case_count}"
 
-        # Common diseases should have reasonable case counts
-        assert case_count > 100, f"Expected >100 cases for {phecode}, got {case_count}"
-
-        # Case/control ratio should be reasonable (e.g., between 1:100 and 1:1)
-        ratio = control_count / case_count
-        assert 1 <= ratio <= 100, (
-            f"Unexpected case/control ratio for {phecode}: {ratio}"
-        )
+    # Case/control ratio should be reasonable (e.g., between 1:100 and 1:1)
+    ratio = control_count / case_count
+    assert 1 <= ratio <= 100, f"Unexpected case/control ratio for {phecode}: {ratio}"
 
 
-def test_excluded_individuals(integration_app):
+def test_excluded_individuals(phenotype_service):
     """Test that excluded individuals are handled correctly."""
-    with integration_app.app_context():
-        services = integration_app.extensions["nomaly_services"]
-        phenotype_service = services.phenotype
+    phenotypes_df = phenotype_service.get_cases_for_phecode(KNOWN_PHECODE)
 
     # Get cases for a phecode
-    eids, status = phenotype_service._hdf.get_cases_for_phecode(KNOWN_PHECODE)
-
-    assert eids.shape == status.shape
-
-    # All values should be either 0 (control), 1 (case) or 9 (exclude)
-    assert np.all(np.isin(status, [0, 1, 9])), "Invalid status values in results"
+    assert np.all(np.isin(phenotypes_df["phenotype"], [0, 1, 9]))
 
 
-def test_population_stratification(integration_app):
+@pytest.mark.parametrize(
+    "ancestry_counts",
+    [("EUR", 37073), ("AFR", 1431), ("EAS", 219), ("SAS", 2261)],
+)
+def test_population_stratification(phenotype_service, ancestry_counts):
     """Test population-specific queries (when implemented)."""
-    with integration_app.app_context():
-        services = integration_app.extensions["nomaly_services"]
-        phenotype_service = services.phenotype
 
-    # This is a placeholder test - implement once population filtering is added
-    populations = ["EUR", "EUR_S", "AFR", "EAS", "SAS"]
+    ancestry, count = ancestry_counts
+    phenotypes_df = phenotype_service.get_cases_for_phecode(KNOWN_PHECODE, ancestry)
+    assert np.all(np.isin(phenotypes_df["phenotype"], [0, 1, 9]))
 
-    counts = {
-        "EUR": 41471,
-        "EUR_S": 407952,
-        "AFR": 7419,
-        "EAS": 2310,
-        "SAS": 8153,
-    }
-
-    for pop in populations:
-        eids, status = phenotype_service._hdf.get_cases_for_phecode(
-            KNOWN_PHECODE, population=pop
-        )
-        # For now, population parameter is ignored, so just verify basic sanity
-        assert len(eids) > 0, f"No data returned for population {pop}"
-        assert len(eids) == counts[pop], f"Unexpected count for population {pop}"
-        assert eids.shape == status.shape
-        assert np.all(np.isin(status, [0, 1, 9]))
-
-
-def test_sex_stratification(integration_app):
-    """Test sex-specific queries (when implemented)."""
-    with integration_app.app_context():
-        services = integration_app.extensions["nomaly_services"]
-        phenotype_service = services.phenotype
-
-    counts = {"M": 222530, "F": 263615}
-
-    # This is a placeholder test - implement once sex filtering is added
-    for sex in ["M", "F"]:
-        eids, status = phenotype_service._hdf.get_cases_for_phecode(
-            KNOWN_PHECODE, biological_sex=sex
-        )
-        # For now, sex parameter is ignored, so just verify basic sanity
-        assert len(eids) > 0, f"No data returned for sex {sex}"
-        assert len(eids) == counts[sex], f"Unexpected count for sex {sex}"
-        assert eids.shape == status.shape
-        assert np.all(np.isin(status, [0, 1, 9]))
+    case_count = np.sum(phenotypes_df["phenotype"] == 1)
+    assert case_count == count

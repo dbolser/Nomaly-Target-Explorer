@@ -30,6 +30,7 @@ from blueprints.phecode import get_phecode_data
 from config import Config
 from data_services import (
     GenotypeService,
+    NomalyDataService,
     NomalyScoreService,
     PhenotypeService,
     ServiceRegistry,
@@ -41,13 +42,13 @@ from db import get_term_domains, get_term_genes, get_term_names, get_term_varian
 logger = logging.getLogger(__name__)
 
 
-# Create a 'dummy' profile decorator if we don't have line_profiler installed
-try:
-    from line_profiler import profile  # type: ignore
-except ImportError:
+# # Create a 'dummy' profile decorator if we don't have line_profiler installed
+# try:
+#     from line_profiler import profile  # type: ignore
+# except ImportError:
 
-    def profile(func):
-        return func
+#     def profile(func):
+#         return func
 
 
 # TODO: Move to a new variant scores (or 'nomaly_data') data service?
@@ -124,13 +125,10 @@ def read_cases_for_disease_code(phecode: str) -> dict:
 def read_nomaly_filtered_genotypes_new(
     eids: np.ndarray,
     vids: np.ndarray,
-    ancestry: str,
     genotype_service: GenotypeService,
 ) -> Dict[str, Any]:
     """Read genotypes using the new genotype service method."""
-    genotypes = genotype_service.get_genotypes(
-        eids=eids, vids=vids, ancestry=ancestry, nomaly_ids=True
-    )
+    genotypes = genotype_service.get_genotypes(eids=eids, vids=vids, nomaly_ids=True)
 
     # Transpose the genotypes matrix
     genotypes = genotypes.T
@@ -143,7 +141,7 @@ def read_nomaly_filtered_genotypes_new(
     }
 
 
-@profile
+# @profile
 def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
     """Return numpy array of variant scores for the selected variants."""
     indices = term_variant_scores.index
@@ -151,7 +149,7 @@ def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
 
     geno_matrix = np.zeros((len(row), 3))
     for i, val in enumerate(row):
-        if val != -1:
+        if val != -9:
             geno_matrix[i, int(val)] = 1
 
     scores = np.dot(geno_matrix, sel_vs.T)
@@ -168,7 +166,7 @@ def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
     return top_variants
 
 
-@profile
+# @profile
 def process_individual_variants(sel_genotypes, term_variant_scores):
     """Process variants for all individuals more efficiently"""
     ind_top_variants = defaultdict(int)
@@ -190,7 +188,7 @@ def process_individual_variants(sel_genotypes, term_variant_scores):
     )
 
 
-@profile
+# @profile
 def term_variant_prioritisation(
     vids: pd.DataFrame,
     eids: np.ndarray,
@@ -223,7 +221,7 @@ def term_variant_prioritisation(
     log_and_stream(f"Reading genotypes for {len(vids)} variants", stream_logger)
 
     sel_genotypes = read_nomaly_filtered_genotypes_new(
-        eids, vids["variant_id"].to_numpy(), ancestry, genotype_service
+        eids, vids["variant_id"].to_numpy(), genotype_service
     )
 
     log_and_stream(
@@ -319,7 +317,7 @@ def save_results_to_cache(
         return None
 
 
-@profile
+# @profile
 def get_top_variants(
     phecode: str,
     term: str,
@@ -857,14 +855,11 @@ def main():
         data = get_top_variants(
             phecode,
             term,
-            services.phenotype,
-            services.genotype,
-            services.nomaly_score,
-            services.stats,
+            services,
             run_version="Run-v1",
             ancestry="EUR",
             no_cache=True,
-            # protective=True,
+            protective=True,
         )
 
         # Search for values that will cause problems in JavaScript JSON parsing

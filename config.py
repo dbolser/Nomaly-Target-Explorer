@@ -29,8 +29,6 @@ class Config:
     MYSQL_DB = os.getenv("MYSQL_DB")
 
     # Tools directories
-    SOURCE_PLINK_GENOME = "/data/clu/ukbb/genotypes_nomaly"
-    # SOURCE_PLINK_GENOME = "/data/clu/ukbb/genotypes_nomaly_eur"
     PLINK_BINARY = "/data/clu/ukbb/plink"
 
     # Important mapping file
@@ -41,13 +39,15 @@ class Config:
     # Phenotype directories and files
     UKBB_PHENO_DIR = DATA_ROOT / "Phenotypes"
     # PHENOTYPES_H5 = UKBB_PHENO_DIR / "phecode_cases_excludes.h5"
-    PHENOTYPES_H5 = UKBB_PHENO_DIR / "phecode_cases_excludes_with_metadata.h5"
+    PHENOTYPES_HDF = UKBB_PHENO_DIR / "phecode_cases_excludes_with_metadata.h5"
     # PHENOTYPES_PKL = UKBB_PHENO_DIR / "phecode_cases_excludes.pkl"
 
     # Genotype directories and files
     UKBB_GENOTYPES_DIR = DATA_ROOT / "Genotypes/GRCh38"
-    # GENOTYPES_H5 = UKBB_GENOTYPES_DIR / "genotypes_with_counts.h5"
-    GENOTYPES_H5 = UKBB_GENOTYPES_DIR / "genotypes_with_metadata.h5"
+
+    GENOTYPES_BED = UKBB_GENOTYPES_DIR / "genotypes-ukbb.bed"
+    GENOTYPES_HDF = UKBB_GENOTYPES_DIR / "genotypes-ukbb.h5"
+    GENOTYPES_NPY = UKBB_GENOTYPES_DIR / "genotypes-ukbb.npy"
 
     # Nomaly results directories and files (V1)
     NOMALY_RESULTS_DIR = DATA_ROOT / "Run-v1/DatabaseInputs"
@@ -57,6 +57,7 @@ class Config:
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats-EUR-2025-02-07.h5"
     STATS_H5 = NOMALY_RESULTS_DIR / "stats-All-2025-02-10.h5"
 
+    # TODO: Need to implement this in VP code
     # Nomaly results directories and files (V2)
     NOMALY_RESULTS_DIR_V2 = DATA_ROOT / "Run-v2/DatabaseInputs"
     NOMALY_SCORES_H5_V2 = NOMALY_RESULTS_DIR_V2 / "float16_scores.h5"
@@ -84,12 +85,6 @@ class Config:
     }
 
     PHAROS_DATA_DIR = Path("/data/general/Pharos")
-
-    # Caching directoriesd
-    # GWAS_PHENO_DIR = Path("/data/clu/ukbb/by_pheno")
-    # PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
-    # PHECODE_TERM_DIR = Path("/data/clu/ukbb/by_phecode_term")
-    # VARIANT_SCORES_DIR = Path("/data/clu/ukbb/variant_scores")
 
     # Caching directories
     GWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/cache/by_pheno")
@@ -134,13 +129,11 @@ class TestingConfig(Config):
     MYSQL_DB = "testdb"
 
     # Mock file paths for testing - these should be overridden in tests
-    GENOTYPES_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
-    PHENOTYPES_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
-    NOMALY_SCORES_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
-    STATS_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
-    NOMALY_SCORES_H5_V2 = "MOCK_PATH_OVERRIDE_IN_TESTS"
-    STATS_H5_V2 = "MOCK_PATH_OVERRIDE_IN_TESTS"
-    
+    # GENOTYPES_HDF = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    # PHENOTYPES_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    # NOMALY_SCORES_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    # STATS_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+
     # Other test settings
     WTF_CSRF_ENABLED = False
     LOGIN_DISABLED = False

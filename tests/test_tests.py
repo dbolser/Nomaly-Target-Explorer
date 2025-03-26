@@ -41,9 +41,8 @@ def test_unit_test_app_client(unit_test_app_client):
 
 def test_mock_genotype_hdf5_file_with_npy(mock_genotype_hdf5_file_with_npy):
     """Test that the mock_genotype_hdf5_file_with_npy fixture creates a valid HDF5 file."""
-    assert os.path.exists(mock_genotype_hdf5_file_with_npy)
-    assert mock_genotype_hdf5_file_with_npy.endswith(".h5")
-    assert os.path.exists(f"{mock_genotype_hdf5_file_with_npy}.npy")
+    assert mock_genotype_hdf5_file_with_npy.exists()
+    assert mock_genotype_hdf5_file_with_npy.with_suffix(".npy").exists()
 
 
 def test_stats_registry(stats_registry):

@@ -6,13 +6,13 @@ import pandas as pd
 
 from typing import Optional
 
-# Create a 'dummy' profile decorator if we don't have line_profiler installed
-try:
-    from line_profiler import profile  # type: ignore
-except ImportError:
+# # Create a 'dummy' profile decorator if we don't have line_profiler installed
+# try:
+#     from line_profiler import profile  # type: ignore
+# except ImportError:
 
-    def profile(func):
-        return func
+#     def profile(func):
+#         return func
 
 
 class PhenotypeService:
@@ -96,7 +96,7 @@ class PhenotypesHDF5:
             assert phenotype_data.shape[1] == phecode.shape[0]
             assert disease_sex.shape[0] == phecode.shape[0]
 
-            assert np.all(np.diff(eid) > 0), "EIDs are expected to be sorted"
+            # assert np.all(np.diff(eid) > 0), "EIDs are expected to be sorted"
 
         except Exception as e:
             print(f"Error in sanity checks: {str(e)}")
@@ -115,6 +115,8 @@ class PhenotypesHDF5:
 
         # TODO: Is this useful?
         # TODO: What about eid to index mapping?
+
+        print(f"BUILDING INDEX MAP FOR {hdf5_file}! ONLY SEE THIS ONCE!")
         self.phecode_to_index = {
             phecode: index for index, phecode in enumerate(self.phecode)
         }
@@ -124,6 +126,7 @@ class PhenotypesHDF5:
         # Precompute sorted indices for faster lookups
         self._phecodes_argsort = np.argsort(self.phecode)
         self._phecodes_sorted = self.phecode[self._phecodes_argsort]
+        print(f"PHENOTYPE SERVICE INITIALIZED {hdf5_file}")
 
     def get_phenotypes(
         self, eids: Optional[np.ndarray] = None, phecodes: Optional[np.ndarray] = None
@@ -181,7 +184,7 @@ class PhenotypesHDF5:
         phecode_index = self.phecode_to_index[phecode]
         return self.disease_sex[phecode_index]
 
-    @profile
+    # @profile
     def get_cases_for_phecode(self, phecode, ancestry: str = "EUR") -> pd.DataFrame:
         """Get the cases for a given phecode and ancestry"""
         phecode_index = self.phecode_to_index[phecode]

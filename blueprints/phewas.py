@@ -24,13 +24,13 @@ from config import Config
 from data_services.phenotype import PhenotypeService
 from db import get_all_phecodes, get_all_variants
 
-# Create a 'dummy' profile decorator if we don't have line_profiler installed
-try:
-    from line_profiler import profile  # type: ignore
-except ImportError:
+# # Create a 'dummy' profile decorator if we don't have line_profiler installed
+# try:
+#     from line_profiler import profile  # type: ignore
+# except ImportError:
 
-    def profile(func):
-        return func
+#     def profile(func):
+#         return func
 
 
 logger = logging.getLogger(__name__)
@@ -188,8 +188,8 @@ def get_genotype_data(variant: str, services) -> tuple[np.ndarray, np.ndarray] |
 
     try:
         # Get genotype data
-        genotype_eids = genotype_service._hdf.individual
-        genotypes = genotype_service._hdf.query_variants(variant)
+        # genotype_eids = genotype_service._hdf.individual
+        # genotypes = genotype_service._hdf.query_variants(variant)
 
         # NOTE THE FORMER WILL FLIP! THe latter wont!
 
@@ -197,7 +197,7 @@ def get_genotype_data(variant: str, services) -> tuple[np.ndarray, np.ndarray] |
 
         # TODO: MAKE SUER WE NEVER NEED TO FILP!
 
-        # genotypes2 = genotype_service._hdf.get_genotypes(vids=[variant])
+        genotypes = genotype_service._hdf.get_genotypes(vids=[variant])
 
         # Well... this is one way of testing...
         # assert np.all(genotypes == genotypes2)
@@ -217,9 +217,9 @@ def get_genotype_data(variant: str, services) -> tuple[np.ndarray, np.ndarray] |
         # I WOULD REFACTOR THIS, but see try_simplified_verssion
 
         # Sort the data
-        sorted_indices = np.argsort(genotype_eids)
-        sorted_genotype_eids = genotype_eids[sorted_indices]
-        sorted_genotypes = genotypes[sorted_indices]
+        # sorted_indices = np.argsort(genotype_eids)
+        # sorted_genotype_eids = genotype_eids[sorted_indices]
+        # sorted_genotypes = genotypes[sorted_indices]
 
         return sorted_genotype_eids, sorted_genotypes
 
@@ -230,7 +230,7 @@ def get_genotype_data(variant: str, services) -> tuple[np.ndarray, np.ndarray] |
         return None
 
 
-@profile
+# @profile
 def process_phecode(
     phecode: str,
     sorted_genotype_eids: np.ndarray,
@@ -291,7 +291,7 @@ def process_phecode(
     }
 
 
-@profile
+# @profile
 def phecode_level_assoc(variant: str, services=None) -> pd.DataFrame:
     """
     Run PheWAS analysis for a variant and save results to file.
@@ -343,7 +343,7 @@ def phecode_level_assoc(variant: str, services=None) -> pd.DataFrame:
     return results_df
 
 
-@profile
+# @profile
 def get_phewas_results(
     variant: str,
     services,
@@ -603,7 +603,7 @@ def try_simplified_version(variant: str) -> pd.DataFrame:
     return results_df
 
 
-@profile
+# @profile
 def main():
     """Debug entry point for blueprint development."""
 

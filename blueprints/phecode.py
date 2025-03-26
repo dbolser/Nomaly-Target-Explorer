@@ -6,16 +6,17 @@ from flask import (
     Blueprint,
     current_app,
     jsonify,
+    redirect,
     render_template,
     request,
     session,
     url_for,
-    redirect,
 )
 
 from blueprints.gwas import format_gwas_results, run_gwas
 from blueprints.nomaly import make_qqplot
 from data_services import (
+    NomalyDataService,
     PhenotypeService,
     ServiceRegistry,
     StatsRegistry,
@@ -105,8 +106,8 @@ def get_nomaly_stats(phecode, run_version=None, ancestry=None):
         return jsonify({"error": "Failed to get Nomaly stats"}), 500
 
     phecode_stats = fuck_with_columns(phecode_stats)
-    phecode_stats = add_term_names(phecode_stats)
     phecode_stats = add_minrank_column(phecode_stats)
+    phecode_stats = add_term_names(phecode_stats)
 
     phecode_stats = phecode_stats.sort_values("minrank")
 
@@ -157,9 +158,26 @@ def add_minrank_column(phecode_stats):
     """Add the minrank column to the phecode stats dataframe
 
     This is calculated as the minimum rank from any of the pvalues.
+
+    In case of ties (such as when all values in a column are 1),
+    we use a tie-breaking mechanism to ensure unique ranks.
     """
-    ranks = phecode_stats.rank(method="min")
-    phecode_stats["minrank"] = ranks.min(axis=1)
+    # First get the basic ranks with method="min"
+    primary_ranks = phecode_stats.rank(method="min")
+
+    # For tie-breaking, use average method on the same data
+    avg_ranks = phecode_stats.rank(method="average")
+
+    # Now create a composite rank score - this adds a small fraction to break ties
+    # The 0.001 multiplier ensures the secondary ranking doesn't override the primary
+    composite_ranks = primary_ranks + (0.001 * avg_ranks)
+
+    # Find the minimum rank across all columns for each row
+    # Keep all original ranks as integers but ensure they remain unique
+    min_ranks = composite_ranks.min(axis=1)
+
+    phecode_stats["minrank"] = min_ranks.round(0)
+
     return phecode_stats
 
 
@@ -379,16 +397,20 @@ def run_task(phecode):
 
     services: ServiceRegistry = current_app.extensions["nomaly_services"]
     phenotype_service: PhenotypeService = services.phenotype
+    nomaly_data_service: NomalyDataService = services.nomaly_data
 
     try:
-        results = run_gwas(phecode, ancestry, phenotype_service, no_cache=flush)
+        results = run_gwas(
+            phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=flush
+        )
         logger.info(f"GWAS completed successfully with {len(results)} variants")
 
-        formatted_results = format_gwas_results(results)
+        sig_p = 1
+        formatted_results = format_gwas_results(results, significance_threshold=sig_p)
         return jsonify(
             {
                 "status": "completed",
-                "result": f"GWAS completed successfully with {len(formatted_results)} significant variants",
+                "result": f"GWAS completed successfully with {len(formatted_results)} 'significant' variants (p < {sig_p})",
                 "associations": formatted_results,
             }
         )
@@ -424,6 +446,19 @@ def get_random_phecode():
 def main():
     """Main function for testing."""
 
+    # Need to test this route in app context I think...
+    from app import create_app
+
+    app = create_app("development")
+    with app.app_context():
+        with app.test_request_context():
+            # Set session variables that would normally come from the user's session
+            session["run_version"] = "Run-v1"
+            session["ancestry"] = "SAS"
+
+            get_nomaly_stats("332")
+            get_nomaly_stats("333.3")
+
     from config import Config
 
     services = ServiceRegistry.from_config(Config)
@@ -443,8 +478,9 @@ def main():
     print(stats_service.get_phecode_stats("332", term="MP:0004957"))
 
     # Test of some of the weirdness...
-    stats = stats_service.get_phecode_stats("332")
-    prepare_nomaly_stats_response("332", stats)
+    # stats = stats_service.get_phecode_stats("332")
+    # Needs to be called afer 'get_nomaly_stats'
+    # prepare_nomaly_stats_response("332", stats)
 
     print("Done")
 

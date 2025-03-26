@@ -1,17 +1,15 @@
-from unittest.mock import patch, MagicMock
-import pytest
-from werkzeug.security import generate_password_hash
-import numpy as np
-import h5py
+import os
 import tempfile
 from pathlib import Path
-import os
-import pandas as pd
+from unittest.mock import patch
+
+import h5py
+import numpy as np
+import pytest
+from werkzeug.security import generate_password_hash
 
 from app import create_app
-from data_services.registry import ServiceRegistry
 from db import get_db_connection
-
 
 """ Our lovely fixtures:
 
@@ -68,25 +66,35 @@ def mock_genotype_hdf5_file():
         with h5py.File(f.name, "w") as hdf:
             # Add test individuals (using all 4 to cover both cases)
             eids = np.array([1001, 1002, 1003, 1004])
-            hdf.create_dataset("fam", data=eids)
+            hdf.create_dataset("eid", data=eids)
 
-            biological_sex = np.array(["M", "F", "M", "F"], dtype=np.bytes_)
-            hdf.create_dataset("sex", data=biological_sex)
+            individual_sex = np.array(["M", "F", "M", "F"], dtype=np.bytes_)
+            hdf.create_dataset("sex", data=individual_sex)
 
             ancestry = np.array(["EUR", "EUR", "EUR", "SAS"], dtype=np.bytes_)
             hdf.create_dataset("ancestry", data=ancestry)
 
-            bim = np.array(
+            ref = np.array(
                 [
-                    b"1:100:A:T",
-                    b"2:200:C:G",
-                    b"1:186977737:A:G",
-                    b"1:186977780:A:G",
-                    b"1:46813503:C:T",
+                    b"A",
+                    b"C",
+                    b"A",
+                    b"A",
+                    b"C",
                 ]
             )
-            hdf.create_dataset("bim", data=bim)
-            hdf.create_dataset("genotype_variant_id", data=bim)
+            alt = np.array(
+                [
+                    b"T",
+                    b"G",
+                    b"G",
+                    b"A",
+                    b"T",
+                ]
+            )
+
+            hdf.create_dataset("REF", data=ref)
+            hdf.create_dataset("ALT", data=alt)
 
             plink_variant_id = np.array(
                 [
@@ -111,6 +119,17 @@ def mock_genotype_hdf5_file():
             )
             hdf.create_dataset("nomaly_variant_id", data=nomaly_variant_id)
 
+            rsIDs = np.array(
+                [
+                    b"rs123456789",
+                    b"rs123456790",
+                    b"rs123456791",
+                    b"rs123456792",
+                    b"Missing",
+                ]
+            )
+            hdf.create_dataset("rsID", data=rsIDs)
+
             # Add test genotypes (4 individuals x 5 variants)
             # Combining both matrices and ensuring consistent patterns
             genotypes = np.array(
@@ -122,9 +141,9 @@ def mock_genotype_hdf5_file():
                     [0, 1, 0, 2],  # Variant 5
                 ]
             )
-            hdf.create_dataset("genotype_matrix", data=genotypes)
+            hdf.create_dataset("genotypes", data=genotypes)
 
-    yield f.name
+    yield Path(f.name)
     Path(f.name).unlink()  # Clean up after tests
 
 
@@ -133,12 +152,12 @@ def mock_genotype_hdf5_file_with_npy(mock_genotype_hdf5_file):
     """The current implementation of GenotypesHDF5 requires a .npy file to be
     present 'next to' the HDF5 file. This fixture creates that .npy file."""
     with h5py.File(mock_genotype_hdf5_file, "r") as f:
-        matrix = f["genotype_matrix"]
+        matrix = f["genotypes"]
         assert isinstance(matrix, h5py.Dataset)
         np_matrix = matrix[:]
-        np.save(f"{mock_genotype_hdf5_file}.npy", np_matrix)
+        np.save(mock_genotype_hdf5_file.with_suffix(".npy"), np_matrix)
         yield mock_genotype_hdf5_file
-        os.unlink(f"{mock_genotype_hdf5_file}.npy")
+        os.unlink(mock_genotype_hdf5_file.with_suffix(".npy"))
 
 
 @pytest.fixture
@@ -372,8 +391,9 @@ def mock_stats_hdf5_file():
 @pytest.fixture
 def stats_registry(mock_stats_hdf5_file):
     """Mock stats registry using real StatsRegistry with mock file."""
-    from data_services.stats import StatsRegistry
     from pathlib import Path
+
+    from data_services.stats import StatsRegistry
 
     # Create the selector dictionary in the format expected by StatsRegistry
     # {run_version: {ancestry: path}}

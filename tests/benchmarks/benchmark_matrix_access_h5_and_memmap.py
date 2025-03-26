@@ -35,7 +35,7 @@ def benchmark_matrix_access(matrix, n_queries=10):
 
 
 if __name__ == "__main__":
-    geno = GenotypesHDF5(Config.GENOTYPES_H5)
+    geno = GenotypesHDF5(Config.GENOTYPES_HDF)
     matrix_h5 = geno.genotype_matrix_h5
     print(matrix_h5.shape)
 

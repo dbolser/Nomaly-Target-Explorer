@@ -17,21 +17,23 @@ from data_services import (
     GenotypeService,
     PhenotypeService,
     ServiceRegistry,
+    NomalyDataService,
 )
 from db import (
     get_term_domains,
     get_term_genes,
     get_term_names,
     get_term_variants,
+    get_phecode_info,
 )
 
-# Create a 'dummy' profile decorator if we don't have line_profiler installed
-try:
-    from line_profiler import profile  # type: ignore
-except ImportError:
+# # Create a 'dummy' profile decorator if we don't have line_profiler installed
+# try:
+#     from line_profiler import profile  # type: ignore
+# except ImportError:
 
-    def profile(func):
-        return func
+#     def profile(func):
+#         return func
 
 
 logger = logging.getLogger(__name__)
@@ -48,9 +50,20 @@ def show_phecode_term(phecode, term):
     try:
         # Get services while we're in 'app context'
         services: ServiceRegistry = current_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
 
         # NOTE: We inject the appropriate services into 'backend' functions
         # (dependency injection)
+
+        phecode_term_data = get_phecode_info(phecode)
+
+        case_counts = phenotype_service.get_case_counts_for_phecode(phecode, ancestry)
+
+        phecode_term_data["population"] = ancestry
+        phecode_term_data["affected"] = case_counts["affected"]
+        phecode_term_data["excluded"] = case_counts["excluded"]
+        phecode_term_data["control"] = case_counts["control"]
+
         phecode_term_data = get_phecode_data(phecode, services.phenotype, ancestry)
 
         term_name = get_term_names([term])[term]
@@ -95,7 +108,13 @@ def show_phecode_term_variant_detail(
 
     try:
         result = calculate_phecode_term_variant_detail(
-            phecode, term, services.genotype, services.phenotype, ancestry, flush
+            phecode,
+            term,
+            services.genotype,
+            services.phenotype,
+            services.nomaly_data,
+            ancestry,
+            flush,
         )
     except Exception as e:
         logger.error(f"Error in show_phecode_term_variant_detail: {str(e)}")
@@ -110,6 +129,7 @@ def calculate_phecode_term_variant_detail(
     term: str,
     genotype_service: GenotypeService,
     phenotype_service: PhenotypeService,
+    nomaly_data_service: NomalyDataService,
     ancestry: str = "EUR",
     no_cache: bool = False,
 ) -> dict:
@@ -170,9 +190,12 @@ def calculate_phecode_term_variant_detail(
                 logger.warning(
                     f"Cache miss for phecode {phecode}, term {term}, ancestry {ancestry}"
                 )
+                # continue...
 
         # Get variants from DB
         logger.info(f"Fetching variants for term: {term}")
+        # NOTE: We're calling a function to get term -> variant mappings from
+        # the Nomaly DB. Naturally, the IDs we get back are nomaly_variant_ids!
         term_df = get_term_variants(term)
         logger.debug(f"Initial term_df shape: {term_df.shape}")
 
@@ -184,7 +207,9 @@ def calculate_phecode_term_variant_detail(
 
         # Load GWAS data
 
-        gwas_data = run_gwas(phecode, ancestry, phenotype_service, no_cache=no_cache)
+        gwas_data = run_gwas(
+            phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=no_cache
+        )
         formatted_gwas = pd.DataFrame(
             format_gwas_results(gwas_data, significance_threshold=0.1)
         )
@@ -199,9 +224,11 @@ def calculate_phecode_term_variant_detail(
 
             try:
                 # Calculate genotype frequencies
-                # TODO: ANCESTRY
+
+                # TODO: USE THE NEW PHEWAS FUNCTION TO DO THIS IN ONE GO!
                 counts = genotype_service.get_variant_counts(
-                    nomaly_variant_id=nomaly_variant_id
+                    nomaly_variant_id=nomaly_variant_id,
+                    ancestry=ancestry,
                 )
                 total = counts["total"]
                 f00 = float(counts["homozygous_ref"]) / total
@@ -296,22 +323,32 @@ def main():
     # phecode = "561"
     # phecode = "564.1"
     # phecode = "338"
-    phecode = "332"
+    # phecode = "332"
+    phecode = "722.7"
 
     # term = "MP:0004957"
     # term = "HP:0000789"
     # term = "KW:0544"
     # term = "MP:0000948"
-    term = "MP:0004986"
+    # term = "MP:0004986"
+    term = "GO:0045244"
 
-    gwas_data = run_gwas(phecode, "EUR", services.phenotype, no_cache=True)
-    print(gwas_data)
+    # gwas_data = run_gwas(
+    #     phecode, "EUR", services.phenotype, services.nomaly_data, no_cache=True
+    # )
+    # print(gwas_data)
 
     term_data = get_term_variants(term)
     print(term_data)
 
     result = calculate_phecode_term_variant_detail(
-        phecode, term, services.genotype, services.phenotype, no_cache=True
+        phecode,
+        term,
+        services.genotype,
+        services.phenotype,
+        services.nomaly_data,
+        ancestry="EUR",
+        # no_cache=True,
     )
     print(result)
 

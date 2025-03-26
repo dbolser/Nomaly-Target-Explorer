@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 # TODO: WHY DOES THE unit_test_app_client NEED .../genotypes_with_metadata.h5 TO EXISTS?
 # TODO: WHY DOES THE unit_test_app_client NEED .../phecode_cases_excludes_with_metadata.h5 TO EXISTS?
 # TODO: WHY DOES THE unit_test_app_client NEED .../stats-All-2025-02-10.h5 TO EXISTS?
@@ -23,23 +25,19 @@ def test_variant_api(unit_test_app_client):
     assert "result" in data
     assert "associations" in data
 
-
-def test_nomaly_api(auth_integration_app_client):
+@pytest.mark.parametrize("test_phecode", ["250.2", "401.1", "296.2", "038", "008"])
+def test_nomaly_api(auth_integration_app_client, test_phecode):
     """Test the Nomaly-related endpoints."""
-    test_phecodes = ["250.2", "401.1", "296.2", "038", "008"]
 
-    for test_phecode in test_phecodes:
-        # Test getting Nomaly results
-        response = auth_integration_app_client.get(f"/phecode/{test_phecode}")
-        if response.status_code != 200:
-            print(f"Unexpected response: {response.status_code}")
-            print(
-                f"Response data: {response.data}"
-            )  # This will help debug the error message
-        assert response.status_code == 200
-        # Add specific assertions based on expected response structure
+    # Test getting Nomaly results
+    response = auth_integration_app_client.get(f"/phecode/{test_phecode}")
+    assert response.status_code == 200
+    # Add specific assertions based on expected response structure
 
+
+def test_nomaly_api_nonexistent_phecode(auth_integration_app_client):
     test_phecode = "banana"
+
     response = auth_integration_app_client.get(f"/phecode/{test_phecode}")
     assert response.status_code == 404
 

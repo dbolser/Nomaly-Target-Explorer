@@ -1,5 +1,6 @@
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 
 
 class NomalyDataService:
@@ -12,6 +13,19 @@ class NomalyDataService:
 
         if variants_file_path is not None:
             self.df = pd.read_csv(variants_file_path, sep="\t")
+
+            # First check the uniqueness constraint
+            chr_bp_counts = self.df.groupby("CHR_BP")["nomaly_variant"].nunique()
+            assert (chr_bp_counts == 1).all(), (
+                "Found CHR_BP positions with multiple nomaly_variant values"
+            )
+
+            # Colapse on distinct CHR_BP (useful for GWAS)
+            self.colapsed_df = (
+                self.df.groupby(["CHR_BP", "nomaly_variant"])["gene_id"]
+                .apply(set)
+                .reset_index()
+            )
 
     def _check_initialized(self):
         if not self.initialized:
