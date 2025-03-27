@@ -19,7 +19,6 @@ from data_services import (
     NomalyDataService,
     PhenotypeService,
     ServiceRegistry,
-    StatsRegistry,
     StatsService,
 )
 from db import (
@@ -392,7 +391,8 @@ def run_task(phecode):
     """Endpoint to run GWAS analysis."""
 
     # Get flush from POST data
-    flush = request.form.get("flush", "False") == 1
+    flush = request.args.get("flush", False) == "1"
+    logger.info(f"Running GWAS for {phecode} with flush={flush}")
 
     # Get ancestry from session
     ancestry = session.get("ancestry", "EUR")
@@ -407,15 +407,17 @@ def run_task(phecode):
         )
         logger.info(f"GWAS completed successfully with {len(results)} variants")
 
+        # NOTE: We've given up on filtering GWAS results by significance!
         sig_p = 1
         formatted_results = format_gwas_results(results, significance_threshold=sig_p)
         return jsonify(
             {
                 "status": "completed",
-                "result": f"GWAS completed successfully with {len(formatted_results)} 'significant' variants (p < {sig_p})",
+                "result": f"GWAS completed successfully with {len(formatted_results)} 'significant' variants (p <= {sig_p})",
                 "associations": formatted_results,
             }
         )
+    
     except Exception as e:
         logger.exception(f"GWAS failed for {phecode}")
         error_message = f"GWAS analysis failed: {str(e)}"
