@@ -108,11 +108,7 @@ def get_nomaly_stats(phecode, run_version=None, ancestry=None):
             No statistics available for {phecode} using ancestry {ancestry} in
             {run_version}. Use the feedback form if you think this is a mistake.
         """
-        # Check if this is an AJAX request
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return jsonify({"error": True, "message": error_msg}), 500
-        else:
-            return render_template("error.html", error=error_msg), 500
+        return jsonify({"error": True, "message": error_msg}), 500
 
     phecode_stats = extract_pvalue_columns(phecode_stats)
     phecode_stats = add_minrank_column(phecode_stats)

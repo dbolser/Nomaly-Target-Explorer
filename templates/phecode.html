@@ -405,13 +405,7 @@
         console.log('Fetching data from:', endpoint);
 
         try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
+            const response = await fetch(endpoint, { method: 'POST' });
 
             console.log('Received response');
 
