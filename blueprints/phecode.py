@@ -103,9 +103,17 @@ def get_nomaly_stats(phecode, run_version=None, ancestry=None):
         logger.info(f"Got {len(phecode_stats)} stats for {phecode}")
     except Exception as e:
         logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
-        return jsonify({"error": "Failed to get Nomaly stats"}), 500
+        error_msg = """
+            No statistics have been calculated for this phecode yet. Please try
+            another phecode or contact the system administrator.
+        """
+        # Check if this is an AJAX request
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"error": True, "message": error_msg}), 500
+        else:
+            return render_template("error.html", error=error_msg), 500
 
-    phecode_stats = fuck_with_columns(phecode_stats)
+    phecode_stats = extract_pvalue_columns(phecode_stats)
     phecode_stats = add_minrank_column(phecode_stats)
     phecode_stats = add_term_names(phecode_stats)
 
@@ -114,8 +122,8 @@ def get_nomaly_stats(phecode, run_version=None, ancestry=None):
     return prepare_nomaly_stats_response(phecode, phecode_stats)
 
 
-def fuck_with_columns(phecode_stats):
-    """Fuck with the columns of the phecode stats dataframe."""
+def extract_pvalue_columns(phecode_stats):
+    """Extract p-value columns from the phecode stats dataframe."""
 
     # Rename columns (for some reason)
     renames = {

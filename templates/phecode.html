@@ -408,13 +408,16 @@
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
             });
 
             console.log('Received response');
+
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorData = await response.json();
+                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
             }
 
             const resultData = await response.json();
@@ -431,8 +434,13 @@
             console.log('Content rendered');
         } catch (error) {
             console.error('Error occurred:', error);
+
+            // Display error in the result container with appropriate styling
             const resultDiv = document.getElementById('nomalyResult');
-            resultDiv.innerHTML = `Error: ${error.message}`;
+            resultDiv.innerHTML = `<div class="alert alert-warning">${error.message || 'An error occurred loading the statistics'}</div>`;
+
+            // Show the result container even when there's an error
+            $('#NomalyResultContainer').show();
         } finally {
             console.log('Attempting to hide the spinner and show the result container.');
 

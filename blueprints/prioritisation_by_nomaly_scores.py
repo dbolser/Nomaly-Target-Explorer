@@ -377,7 +377,11 @@ def get_top_variants(
 
     assert len(ctrl_eids) == len(ctrl_scores)
 
-    stats = stats_service.get_term_stats(term=term, phecode=phecode)
+    try:
+        stats = stats_service.get_term_stats(term=term, phecode=phecode)
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        raise
 
     # Quick cleanup of stats...
 
@@ -853,33 +857,43 @@ def main():
 
         for phecode in phecodes:
             for term in terms:
-                data = get_top_variants(
-                    phecode,
-                    term,
-                    services.phenotype,
-                    services.genotype,
-                    services.nomaly_score,
-                    services.stats_registry.get("Run-v1", "EUR"),
-                    run_version="Run-v1",
-                    ancestry="EUR",
-                    no_cache=True,
-                    # protective=True,
-                )
+                for run in ["Run-v1", "Run-v2"]:
+                    try:
+                        for ancestry in ["EUR", "AFR", "EAS", "SAS"]:
+                            print(f"Running {run} {ancestry} for {phecode} {term}")
+                            print(f"Running {run} {ancestry} for {phecode} {term}")
+                            print(f"Running {run} {ancestry} for {phecode} {term}")
+                            data = get_top_variants(
+                                phecode,
+                                term,
+                                services.phenotype,
+                                services.genotype,
+                                services.nomaly_score,
+                                services.stats_registry.get(run, ancestry),
+                                run,
+                                ancestry,
+                                no_cache=True,
+                                protective=True,
+                            )
 
-                # Clean up any None/null values that would break JavaScript
-                data = check_json_safety(data)
-                data = convert_numpy_types(data)
+                            # Clean up any None/null values that would break JavaScript
+                            data = check_json_safety(data)
+                            data = convert_numpy_types(data)
 
-                # print(json.dumps(data, indent=2, sort_keys=True))
+                            # print(json.dumps(data, indent=2, sort_keys=True))
 
-                for key, value in data.items():
-                    if "top_variants" in key or "top_gene_set" in key:
-                        print(f"{key}: {len(data[key])}")
-                        data[key] = len(data[key])
+                            for key, value in data.items():
+                                if "top_variants" in key or "top_gene_set" in key:
+                                    print(f"{key}: {len(data[key])}")
+                                    data[key] = len(data[key])
 
-                # print(json.dumps(data, indent=2, sort_keys=True))
+                            # print(json.dumps(data, indent=2, sort_keys=True))
+                            print("OK\n")
+                    except Exception as e:
+                        print(f"Error in main: {e}")
+                        logger.error(f"Error in main: {e}")
 
-            print("OK")
+                    print("OK")
 
 
 if __name__ == "__main__":
