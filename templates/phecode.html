@@ -401,6 +401,7 @@
         $('#nomalySpinner').show();
         $('#NomalyResultContainer').hide();
 
+        // const endpoint = `/nomaly-stats/${phecode}?flush=1`;
         const endpoint = `/nomaly-stats/${phecode}`;
         console.log('Fetching data from:', endpoint);
 
@@ -481,6 +482,7 @@
                 const resultDiv = document.getElementById('taskResult');
                 console.log('GWAS Task button clicked');
 
+                // fetch(`/run-task/${phecode}?flush=1`, {
                 fetch(`/run-task/${phecode}`, {
                     method: 'POST',
                     headers: {

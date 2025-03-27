@@ -98,7 +98,8 @@ def show_phecode_term_variant_detail(
     phecode: str,
     term: str,
 ):
-    flush = request.args.get("flush", "False") == 1
+    flush = request.args.get("flush", False) == "True"
+    logger.info(f"Flush: {flush}")
 
     # Get ancestry from session
     ancestry = session.get("ancestry", "EUR")

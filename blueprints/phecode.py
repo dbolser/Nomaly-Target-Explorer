@@ -55,6 +55,7 @@ def show_phecode(phecode):
 
         # Cobble together a half functional systsem..
         phecode_data["show_gwas"] = request.args.get("gwas") == "1"
+        phecode_data["flush"] = request.args.get("flush") == "1"
 
         # And finally shove the whole thing into the template
         return render_template("phecode.html", data=phecode_data)
