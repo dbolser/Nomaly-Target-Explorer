@@ -1,4 +1,4 @@
-from typing import Optional
+from config import Config
 
 from data_services.genotype import GenotypeService
 from data_services.nomaly_data import NomalyDataService
@@ -30,17 +30,19 @@ class ServiceRegistry:
         # Initialize services from app config
         self.genotype = GenotypeService(app.config.get("GENOTYPES_HDF"))
         self.phenotype = PhenotypeService(app.config.get("PHENOTYPES_HDF"))
-        self.nomaly_data = NomalyDataService(app.config.get("NOMALY_VARIANTS_PATH"))
+        self.nomaly_data = NomalyDataService(
+            app.config.get("NOMALY_VARIANT_MAPPING_PATH")
+        )
         self.nomaly_score = NomalyScoreService(app.config.get("NOMALY_SCORES_H5"))
 
         # Initialize the stats registry with the stats selector from config
         if app.config.get("STATS_SELECTOR"):
             self.stats_registry = StatsRegistry(app.config.get("STATS_SELECTOR"))
 
-    def init_from_config(self, config):
+    def init_from_config(self, config: Config):
         self.genotype = GenotypeService(config.GENOTYPES_HDF)
         self.phenotype = PhenotypeService(config.PHENOTYPES_HDF)
-        self.nomaly_data = NomalyDataService(config.NOMALY_VARIANTS_PATH)
+        self.nomaly_data = NomalyDataService(config.NOMALY_VARIANT_MAPPING_PATH)
         self.nomaly_score = NomalyScoreService(config.NOMALY_SCORES_H5)
 
         self.stats_registry = StatsRegistry(config.STATS_SELECTOR)
