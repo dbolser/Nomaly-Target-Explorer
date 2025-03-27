@@ -9,6 +9,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    session,
     url_for,
 )
 from flask_cors import CORS
@@ -36,12 +37,12 @@ from blueprints.variant import variant_bp
 from config import config
 from db import get_db_connection
 from errors import DatabaseConnectionError, DataNotFoundError
-from flask_session import Session
+from flask_session import Session  # Server-side session extension
 from dotenv import load_dotenv
 
 # Initialize extensions
 mysql = MySQL()
-session = Session()
+flask_session = Session()  # Renamed to avoid conflict with Flask's session
 login_manager = LoginManager()
 cors = CORS()
 
@@ -69,7 +70,7 @@ def create_app(config_name=None):
 
     # Initialize extensions
     mysql.init_app(app)
-    session.init_app(app)
+    flask_session.init_app(app)  # Use the renamed variable
     login_manager.init_app(app)
     cors.init_app(app)
 
@@ -149,8 +150,12 @@ def register_routes(app):
     def require_permissions():
         """Check if user has permission to access the page."""
         if not check_page_permission(current_user, request.path):
+            # If user is not logged in, redirect to login with the requested URL as 'next' parameter
+            if not current_user.is_authenticated:
+                return redirect(url_for("login", next=request.url))
+            # If user is logged in but has insufficient permissions, go back to previous page
             flash("Access denied: Insufficient permissions")
-            return redirect(url_for("index"))
+            return redirect(request.referrer or url_for("index"))
         return None
 
     @app.route("/login", methods=["GET", "POST"])
@@ -161,7 +166,11 @@ def register_routes(app):
 
             if not username or not password:
                 flash("Please enter both username and password")
-                return redirect(url_for("login"))
+                # Preserve the 'next' parameter during form submission
+                next_url = request.args.get("next")
+                return redirect(
+                    url_for("login", next=next_url) if next_url else url_for("login")
+                )
 
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -179,13 +188,31 @@ def register_routes(app):
                     login_user(user_obj)
                     current_app.logger.info(f"User {user_obj.username} logged in.")
                     flash("Logged in successfully.")
+
+                    # Get the next URL from the query parameters
                     next_page = request.args.get("next")
-                    if not next_page or not next_page.startswith("/"):
+
+                    if next_page:
+                        # Handle full URLs by extracting just the path
+                        from urllib.parse import urlparse
+
+                        parsed_url = urlparse(next_page)
+                        # Use the path component if it's a complete URL
+                        if parsed_url.netloc:
+                            next_page = parsed_url.path
+
+                        # Check if user has permission for the target page
+                        if not check_page_permission(current_user, next_page):
+                            flash("Access denied: Insufficient permissions")
+                            return redirect(url_for("index"))
+                    else:
                         next_page = url_for("index")
                     return redirect(next_page)
             flash("Invalid username or password.")
 
-        return render_template("login.html")
+        # Pass next parameter to template
+        next_url = request.args.get("next")
+        return render_template("login.html", next=next_url)
 
     @app.route("/logout")
     def logout():

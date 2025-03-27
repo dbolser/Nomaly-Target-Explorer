@@ -1,9 +1,14 @@
+import re
 from functools import wraps
+
 from flask import abort, current_app
 from flask_login import current_user
 
+phecode_regex = re.compile(r"\/(\d+(?:\.\d+)?)")
 
 def admin_required(f):
+    """A 'route' decorator to check if the user is an admin."""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
@@ -49,8 +54,6 @@ def check_page_permission(current_user, path):
     phecode_routes = [
         "/phecode/",
         "/nomaly-stats/",
-        "/phecode2/",
-        # "/nomaly-stats2/",
         "/update_settings/",
         "/run-task/",
         "/variant_scores/",
@@ -61,9 +64,11 @@ def check_page_permission(current_user, path):
     # current user
     for route in phecode_routes:
         if path.startswith(route):
-            phecode = path[len(route) :].split("/")[0].split(".")[0]
-            if phecode in current_user.allowed_paths:
-                return True
+            match = re.match(r".*\/(\d+(?:\.\d+)?)", path)
+            if match:
+                phecode = match.group(1)
+                if phecode in current_user.allowed_paths:
+                    return True
 
     # Add environment-specific path prefixes?
     # env_prefix = current_app.config.get("ENV_PREFIX", "")
