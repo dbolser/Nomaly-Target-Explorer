@@ -103,9 +103,9 @@ def get_nomaly_stats(phecode, run_version=None, ancestry=None):
         logger.info(f"Got {len(phecode_stats)} stats for {phecode}")
     except Exception as e:
         logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
-        error_msg = """
-            No statistics have been calculated for this phecode yet. Please try
-            another phecode or contact the system administrator.
+        error_msg = f"""
+            No statistics available for {phecode} using ancestry {ancestry} in
+            {run_version}. Use the feedback form if you think this is a mistake.
         """
         # Check if this is an AJAX request
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -448,7 +448,8 @@ def update_settings(phecode):
 def get_random_phecode():
     """Get a random phecode."""
     phecodes = get_all_phecodes()
-    return phecodes.sample(1).iloc[0]["phecode"]
+    random_phecode = phecodes.sample(1).iloc[0]["phecode"]
+    return redirect(url_for("phecode.show_phecode", phecode=random_phecode))
 
 
 def main():
