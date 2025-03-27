@@ -124,7 +124,7 @@ def register_routes(app):
             """
             SELECT
                 u.username,
-                IF(up.allowed_paths='*', 1, 0) AS is_admin,
+                u.is_admin,
                 up.allowed_paths
             FROM users2 u
             LEFT JOIN user_permissions up ON u.id = up.user_id 
