@@ -31,7 +31,9 @@ def run_gwas(
 
     # Return cached results if they exist and no_cache is False
     if nom_file.exists() and not no_cache:
-        logger.info(f"Loading cached GWAS results for {phecode}")
+        logger.info(
+            f"Loading cached GWAS results for {phecode} ({ancestry}) from {nom_file}"
+        )
         return pd.read_csv(nom_file, sep="\t")
 
     # Create FAM file if needed
@@ -135,7 +137,7 @@ def create_fam_file(
     phenotype_data = phenotype_service.get_cases_for_phecode(phecode, ancestry)
 
     # Load case information
-    logger.info(f"Creating FAM file for {phecode} ({ancestry})")
+    logger.info(f"Creating FAM file for {phecode} ({ancestry}) at {fam_file}")
 
     # Reformat sex and phenotype columns for PLINK...
 
