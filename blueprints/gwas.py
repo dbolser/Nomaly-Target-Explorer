@@ -87,8 +87,14 @@ def run_gwas(
         f"{fam_file.with_suffix('.assoc.fisher')}", sep=r"\s+", dtype={"CHR": str}
     )
     assoc["CHR"] = assoc["CHR"].replace({"23": "X", "24": "Y", "25": "XY", "26": "MT"})
-    assoc["CHR_BP"] = assoc.apply(lambda x: f"{x.CHR}:{x.BP}", axis=1)
-    assoc["CHR_BP_A1_A2"] = assoc.apply(lambda x: f"{x.CHR_BP}_{x.A1}/{x.A2}", axis=1)
+    assoc["CHR_BP"] = assoc["CHR"].astype(str) + ":" + assoc["BP"].astype(str)
+    assoc["CHR_BP_A1_A2"] = (
+        assoc["CHR_BP"].astype(str)
+        + "_"
+        + assoc["A1"].astype(str)
+        + "/"
+        + assoc["A2"].astype(str)
+    )
 
     # Add variant annotations
     print(f"NOMALY VARIANTS: {nomaly_data_service.colapsed_df.shape}")
@@ -101,6 +107,11 @@ def run_gwas(
     # NOTE: We get 80k assoiations from GWAS, but we only have 30k
     #       variants in the 'nomaly_variants' dataframe
     assert len(merged) == len(assoc)
+
+    # Squash gene_id to a single string here, before we save to cache
+    merged["gene_id"] = merged["gene_id"].apply(
+        lambda x: ", ".join(x) if isinstance(x, set) else x
+    )
 
     # Save and return results
     result_cols = [
@@ -122,7 +133,7 @@ def run_gwas(
     merged.to_csv(nom_file, sep="\t", index=False)
 
     # TODO: NO CLUE WHY RETURNING merged HERE FAILS WITH failed to json serialsei.set...
-    return pd.read_csv(nom_file, sep="\t")
+    return merged  # pd.read_csv(nom_file, sep="\t")
 
 
 def create_fam_file(
@@ -168,31 +179,30 @@ def format_gwas_results(
     """Format GWAS results for JSON response."""
 
     # Filter significant results first
-    sig_results = assoc_df[assoc_df["P"] < significance_threshold].copy()
+    if significance_threshold < 1:
+        assoc_df = assoc_df[assoc_df["P"] < significance_threshold]
 
     # Basic column renaming
-    sig_results = sig_results.rename(
-        columns={"CHR_BP_A1_A2": "Variant", "gene_id": "Gene"}
-    )
+    assoc_df = assoc_df.rename(columns={"CHR_BP_A1_A2": "Variant", "gene_id": "Gene"})
 
     # Format RSID as HTML link
     # TODO: This should probably be done in the frontend
-    sig_results["RSID"] = sig_results["SNP"].apply(
-        lambda x: f'<a href="https://www.ncbi.nlm.nih.gov/snp/{x}">{x}</a>'
-        if pd.notna(x)
-        else None
+    assoc_df["RSID"] = np.where(
+        pd.notna(assoc_df["SNP"]),
+        '<a href="https://www.ncbi.nlm.nih.gov/snp/'
+        + assoc_df["SNP"]
+        + '">'
+        + assoc_df["SNP"]
+        + "</a>",
+        "",
     )
 
     # Replace NaN with None for JSON serialization
-    sig_results = sig_results.replace({np.nan: None})
-    sig_results = sig_results.where(pd.notna(sig_results), None)
-
-    sig_results["Gene"] = sig_results["Gene"].apply(
-        lambda x: list(x) if isinstance(x, list) else x
-    )
+    assoc_df = assoc_df.replace({np.nan: None})
+    assoc_df = assoc_df.where(pd.notna(assoc_df), None)
 
     # Convert to records, explicitly replacing NaN with None
-    return sig_results.to_dict(orient="records")
+    return assoc_df.to_dict(orient="records")
 
 
 def main():

@@ -89,20 +89,16 @@ def get_phecode_data(
 def get_nomaly_stats(phecode, run_version=None, ancestry=None):
     """Get nomaly stats"""
 
-    if run_version is None or ancestry is None:
-        # Get Run version and ancestry from the session
-        run_version = session.get("run_version", "Run-v1")
-        ancestry = session.get("ancestry", "EUR")
+    run_version = session.get("run_version", "Run-v1")
+    ancestry = session.get("ancestry", "EUR")
 
     try:
         services: ServiceRegistry = current_app.extensions["nomaly_services"]
-
-        stats_registry: StatsRegistry = services.stats_registry
-        stats_handler = stats_registry.get(run_version, ancestry)
+        stats_handler = services.stats_registry.get(run_version, ancestry)
 
         phecode_stats = stats_handler.get_phecode_stats(phecode)
-
         logger.info(f"Got {len(phecode_stats)} stats for {phecode}")
+
     except Exception as e:
         logger.error(f"Failed to get Nomaly stats for {phecode}: {e}")
         error_msg = f"""
@@ -144,22 +140,6 @@ def extract_pvalue_columns(phecode_stats):
     return phecode_stats.loc[:, pvalue_columns]
 
 
-def add_term_names(phecode_stats):
-    """Add the term names (descriptions) to the phecode stats dataframe."""
-
-    # NOTE: term = term_id = short code, term_name = term description
-    terms = phecode_stats.index
-    phecode_stats["term"] = terms
-
-    term_name_dict = get_term_names(list(terms))
-
-    phecode_stats["name"] = phecode_stats["term"].map(
-        lambda x: term_name_dict.get(x, "-")
-    )
-
-    return phecode_stats
-
-
 def add_minrank_column(phecode_stats):
     """Add the minrank column to the phecode stats dataframe
 
@@ -183,6 +163,22 @@ def add_minrank_column(phecode_stats):
     min_ranks = composite_ranks.min(axis=1)
 
     phecode_stats["minrank"] = min_ranks.round(0)
+
+    return phecode_stats
+
+
+def add_term_names(phecode_stats):
+    """Add the term names (descriptions) to the phecode stats dataframe."""
+
+    # NOTE: term = term_id = short code, term_name = term description
+    terms = phecode_stats.index
+    phecode_stats["term"] = terms
+
+    term_name_dict = get_term_names(list(terms))
+
+    phecode_stats["name"] = phecode_stats["term"].map(
+        lambda x: term_name_dict.get(x, "-")
+    )
 
     return phecode_stats
 
