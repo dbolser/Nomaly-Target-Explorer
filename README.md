@@ -64,85 +64,52 @@ flask run
 
 ## Notes on the input data
 
-# Nomaly Disease Browser (UKBB edition)
+### Specific files
 
-
-## Installation
-
+```txt
+/
+├── data/
+│   ├── clu/
+│   │   └── ukbb/
+│   │       ├── plink
+│   │       └── nomaly_variants.tsv
+│   ├── general/
+│   │   ├── UKBB/
+│   │   │   ├── Phenotypes/
+│   │   │   │   └── phecode_cases_excludes_with_metadata.h5
+│   │   │   ├── Genotypes/
+│   │   │   │   └── GRCh38/
+│   │   │   │       ├── genotypes-ukbb.bed
+│   │   │   │       ├── genotypes-ukbb.h5
+│   │   │   │       └── genotypes-ukbb.npy
+│   │   │   ├── Run-v1/
+│   │   │   │   └── DatabaseInputs/
+│   │   │   │       ├── float16_scores.h5
+│   │   │   │       ├── stats-All-2025-02-10.h5
+│   │   │   │       ├── AFR-sexmatch.h5
+│   │   │   │       ├── EUR-sexmatch.h5
+│   │   │   │       ├── SAS-sexmatch.h5
+│   │   │   │       ├── EAS-sexmatch.h5
+│   │   │   │       └── ALL-sexmatch.h5
+│   │   │   └── Run-v2/
+│   │   │       └── DatabaseInputs/
+│   │   │           ├── float16_scores.h5
+│   │   │           ├── stats-All-2025-02-10.h5
+│   │   │           ├── AFR-sexmatch.h5
+│   │   │           ├── EUR-sexmatch.h5
+│   │   │           ├── SAS-sexmatch.h5
+│   │   │           ├── EAS-sexmatch.h5
+│   │   │           └── ALL-sexmatch.h5
+│   │   └── Pharos/
+│   └── personal/
+│       └── danbolser/
+│           └── ukbb/
+│               └── cache/
+│                   ├── by_pheno/
+│                   ├── by_variant/
+│                   ├── by_phecode_term/
+│                   └── variant_scores/
 ```
-git clone https://github.com/danbolser/nomaly-disease-browser.git
-cd nomaly-disease-browser
-```
-
-## Setup
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-And don't forget...
-
-```bash
-cp .env.example .env
-```
-
-## Configuration
-
-Edit the .env file with your database credentials (see .env.example)
-
-Look at (config.py)[config.py] for data configuration.
-
-## Authentication
-
-See (schema.sql)[schema.sql] for database schema and auth.py for authentication implementation details.
-
-```sql
--- Create admin user
-INSERT INTO users2 (username, password, email, is_active)
-VALUES ('admin', 'temporary_password', 'admin@example.com', TRUE);
-
--- Get the admin user's ID
-SET @admin_id = LAST_INSERT_ID();
-
--- Grant admin full access
-INSERT INTO user_permissions (user_id, allowed_paths)
-VALUES (@admin_id, '*');
-
--- Create a limited user with specific phecode access
-INSERT INTO users2 (username, password, email, is_active)
-VALUES ('phecode_user', 'temp_password', 'phecode@example.com', TRUE);
-
--- Grant access to specific phecodes
-INSERT INTO user_permissions (user_id, allowed_paths)
-VALUES (LAST_INSERT_ID(), '705,695,756,256,615');
-```
-
-
-## Running the app
-
-```bash
-export FLASK_APP=app.py
-export FLASK_ENV=development
-flask run
-```
-
-
-## Notes on things to improve:
-
-### Suggestions for Refactoring
-
-Based on the test coverage, here are some refactoring opportunities:
-
-- Extract the variant processing logic into a separate service class
-- Implement proper dependency injection for external services
-- Add better error handling and validation
-- Consider using async/await for the streaming functionality
-- Implement proper connection pooling for database operations
-- Add metrics collection for performance monitoring
-
-
 
 ## Notes on the input data
 
@@ -227,4 +194,21 @@ ontterms
 term2snps
 * "term_id"
 * "variant_id"
+
+
+
+
+## Notes on things to improve:
+
+### Suggestions for Refactoring
+
+Based on the test coverage, here are some refactoring opportunities:
+
+- Extract the variant processing logic into a separate service class
+- Implement proper dependency injection for external services
+- Add better error handling and validation
+- Consider using async/await for the streaming functionality
+- Implement proper connection pooling for database operations
+- Add metrics collection for performance monitoring
+
 
