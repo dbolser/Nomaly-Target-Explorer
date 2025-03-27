@@ -39,6 +39,7 @@ from db import get_db_connection
 from errors import DatabaseConnectionError, DataNotFoundError
 from flask_session import Session  # Server-side session extension
 from dotenv import load_dotenv
+from blueprints.user import user_bp
 
 # Initialize extensions
 mysql = MySQL()
@@ -97,6 +98,7 @@ def register_blueprints(app):
     app.register_blueprint(variant_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(prioritisation_bp)
+    app.register_blueprint(user_bp)
 
     from api import stats_bp
 

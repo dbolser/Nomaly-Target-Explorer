@@ -42,8 +42,14 @@ def check_page_permission(current_user, path):
 
     # Next we define what a non-admin user can access
 
-    # Define basic routes that are always allowed once authenticated
-    basic_routes = ["/logout", "/disease-sets", "/search", "/diseasesearch"]
+    # Define basic routes that are always allowed, once authenticated
+    basic_routes = [
+        "/logout",
+        "/disease-sets",
+        "/search",
+        "/diseasesearch",
+        "/my-phecodes",
+    ]
     variant_routes = ["/variant", "/run-phewas", "/phewas-result"]
 
     # Check if the path starts with any of the basic or variant routes
