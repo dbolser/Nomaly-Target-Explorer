@@ -207,28 +207,15 @@ def format_gwas_results(
 
 def main():
     phenotype_service = PhenotypeService(Config.PHENOTYPES_HDF)
-    nomaly_data_service = NomalyDataService(Config.NOMALY_VARIANTS_PATH)
+    nomaly_data_service = NomalyDataService(Config.NOMALY_VARIANT_MAPPING_PATH)
 
-    phecode = "290"
-    phecode = "290.11"
-    phecode = "722.7"
+    import sys
 
-    print(f"RUNNING GWAS FOR {phecode}")
-    # result = run_gwas(
-    #     phecode, "EUR", phenotype_service, nomaly_data_service, no_cache=True
-    # )
+    phecode = sys.argv[1]
+    ancestry = sys.argv[2]
+    print(f"Running GWAS for {phecode} ({ancestry})")
 
-    result = run_gwas("290", "EUR", phenotype_service, nomaly_data_service)
-
-    result = format_gwas_results(result)
-
-    import json
-
-    print(json.dumps(result[:6], indent=4))
-
-    x = json.dumps(result, indent=4)
-
-    print("Done")
+    run_gwas(phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=True)
 
 
 if __name__ == "__main__":
