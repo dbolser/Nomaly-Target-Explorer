@@ -1,5 +1,6 @@
 import os
 
+from dotenv import load_dotenv
 from flask import (
     Flask,
     Response,
@@ -9,7 +10,6 @@ from flask import (
     redirect,
     render_template,
     request,
-    session,
     url_for,
 )
 from flask_cors import CORS
@@ -33,13 +33,13 @@ from blueprints.prioritisation_by_nomaly_scores import prioritisation_bp
 
 # Import blueprints after creating the app
 from blueprints.search import search_bp
+from blueprints.user import user_bp
 from blueprints.variant import variant_bp
 from config import config
 from db import get_db_connection
 from errors import DatabaseConnectionError, DataNotFoundError
 from flask_session import Session  # Server-side session extension
-from dotenv import load_dotenv
-from blueprints.user import user_bp
+from logging_config import setup_logging
 
 # Initialize extensions
 mysql = MySQL()
@@ -60,14 +60,17 @@ def create_app(config_name=None):
     if config_name is None:
         config_name = os.getenv("FLASK_ENV", "development")
 
-    print(f"Loading config: {config_name}")
-    app.config.from_object(config[config_name])
-
-    # Optionally load environment-specific .env file
+    # Load environment-specific .env file FIRST
     env_file = f".env.{config_name}"
     if os.path.exists(env_file):
         print(f"Loading environment file: {env_file}")
         load_dotenv(env_file)
+
+    # THEN load the config so it can use those environment variables
+    print(f"Loading config: {config_name}")
+    app.config.from_object(config[config_name])
+
+    setup_logging(app)
 
     # Initialize extensions
     mysql.init_app(app)

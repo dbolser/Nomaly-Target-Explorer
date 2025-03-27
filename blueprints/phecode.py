@@ -58,6 +58,7 @@ def show_phecode(phecode):
 
         # And finally shove the whole thing into the template
         return render_template("phecode.html", data=phecode_data)
+
     except Exception as e:
         logger.error(f"Failed to get Phecode data for {phecode}: {e}")
         return jsonify({"error": "Failed to get Phecode data"}), 500
