@@ -41,6 +41,8 @@ from db import get_term_domains, get_term_genes, get_term_names, get_term_varian
 logger = logging.getLogger(__name__)
 
 
+from config import Config
+
 # # Create a 'dummy' profile decorator if we don't have line_profiler installed
 # try:
 #     from line_profiler import profile  # type: ignore
@@ -58,13 +60,13 @@ logger = logging.getLogger(__name__)
 # )
 
 variant_scores = pd.read_csv(
-    "/data/clu/ukbb/genotype_counts_with_vs.tsv",
+    Config.NOMALY_VARIANT_SCORES_PATH,
     sep="\t",
     index_col="nomaly_variant_id",
 )
 
 variant2gene = pd.read_csv(
-    "/data/clu/ukbb/variant2gene.tsv", sep="\t", header=None, index_col=0
+    Config.NOMALY_VARIANT2GENE_PATH, sep="\t", header=None, index_col=0
 )
 
 # Global thread pool for variant processing

@@ -31,8 +31,10 @@ class Config:
     # Tools directories
     PLINK_BINARY = "/data/clu/ukbb/plink"
 
-    # Important mapping file
-    NOMALY_VARIANTS_PATH = Path("/data/clu/ukbb/nomaly_variants.tsv")
+    # Important mapping files and other junk
+    NOMALY_VARIANT_MAPPING_PATH = Path("/data/clu/ukbb/nomaly_variants.tsv")
+    NOMALY_VARIANT_SCORES_PATH = Path("/data/clu/ukbb/genotype_counts_with_vs.tsv")
+    NOMALY_VARIANT2GENE_PATH = Path("/data/clu/ukbb/variant2gene.tsv")
 
     DATA_ROOT = Path("/data/general/UKBB")
 

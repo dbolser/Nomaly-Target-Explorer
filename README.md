@@ -72,7 +72,9 @@ flask run
 │   ├── clu/
 │   │   └── ukbb/
 │   │       ├── plink
-│   │       └── nomaly_variants.tsv
+│   │       ├── nomaly_variants.tsv
+│   │       ├── genotype_counts_with_vs.tsv
+│   │       └── variant2gene.tsv
 │   ├── general/
 │   │   ├── UKBB/
 │   │   │   ├── Phenotypes/
