@@ -61,7 +61,7 @@ class NomalyScoreHDF5:
             print("REALLY? WE'RE DOING THIS HERE NOW?")
             np.save(npy_file, self.data_matrix_h5)
 
-        self.data_matrix_mm = np.memmap(npy_file, mode="r", shape=scores.shape)
+        self.data_matrix_mm = np.load(npy_file, mmap_mode="r")
 
         # Pick the memmap version
         self.data_matrix: np.memmap = self.data_matrix_mm
