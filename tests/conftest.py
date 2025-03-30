@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import h5py
 import numpy as np
+import pandas as pd
 import pytest
 from werkzeug.security import generate_password_hash
 
@@ -173,10 +174,10 @@ def mock_phenotype_hdf5_file():
                 "phenotype_data",
                 data=np.array(
                     [
-                        [9, 1, 0, 1],  # M
-                        [0, 0, 1, 0],  # F
-                        [1, 9, 0, 1],  # M
-                        [0, 1, 0, 0],  # F
+                        [9, 1, 0, 1, 9],  # M
+                        [0, 0, 1, 0, 1],  # F
+                        [1, 9, 0, 1, 9],  # M
+                        [0, 1, 0, 0, 1],  # F
                     ],
                     dtype=np.int8,
                 ),
@@ -197,11 +198,13 @@ def mock_phenotype_hdf5_file():
             f.create_dataset(
                 "phecodes",
                 # Diabetes, Hypertension, Female-specific, Male-specific
-                data=np.array([b"250.2", b"401.1", b"635.2", b"601.1"]),
+                data=np.array([b"250.2", b"401.1", b"635.2", b"601.1", b"571.5"]),
             )
 
             # Affected sex labels
-            f.create_dataset("phecode_sex", data=np.array([b"B", b"B", b"F", b"M"]))
+            f.create_dataset(
+                "phecode_sex", data=np.array([b"B", b"B", b"F", b"M", b"B"])
+            )
 
         yield tmp.name
 
@@ -462,23 +465,23 @@ def mock_nomaly_scores_hdf5_file():
             f.create_dataset("eid", data=test_eids)
 
             # Define some terms
-            terms = np.array([b"GO:0030800", b"MP:0005179", b"GO:0006915"])
+            terms = np.array([b"GO:0030800", b"MP:0005179", b"GO:0006915", b"TEST:001"])
             f.create_dataset("term", data=terms)
 
             # Create score matrix (eids x terms)
             # Define scores that align with our test cases/controls
             scores = np.array(
                 [
-                    [0.03, 0.02, 0.01],  # 1001 (case)
-                    [0.025, 0.015, 0.02],  # 1002 (case)
-                    [0.01, 0.03, 0.015],  # 1003 (case)
-                    [0.005, 0.01, 0.02],  # 1004 (control)
-                    [0.015, 0.005, 0.01],  # 1005 (control)
-                    [0.03, 0.015, 0.008],  # 1006 (control)
-                    [0.01, 0.005, 0.002],  # 1007 (control)
-                    [0.005, 0.01, 0.005],  # 1008 (control)
-                    [0.0, 0.0, 0.0],  # 1009 (excluded)
-                    [0.0, 0.0, 0.0],  # 1010 (excluded)
+                    [0.030, 0.020, 0.010, 0.001],  # 1001 (case)
+                    [0.025, 0.015, 0.020, 0.002],  # 1002 (case)
+                    [0.010, 0.030, 0.015, 0.003],  # 1003 (case)
+                    [0.005, 0.010, 0.020, 0.004],  # 1004 (control)
+                    [0.015, 0.005, 0.010, 0.005],  # 1005 (control)
+                    [0.030, 0.015, 0.008, 0.006],  # 1006 (control)
+                    [0.010, 0.005, 0.002, 0.007],  # 1007 (control)
+                    [0.005, 0.010, 0.005, 0.008],  # 1008 (control)
+                    [0.000, 0.000, 0.000, 0.009],  # 1009 (excluded)
+                    [0.000, 0.000, 0.000, 0.010],  # 1010 (excluded)
                 ]
             )
             f.create_dataset("scores", data=scores)

@@ -9,22 +9,12 @@ from blueprints.prioritisation_by_nomaly_scores import (
 )
 
 from blueprints.prioritisation_by_nomaly_scores_refactored import (
-    read_nomaly_filtered_genotypes_new,
     fetch_phenotype_data,
     fetch_nomaly_scores,
     add_threshold_and_t_table_for_metric1,
     term_variant_prioritisation,
     process_gene_level_stats,
 )
-
-
-@pytest.fixture
-def mock_variant_scores():
-    """Test variant scores matching our test HDF5 variants."""
-    return pd.DataFrame(
-        {"VS00": [0.1, 0.2, 0.3], "VS01": [0.4, 0.5, 0.6], "VS11": [0.7, 0.8, 0.9]},
-        index=["1_186977737_A/G", "1_186977780_G/A", "1_46813503_C/T"],
-    )
 
 
 @pytest.fixture
@@ -40,67 +30,41 @@ def mock_term_variants():
     )
 
 
-def test_read_nomaly_filtered_genotypes_new(genotype_service):
-    """Test the new genotype reading function."""
-    sorted_eids = np.array([1001, 1002, 1003])
-    variants = ["1_186977737_A/G", "1_186977780_G/A", "1_46813503_C/T"]
-
-    result = read_nomaly_filtered_genotypes_new(sorted_eids, variants, genotype_service)
-
-    assert result is not None
-    assert np.array_equal(result["row_eids"], sorted_eids)
-    assert result["col_variants"] == variants
-    assert len(result["error_variants"]) == 0
-    # The actual data shape will depend on the genotype_service fixture
-
-
 def test_fetch_phenotype_data(phenotype_service):
     """Test fetching phenotype data."""
     phecode = "571.5"
 
-    # Mock the phenotype_service.get_cases_for_phecode method
-    mock_eids = np.array([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010])
-    mock_phenotypes = np.array(
-        [1, 1, 1, 0, 0, 0, 0, 0, 9, 9]
-    )  # 1=case, 0=control, 9=excluded
-
-    phenotype_service.get_cases_for_phecode.return_value = (mock_eids, mock_phenotypes)
-
-    case_eids, control_eids, exclude_eids, all_eids, phenotypes = fetch_phenotype_data(
-        phecode, phenotype_service
-    )
+    case_eids, control_eids = fetch_phenotype_data(phecode, phenotype_service)
 
     # Basic validation
-    assert len(case_eids) == 3  # 3 cases (phenotype=1)
-    assert len(control_eids) == 5  # 5 controls (phenotype=0)
-    assert len(exclude_eids) == 2  # 2 excluded (phenotype=9)
-    assert len(all_eids) == len(phenotypes)
+    assert len(case_eids) == 1  # 3 cases (phenotype=1)
+    assert len(control_eids) == 0  # 5 controls (phenotype=0)
     assert np.all(np.diff(case_eids) > 0), "case_eids should be sorted"
 
 
 def test_fetch_nomaly_scores(nomaly_scores_service):
     """Test fetching Nomaly scores."""
     case_eids = np.array([1001, 1002, 1003])
-    control_eids = np.array([2001, 2002, 2003, 2004, 2005])
+    control_eids = np.array([1004, 1005, 1006, 1007, 1008])
     term = "TEST:001"
 
-    # Mock the nomaly_scores_service.get_scores_by_eids_unsorted method
-    case_scores = np.array([0.03, 0.025, 0.01])
-    control_scores = np.array([0.005, 0.015, 0.03, 0.01, 0.005])
-
-    nomaly_scores_service.get_scores_by_eids_unsorted.side_effect = [
-        case_scores,
-        control_scores,
-    ]
-
-    result_case_scores, result_control_scores = fetch_nomaly_scores(
-        case_eids, control_eids, nomaly_scores_service, term
+    result_case_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
+        case_eids, term
+    )
+    result_control_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
+        control_eids, term
     )
 
-    assert np.array_equal(result_case_scores, case_scores)
-    assert np.array_equal(result_control_scores, control_scores)
     assert len(result_case_scores) == len(case_eids)
     assert len(result_control_scores) == len(control_eids)
+    assert np.array_equal(result_case_scores, np.array([0.001, 0.002, 0.003])), (
+        "Case scores should be [0.001, 0.002, 0.003]",
+        "instead we got",
+        result_case_scores,
+    )
+    assert np.array_equal(
+        result_control_scores, np.array([0.004, 0.005, 0.006, 0.007, 0.008])
+    ), "Control scores should be [0.004, 0.005, 0.006, 0.007, 0.008]"
 
 
 def test_fetch_stats_data(stats_service):

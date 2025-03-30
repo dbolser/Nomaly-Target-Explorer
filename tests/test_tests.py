@@ -120,7 +120,8 @@ def test_nomaly_scores_service(nomaly_scores_service):
     scores = nomaly_scores_service.get_scores_by_eids_unsorted(test_eids)
     assert scores is not None
     assert len(scores) == len(test_eids)
-
+    assert np.array_equal(scores[0], np.array([0.030, 0.020, 0.010, 0.001]))
+    assert np.array_equal(scores[1], np.array([0.025, 0.015, 0.020, 0.002]))
 
 def test_integration_app(integration_app):
     """Test that integration_app provides an app with real services."""
