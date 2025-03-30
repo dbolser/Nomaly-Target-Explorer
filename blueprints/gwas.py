@@ -209,13 +209,24 @@ def main():
     phenotype_service = PhenotypeService(Config.PHENOTYPES_HDF)
     nomaly_data_service = NomalyDataService(Config.NOMALY_VARIANT_MAPPING_PATH)
 
-    import sys
+    # import sys
 
-    phecode = sys.argv[1]
-    ancestry = sys.argv[2]
-    print(f"Running GWAS for {phecode} ({ancestry})")
+    # phecode = sys.argv[1]
+    # ancestry = sys.argv[2]
+    # print(f"Running GWAS for {phecode} ({ancestry})")
 
-    run_gwas(phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=True)
+    # run_gwas(phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=True)
+
+    # Run some random GWAS...
+    ancestries = np.array(["AFR", "EAS", "EUR", "SAS"])
+    phecodes = phenotype_service.phecodes
+
+    for _ in range(10000):
+        phecode = np.random.choice(phecodes)
+        ancestry = np.random.choice(ancestries)
+        run_gwas(
+            phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=False
+        )
 
 
 if __name__ == "__main__":
