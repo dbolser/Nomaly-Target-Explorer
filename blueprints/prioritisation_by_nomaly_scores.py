@@ -172,9 +172,8 @@ def process_individual_variants(sel_genotypes, term_variant_scores):
 
 # @profile
 def term_variant_prioritisation(
-    vids: pd.DataFrame,
-    eids: np.ndarray,
-    ancestry: str,
+    term_variants: pd.DataFrame,
+    case_eids_above_threshold: np.ndarray,
     genotype_service: GenotypeService,
     stream_logger=None,
 ) -> pd.DataFrame:
@@ -187,28 +186,37 @@ def term_variant_prioritisation(
     Nomaly Score for the given eids).
     """
 
+    # TODO: All this term_variant dataframe hacking can be done back in
+    # 'get_top_variants' outside the 'for each stat in stats' loop.
+
     # Remove the duplicate aa column but keep the largest hmm_score
-    vids = (
-        vids.drop(columns=["aa"])
+    term_variants = (
+        term_variants.drop(columns=["aa"])
         .sort_values(by="hmm_score", ascending=False)
         .drop_duplicates(subset=["variant_id", "gene"], keep="first")
         .reset_index(drop=True)
     )
 
     # Group by variant_id, colapse duplicate genes into a list and select the largest hmm_score
-    term_variants_genes = vids.groupby("variant_id")["gene"].apply(list).reset_index()
-    term_variants_hmmsc = vids.groupby("variant_id")["hmm_score"].max().reset_index()
-    vids = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
-    vids_array = vids["variant_id"].to_numpy()
+    term_variants_genes = (
+        term_variants.groupby("variant_id")["gene"].apply(list).reset_index()
+    )
+    term_variants_hmmsc = (
+        term_variants.groupby("variant_id")["hmm_score"].max().reset_index()
+    )
+    term_variants = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
+    vids_array = term_variants["variant_id"].to_numpy()
 
-    log_and_stream(f"Reading genotypes for {len(vids)} variants", stream_logger)
+    log_and_stream(
+        f"Reading genotypes for {len(term_variants)} variants", stream_logger
+    )
 
     genotypes = genotype_service.get_genotypes(
-        eids=eids, vids=vids_array, nomaly_ids=True
+        eids=case_eids_above_threshold, vids=vids_array, nomaly_ids=True
     )
 
     sel_genotypes = {
-        "row_eids": eids,
+        "row_eids": case_eids_above_threshold,
         "col_variants": vids_array,
         "data": genotypes.T,
         "error_variants": [],
@@ -219,11 +227,12 @@ def term_variant_prioritisation(
         stream_logger,
     )
 
+    # TODO: Again, this can be done back in 'get_top_variants'
     variant_scores_table = variant_scores.loc[sel_genotypes["col_variants"]]
     term_variant_scores = variant_scores_table[["vs00", "vs01", "vs11"]]
 
     log_and_stream(
-        f"We read {len(term_variant_scores)} variant scores for our {len(vids)} variants",
+        f"We read {len(term_variant_scores)} variant scores for our {len(term_variants)} variants",
         stream_logger,
     )
 
@@ -237,13 +246,10 @@ def term_variant_prioritisation(
         stream_logger,
     )
 
-    top_variants = vids.join(ind_top_variants_df, on="variant_id", how="right")
+    top_variants = term_variants.join(ind_top_variants_df, on="variant_id", how="right")
     top_variants = top_variants.join(term_variant_scores, on="variant_id")
 
-    # Convert gene lists to strings to match the original output format
-    # top_variants["gene"] = top_variants["gene"].map(lambda x: ", ".join(x))
-
-    log_and_stream(f"Term variants: {len(vids)}", stream_logger)
+    log_and_stream(f"Term variants: {len(term_variants)}", stream_logger)
     log_and_stream(f"Top variants: {len(top_variants)}", stream_logger)
     log_and_stream(
         f"Individual top variants: {len(ind_top_variants_df)}", stream_logger
@@ -319,7 +325,6 @@ def get_top_variants(
 ) -> dict:
     """Get the top variants for the disease and term."""
 
-    # Try to load from cache first (unless no_cache is True)
     if not no_cache:
         try:
             cached_results = load_cached_results(phecode, term, run_version, ancestry)
@@ -330,7 +335,6 @@ def get_top_variants(
         except Exception as e:
             logger.error(f"Error loading cached results: {e}")
 
-    # Compute results if not cached...
     log_and_stream(
         f"Computing results (not found in cache, flush={no_cache}, protective={protective})",
         stream_logger,
@@ -344,15 +348,6 @@ def get_top_variants(
         stream_logger,
     )
 
-    # Doing this outside the loop makes sense, but it doesn't save much time.
-    term_variant_ids = get_term_variants(term)
-
-    log_and_stream(
-        f"Got {len(term_variant_ids)} variants for term {term}", stream_logger
-    )
-
-    # cases_info = read_cases_for_disease_code(disease_code)
-    # cases_eids = list(cases_info["cases"])
     case_eids = phenotypes[phenotypes["phenotype"] == 1]["eid"].to_numpy()
     ctrl_eids = phenotypes[phenotypes["phenotype"] == 0]["eid"].to_numpy()
     excl_eids = phenotypes[phenotypes["phenotype"] == 9]["eid"]
@@ -364,25 +359,35 @@ def get_top_variants(
         stream_logger,
     )
 
-    # Assert that the case eids are sorted
-    assert np.all(np.diff(case_eids) > 0), "case_eids are not sorted!"
-
+    # TODO: This should be conditioned on the run_version
     case_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
         case_eids, terms=np.array([term])
     )
 
     assert len(case_eids) == len(case_scores)
 
+    log_and_stream(
+        f"Got {len(ctrl_eids)} controls for {phecode} with ancestry {ancestry}",
+        stream_logger,
+    )
+
+    # TODO: This should be conditioned on the run_version
     ctrl_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
         ctrl_eids, terms=np.array([term])
     )
 
     assert len(ctrl_eids) == len(ctrl_scores)
 
+    log_and_stream(
+        f"Got {len(excl_eids)} excluded samples for {phecode} with ancestry {ancestry}",
+        stream_logger,
+    )
+
     try:
+        # NOTE: The stats service is specific to run_version and ancestry
         stats = stats_service.get_term_stats(term=term, phecode=phecode)
     except Exception as e:
-        logger.error(f"Error getting stats: {e}")
+        logger.error(f"Error getting stats for {term} and {phecode}: {e}")
         raise
 
     # Quick cleanup of stats...
@@ -416,6 +421,10 @@ def get_top_variants(
             I THINK THIS IS TODO WITH EXCLUDED SEX-MATCHED CONTROLS!"""
         )
 
+    term_variants = get_term_variants(term)
+
+    log_and_stream(f"Got {len(term_variants)} variants for term {term}", stream_logger)
+
     # Fill in the 'missing' values for metric1
 
     stats["metric1_threshold"] = 0.022
@@ -445,7 +454,9 @@ def get_top_variants(
         stats_to_process.append("roc_stats_lrn_protective")
 
     for stat in stats_to_process:
-        # FUCK... How did this happen?
+        log_and_stream(f"Processing statistic {stat}", stream_logger)
+
+        # How did this happen?
         if np.any(stats[f"{stat}_threshold"] <= 0) and np.any(stats[f"{stat}_tp"] == 0):
             # I think this should have been set this way?
             stats[f"{stat}_threshold"] = 1e308
@@ -457,7 +468,10 @@ def get_top_variants(
                 ctrl_scores >= stats[f"{stat}_threshold"]
             ]
 
-        print(f"Selected for statistic {stat}: {len(case_eids_above_threshold)}")
+        log_and_stream(
+            f"Selected for statistic {stat}: {len(case_eids_above_threshold)}",
+            stream_logger,
+        )
 
         if len(case_eids_above_threshold) != stats[f"{stat}_tp"]:
             # position_in_index = str(stats.get(f"{stat}_all_index", "Unknown"))
@@ -477,9 +491,8 @@ def get_top_variants(
         stats[f"{stat}_lrp"] = stats[f"{stat}_tpr"] / (stats[f"{stat}_fpr"] + 1e-10)
 
         top_variants = term_variant_prioritisation(
-            term_variant_ids,
+            term_variants,
             case_eids_above_threshold,
-            ancestry,
             genotype_service,
             stream_logger,
         )
@@ -537,45 +550,43 @@ def show_variant_scores(
     disease_code: str,
     term: str,
 ):
+    """Show the variant scores page"""
+    flush = bool(request.args.get("flush", False))
+    protective = bool(request.args.get("protective", False))
+    print(f"Flush: {flush}, Protective: {protective}")
+
     services = current_app.extensions["nomaly_services"]
     phenotype_service = services.phenotype
-
-    """Show the variant scores page."""
-    # Get flush parameter
-    flush = bool(request.args.get("flush", False))
 
     # Get run version and ancestry from the session
     # TODO: Implement run version!
     run_version = session.get("run_version", "Run-v1")
     ancestry = session.get("ancestry", "EUR")
 
-    # Get protecive parameter
-    protective = bool(request.args.get("protective", False))
-
-    print(f"Flush: {flush}, Protective: {protective}")
-
     # Get phecode data
-    data = get_phecode_data(disease_code, phenotype_service, ancestry)
+    phecode_data = get_phecode_data(disease_code, phenotype_service, ancestry)
 
     # Get term data
     term_names = get_term_names([term])
     term_domains = get_term_domains([term])
     term_genes = get_term_genes([term])
 
-    # Add term details to data
-    data["term"] = term
-    data["termname"] = term_names.get(term, "")
-    data["domainlen"] = len(term_domains.get(term, []))
+    # Add term details to 'page data'
+    phecode_data["term"] = term
+    phecode_data["termname"] = term_names.get(term, "")
+    phecode_data["domainlen"] = len(term_domains.get(term, []))
 
     genes = term_genes[term_genes["term"] == term]["gene"].tolist()
-    data["genelen"] = len(genes)
-    data["genes"] = ", ".join(genes) if len(genes) < 5 else f"{len(genes)} genes"
+    phecode_data["genelen"] = len(genes)
+    phecode_data["genes"] = (
+        ", ".join(genes) if len(genes) < 5 else f"{len(genes)} genes"
+    )
 
     return render_template(
         "variant_scores.html",
         disease_code=disease_code,
         term=term,
-        data=data,
+        data=phecode_data,
         flush=flush,  # Pass to template
         protective=protective,
         top_variants=pd.DataFrame(),
@@ -585,19 +596,10 @@ def show_variant_scores(
 
 # Called by variant_scores.html?
 @prioritisation_bp.route("/stream_progress/<disease_code>/<term>")
-def stream_progress(
-    disease_code: str,
-    term: str,
-    population: str | None = None,
-    biological_sex: str | None = None,
-):
+def stream_progress(disease_code: str, term: str, ancestry: str = "EUR"):
     """Stream progress updates and final results."""
-    # Get no_cache from the flush parameter
     no_cache = bool(request.args.get("flush", False))
-
-    # Get protective parameter
     protective = bool(request.args.get("protective", False))
-
     print(f"Flush: {no_cache}, Protective: {protective}")
 
     def process_variants(
@@ -769,6 +771,7 @@ def stream_progress(
         # Get run version and ancestry from the session
         run_version = session.get("run_version", "Run-v1")
         ancestry = session.get("ancestry", "EUR")
+        stats_service = services.stats_registry.get(run_version, ancestry)
 
         try:
             # Submit to thread pool with the service
@@ -780,7 +783,7 @@ def stream_progress(
                 services.phenotype,
                 services.genotype,
                 services.nomaly_score,
-                services.stats_registry.get(run_version, ancestry),
+                stats_service,
                 run_version,
                 ancestry,
                 message_queue,
@@ -834,7 +837,72 @@ def check_json_safety(obj):
 
 
 def main():
-    """This code exists for debugging purposes."""
+    """This code exists for debugging purposes.
+
+    NOTES:
+
+    calls:
+    get_top_variants
+        (phecode, term)
+
+        1a) Gets the case and ctrl EIDs for the phecode (x ancestry)
+        1b) Gets the scores for the case and ctrl EIDs (x run_version)
+
+        2a) Gets the stats for the term
+        2b) Gets the case EIDs 'above threshold' for each stat
+
+        3) Gets the variants for the term
+
+        calls:
+        term_variant_prioritisation
+            (term_variants, case_eids_above_threshold)
+
+            1) Gets the *genotypes* for the case EIDs above the threshold
+            2a) Gets the 'nomaly variant scores' for the term variants
+
+            calls:
+            process_individual_variants
+                (eids, variants, genotypes)
+
+
+
+
+
+                ->
+                    individual_variant_prioritisation
+                        (row, term_variant_scores)
+
+    """
+
+    phecode = "722.7"
+    term = "KW:1167"
+
+    from app import create_app
+
+    # TODO: Avoid using app context when we should just be able to 'inject' services...
+    app = create_app("development")
+    with app.app_context():
+        services = current_app.extensions["nomaly_services"]
+
+        run = "Run-v1"
+        ancestry = "EUR"
+
+        data = get_top_variants(
+            phecode,
+            term,
+            services.phenotype,
+            services.genotype,
+            services.nomaly_score,
+            services.stats_registry.get(run, ancestry),
+            run,
+            ancestry,
+            no_cache=True,
+            # protective=True,
+        )
+
+    print(json.dumps(data, indent=2, sort_keys=True))
+
+    exit(0)
 
     phecodes = ["332", "324.1", "334.2", "300.13", "705", "256", "290.11"]
     terms = [
@@ -880,7 +948,7 @@ def main():
 
                             # Clean up any None/null values that would break JavaScript
                             data = check_json_safety(data)
-                            data = convert_numpy_types(data)
+                            data: dict = convert_numpy_types(data)  # type: ignore
 
                             # print(json.dumps(data, indent=2, sort_keys=True))
 
