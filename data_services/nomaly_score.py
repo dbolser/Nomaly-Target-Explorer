@@ -52,31 +52,29 @@ class NomalyScoreHDF5:
             raise
 
         # Load the data matrix and index information
-        # self.data_matrix: h5py.Dataset = score
+        self.data_matrix_h5: h5py.Dataset = scores
         self.eids: np.ndarray = eids[...].astype(int)
         self.terms: np.ndarray = terms[...].astype(str)
 
         npy_file = hdf5_file.with_suffix(".h5.npy")
         if not npy_file.exists():
             print("REALLY? WE'RE DOING THIS HERE NOW?")
-            np.save(npy_file, self.data_matrix)
+            np.save(npy_file, self.data_matrix_h5)
 
-        self.data_matrix = np.memmap(
-            npy_file, dtype=np.float16, mode="r", shape=scores.shape
-        )
+        self.data_matrix_mm = np.memmap(npy_file, mode="r", shape=scores.shape)
 
-
-        # Swap them...
-        # self.data_matrix_h5 = self.data_matrix
-        # self.data_matrix = self.data_matrix_mm
+        # Pick the memmap version
+        self.data_matrix: np.memmap = self.data_matrix_mm
 
         print(f"SORTING STUFF IN {self.f.filename}")
 
-        # HACK: Get sorted version of self.eids and the 'sorting indices
+        # NOTE: We get sorted version of self.eids and the 'sorting indices so
+        # we don't have to assume anything about the ordering of the eids
         self.sorting_idx = np.argsort(self.eids)
         self.sorted_eids = self.eids[self.sorting_idx]
 
         print(f"INITIALIZED {self.f.filename}")
+
     def get_scores_by_eid(self, eid):
         eid_mask = self.eids == eid
         eid_mask_idx = np.where(eid_mask)[0][0]
@@ -114,7 +112,8 @@ class NomalyScoreHDF5:
         # Sanity check for the method to work...
         assert len(eids) == len(np.intersect1d(eids, self.eids))
 
-        # Find where each requested eid would fit in the sorted array of 'score_eids'
+        # Find where each requested eid would fit in the sorted array of
+        # 'score_eids'...
         idx = np.searchsorted(self.sorted_eids, eids)
 
         # Use the original sorting indices to map back to the original unsorted
