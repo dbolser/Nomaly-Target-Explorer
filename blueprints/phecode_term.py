@@ -353,6 +353,40 @@ def main():
     )
     print(result)
 
+    import numpy as np
+
+    # Run some random GWAS for fun...
+    ancestries = np.array(["AFR", "EAS", "EUR", "SAS"])
+    phecodes = services.phenotype.phecodes
+
+    done = set()
+    for _ in range(10000):
+        phecode = np.random.choice(phecodes)
+        ancestry = np.random.choice(ancestries)
+
+        terms = services.stats_registry.get("Run-v1", ancestry)._hdf.terms
+        term = np.random.choice(terms)
+
+        if (phecode, ancestry, term) in done:
+            continue
+        done.add((phecode, ancestry, term))
+
+        print(f"Running VP for {phecode} / {term} ({ancestry})")
+        try:
+            calculate_phecode_term_variant_detail(
+                phecode,
+                term,
+                services.genotype,
+                services.phenotype,
+                services.nomaly_data,
+                ancestry,
+                no_cache=True,
+            )
+            print(f"Successfully ran VP for {phecode} / {term} ({ancestry})")
+        except Exception as e:
+            print(f"Error running VP for {phecode} / {term} ({ancestry}): {e}")
+            continue
+
 
 if __name__ == "__main__":
     main()

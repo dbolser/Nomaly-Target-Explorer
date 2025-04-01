@@ -218,20 +218,36 @@ def main():
 
     # phecode = sys.argv[1]
     # ancestry = sys.argv[2]
+
+    # phecode = "627.4"
+    # ancestry = "EUR"
+
     # print(f"Running GWAS for {phecode} ({ancestry})")
 
     # run_gwas(phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=True)
 
-    # Run some random GWAS...
+    # exit(0)
+
+    # Run some random GWAS for fun...
     ancestries = np.array(["AFR", "EAS", "EUR", "SAS"])
     phecodes = phenotype_service.phecodes
 
+    done = set()
     for _ in range(10000):
         phecode = np.random.choice(phecodes)
         ancestry = np.random.choice(ancestries)
-        run_gwas(
-            phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=False
-        )
+        if (phecode, ancestry) in done:
+            continue
+        done.add((phecode, ancestry))
+        print(f"Running GWAS for {phecode} ({ancestry})")
+        try:
+            run_gwas(
+                phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=True
+            )
+            print(f"Successfully ran GWAS for {phecode} ({ancestry})")
+        except Exception as e:
+            print(f"Error running GWAS for {phecode} ({ancestry}): {e}")
+            continue
 
 
 if __name__ == "__main__":

@@ -907,7 +907,7 @@ def main():
 
     print(json.dumps(data, indent=2, sort_keys=True))
 
-    exit(0)
+    # exit(0)
 
     phecodes = ["332", "324.1", "334.2", "300.13", "705", "256", "290.11"]
     terms = [
@@ -948,7 +948,7 @@ def main():
                                 run,
                                 ancestry,
                                 no_cache=True,
-                                protective=True,
+                                # protective=True,
                             )
 
                             # Clean up any None/null values that would break JavaScript
@@ -959,7 +959,7 @@ def main():
 
                             for key, value in data.items():
                                 if "top_variants" in key or "top_gene_set" in key:
-                                    print(f"{key}: {len(data[key])}")
+                                    # print(f"{key}: {len(data[key])}")
                                     data[key] = len(data[key])
 
                             # print(json.dumps(data, indent=2, sort_keys=True))
