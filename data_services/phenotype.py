@@ -4,8 +4,6 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from typing import Optional
-
 # # Create a 'dummy' profile decorator if we don't have line_profiler installed
 # try:
 #     from line_profiler import profile  # type: ignore
@@ -18,7 +16,7 @@ from typing import Optional
 class PhenotypeService:
     """Service for getting phenotype data."""
 
-    def __init__(self, hdf5_file: Path | str | None = None):
+    def __init__(self, hdf5_file: Path | None = None):
         self.hdf5_file = hdf5_file
         self.initialized = hdf5_file is not None
 
@@ -34,39 +32,32 @@ class PhenotypeService:
         self._check_initialized()
         return self._hdf.get_cases_for_phecode(phecode, ancestry)
 
-    def get_disease_sex_for_phecode(self, phecode):
-        self._check_initialized()
-        return self._hdf.get_disease_sex_for_phecode(phecode)
-
     def get_case_counts_for_phecode(self, phecode, ancestry: str = "EUR"):
         """Get the case counts for a given phecode and ancestry."""
         self._check_initialized()
         return self._hdf.get_case_counts_for_phecode(phecode, ancestry)
 
     def get_phenotypes(
-        self, eids: Optional[np.ndarray] = None, phecodes: Optional[np.ndarray] = None
+        self,
+        eids: np.ndarray | None = None,
+        phecodes: np.ndarray | None = None,
+        ancestry: str = "EUR",
     ) -> np.ndarray | h5py.Dataset:
         self._check_initialized()
-        return self._hdf.get_phenotypes(eids, phecodes)
-
-    # TODO: Are these used?
-    @property
-    def phenotype_data(self):
-        return self._hdf.phenotype_data
-
-    @property
-    def eids(self):
-        return self._hdf.eid
+        return self._hdf.get_phenotypes(eids, phecodes, ancestry)
 
     @property
     def phecodes(self):
         return self._hdf.phecode
 
+    def get_eids(self, ancestry: str = "EUR"):
+        return self._hdf.get_eids(ancestry)
+
 
 class PhenotypesHDF5:
     """Handles access to phenotype data stored in HDF5 format."""
 
-    def __init__(self, hdf5_file: Path | str):
+    def __init__(self, hdf5_file: Path):
         self.f = h5py.File(hdf5_file, "r")
 
         # TODO: Fix the naming of the fields
@@ -103,15 +94,24 @@ class PhenotypesHDF5:
             raise
 
         # Load the data matrix and index information as numpy arrays
-        self.phenotype_data: h5py.Dataset = phenotype_data
-        # NOTE: I think this may be a massive performance hit!
-        # self.phenotype_data: np.ndarray = phenotype_data[...].astype(int)
+        self.phenotype_data_h5: h5py.Dataset = phenotype_data
         self.eid: np.ndarray = eid[...].astype(int)
         self.ancestry: np.ndarray = ancestry[...].astype(str)
         self.individual_sex: np.ndarray = individual_sex[...].astype(str)
 
         self.phecode: np.ndarray = phecode[...].astype(str)
         self.disease_sex: np.ndarray = disease_sex[...].astype(str)
+
+        # Gah...
+        npy_file = hdf5_file.with_suffix(".h5.npy")
+        if not npy_file.exists():
+            print("REALLY? WE'RE DOING THIS HERE? NOW?")
+            np.save(npy_file, self.phenotype_data_h5)
+
+        self.phenotype_data_mm = np.load(npy_file, mmap_mode="r")
+
+        # Pick the memmap version
+        self.phenotype_data: np.memmap = self.phenotype_data_mm
 
         # TODO: Is this useful?
         # TODO: What about eid to index mapping?
@@ -128,8 +128,17 @@ class PhenotypesHDF5:
         self._phecodes_sorted = self.phecode[self._phecodes_argsort]
         print(f"PHENOTYPE SERVICE INITIALIZED {hdf5_file}")
 
+    def get_ancestry_mask(self, ancestry):
+        """Get a mask for the given ancestry."""
+        if ancestry == "EUR":
+            return (self.ancestry == "EUR") | (self.ancestry == "EUR_S")
+        return self.ancestry == ancestry
+
     def get_phenotypes(
-        self, eids: Optional[np.ndarray] = None, phecodes: Optional[np.ndarray] = None
+        self,
+        eids: np.ndarray | None = None,
+        phecodes: np.ndarray | None = None,
+        ancestry: str = "EUR",
     ) -> np.ndarray | h5py.Dataset:
         """
         Get phenotypes for a list of eids and phecodes.
@@ -148,8 +157,11 @@ class PhenotypesHDF5:
                 - 9 = excluded
                 - 8 = additional sex based exclusion... TBD
         """
+
+        ancestry_mask = self.get_ancestry_mask(ancestry)
+
         if eids is None and phecodes is None:
-            return self.phenotype_data
+            return self.phenotype_data[ancestry_mask, :]
 
         if eids is not None:
             # Vectorized index lookup using precomputed sorted arrays
@@ -161,28 +173,15 @@ class PhenotypesHDF5:
             phecode_idx = self._phecodes_argsort[phecode_pos]
 
         if eids is None:
-            return self.phenotype_data[phecode_idx, :]
+            return self.phenotype_data[ancestry_mask, :][:, phecode_idx]
 
         if phecodes is None:
-            return self.phenotype_data[eid_idx, :]
+            return self.phenotype_data[ancestry_mask, :][eid_idx, :]
 
-        return self.phenotype_data[eid_idx, :][:, phecode_idx]
+        return self.phenotype_data[ancestry_mask, :][eid_idx, :][:, phecode_idx]
 
-    def get_ancestry_mask(self, ancestry):
-        """Get a mask for the given ancestry."""
-        if ancestry == "EUR":
-            return (self.ancestry == "EUR") | (self.ancestry == "EUR_S")
-        return self.ancestry == ancestry
-
-    def get_individual_sex_mask(self, individual_sex):
-        return self.individual_sex == individual_sex
-
-    def get_disease_sex_mask(self, disease_sex):
-        return self.disease_sex == disease_sex
-
-    def get_disease_sex_for_phecode(self, phecode):
-        phecode_index = self.phecode_to_index[phecode]
-        return self.disease_sex[phecode_index]
+    def get_eids(self, ancestry: str = "EUR"):
+        return self.eid[self.get_ancestry_mask(ancestry)]
 
     # @profile
     def get_cases_for_phecode(self, phecode, ancestry: str = "EUR") -> pd.DataFrame:
@@ -204,12 +203,9 @@ class PhenotypesHDF5:
 
         ancestry_mask = self.get_ancestry_mask(ancestry)
         phecode_index = self.phecode_to_index[phecode]
-        phenotype_counts = self.phenotype_data[:, phecode_index][ancestry_mask]
+        phenotypes = self.phenotype_data[:, phecode_index][ancestry_mask]
 
-        values, counts = np.unique(
-            phenotype_counts,
-            return_counts=True,
-        )
+        values, counts = np.unique(phenotypes, return_counts=True)
 
         counts_dict = dict(zip(values, counts))
 
