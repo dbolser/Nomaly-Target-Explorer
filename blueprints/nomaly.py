@@ -45,7 +45,7 @@ def qqstats(dfstats):
 
     # add -log10(P_obs) column
     try:
-        melt_stats["-log10(observed)"] = -np.log10(melt_stats["P_obs"])
+        melt_stats["-log10(observed)"] = -np.log10(melt_stats["P_obs"] + 1e-10)
     except Exception as e:
         logger.warning(f'Exception "{e}" encountered for {melt_stats["term"][0]}')
 
@@ -55,9 +55,10 @@ def qqstats(dfstats):
     # add -log10(expected) column
     for tag in tags:
         len_tag = len(melt_stats[melt_stats["tag"] == tag])
-        melt_stats.loc[melt_stats["tag"] == tag, "-log10(expected)"] = -np.log10(
-            np.linspace(0 + 1 / len_tag, 1 - 1 / len_tag, len_tag)
-        )
+        if len_tag > 0:
+            melt_stats.loc[melt_stats["tag"] == tag, "-log10(expected)"] = -np.log10(
+                np.linspace(0 + 1 / len_tag, 1 - 1 / len_tag, len_tag)
+            )
 
     # Merge the term name column (term description) if available
     if "name" in dfstats.columns:
