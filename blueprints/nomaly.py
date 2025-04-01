@@ -4,6 +4,10 @@ import plotly.express as px
 
 from config import Config
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # Yay globals!
 pharos_path = Config.PHAROS_DATA_DIR / "pharos_api_query.out"
@@ -43,7 +47,7 @@ def qqstats(dfstats):
     try:
         melt_stats["-log10(observed)"] = -np.log10(melt_stats["P_obs"])
     except Exception as e:
-        print(f'Exception "{e}" encourterd for {melt_stats["term"][0]}')
+        logger.warning(f'Exception "{e}" encountered for {melt_stats["term"][0]}')
 
     # sort the table by P_obs
     melt_stats.sort_values("P_obs", inplace=True)
@@ -67,7 +71,7 @@ def make_qqplot(plot_df):
     try:
         melt_stats = qqstats(plot_df)
     except Exception as e:
-        print(f'Exception "{e}" encountered')
+        logger.warning(f'Exception "{e}" encountered')
         # Create a simple empty figure instead of returning None
         fig = px.scatter(x=[0], y=[0])
         fig.update_layout(

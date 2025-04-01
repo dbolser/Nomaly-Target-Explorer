@@ -49,13 +49,13 @@ class GenotypeService:
         return self._hdf.individual
 
     @property
-    def plink_variant_id(self):
+    def plink_variant_ids(self) -> np.ndarray:
         """Delegate to the underlying HDF5 file's genotype_variant_id property."""
         self._check_initialized()
         return self._hdf.plink_variant_id
 
     @property
-    def nomaly_variant_id(self):
+    def nomaly_variant_ids(self) -> np.ndarray:
         """Delegate to the underlying HDF5 file's genotype_variant_id property."""
         self._check_initialized()
         return self._hdf.nomaly_variant_id
@@ -163,62 +163,6 @@ class GenotypesHDF5:
         # )
 
         print(f"INITIALIZED {self.f.filename}")
-
-    # @staticmethod
-    # def _calculate_allele_flips(
-    #     nomaly_variant_id: np.ndarray,
-    #     genotype_variant_id: np.ndarray,
-    # ) -> np.ndarray:
-    #     """
-    #     Returns an array indicating whether the alleles are flipped in the
-    #     genotype file relative to the nominal variant ID.
-
-    #     True = alleles are flipped, e.g.
-    #       - 3:122257322:A:G (genotype file)            or 3:122257322:A/G (plink
-    #         file) vs.
-    #       - 3_122257322_G/A (Nomaly variant ID... ish) or 3_122257322_G_A
-    #         (Nomaly variant ID).
-
-    #         Isn't it fun to be alive?
-
-    #     False = alleles are not flipped.
-
-    #     None = There is no Nomaly variant ID for this particular variant in the
-    #     genotype file.
-
-    #     """
-
-    #     result = np.full(len(nomaly_variant_id), None)
-
-    #     for i in range(len(nomaly_variant_id)):
-    #         if nomaly_variant_id[i] == "Missing":
-    #             continue
-
-    #         ref_match = nomaly_variant_id[i][-3] == genotype_variant_id[i][-3]
-    #         alt_match = nomaly_variant_id[i][-1] == genotype_variant_id[i][-1]
-
-    #         if ref_match and alt_match:
-    #             result[i] = False  # alleles are not flipped
-    #         elif not ref_match and not alt_match:
-    #             result[i] = True  # alleles are flipped
-    #         else:
-    #             # Fuck knows!
-    #             raise ValueError(
-    #                 f"Variant {nomaly_variant_id[i]} has different alleles in the genotype file and the nominal variant ID"
-    #             )
-
-    #     return result
-
-    # Example class property method:
-    @property
-    def num_variants(self) -> int:
-        """
-        Returns the number of variants in the genotype matrix.
-
-        Returns:
-            int: The number of variants
-        """
-        return self.genotype_matrix.shape[0]
 
     # TODO: Add sex and ancestry here?
     def get_genotypes(
