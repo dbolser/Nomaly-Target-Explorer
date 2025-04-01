@@ -407,13 +407,24 @@ def run_task(phecode):
         )
         logger.info(f"GWAS completed successfully with {len(results)} variants")
 
-        # NOTE: We've given up on filtering GWAS results by significance!
-        sig_p = 1
-        formatted_results = format_gwas_results(results, significance_threshold=sig_p)
+        # Count the number of significant variants at different significance thresholds
+        num_sig_1_star = (results["P"] < 0.05).sum()
+        num_sig_2_star = (results["P"] < 0.01).sum()
+        num_sig_3_star = (results["P"] < 0.001).sum()
+
+        summary_text = (
+            f"GWAS completed successfully, returning {len(results)} results. "
+            f"There are {num_sig_1_star}*, {num_sig_2_star}**, {num_sig_3_star}*** "
+            "variants with association p<0.05, p<0.01, p<0.001 respectively."
+        )
+
+        # NOTE: We've given up on filtering GWAS results by significance here...
+        formatted_results = format_gwas_results(results, significance_threshold=1)
+
         return jsonify(
             {
                 "status": "completed",
-                "result": f"GWAS completed successfully with {len(formatted_results)} 'significant' variants (p <= {sig_p})",
+                "result": summary_text,
                 "associations": formatted_results,
             }
         )

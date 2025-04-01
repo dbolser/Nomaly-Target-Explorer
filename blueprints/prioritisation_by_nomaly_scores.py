@@ -85,7 +85,7 @@ def log_and_stream(message, stream_logger=None, level="info"):
 
 
 # Convert NumPy types to native Python types
-def convert_numpy_types(obj):
+def convert_numpy_types(obj: Any) -> Any:
     if isinstance(obj, np.integer):
         return int(obj)
     elif isinstance(obj, np.floating):
@@ -393,15 +393,17 @@ def get_top_variants(
     # Quick cleanup of stats...
 
     # Just ignore these!
-    stats[stats.filter(like="_threshold").columns] = stats.filter(
-        like="_threshold"
-    ).replace(float("inf"), 0)
-    stats[stats.filter(like="_or").columns] = stats.filter(like="_or").fillna(1)
+    if np.any(stats[stats.filter(like="_threshold").columns] == float("inf")):
+        stats[stats.filter(like="_threshold").columns] = stats.filter(
+            like="_threshold"
+        ).replace(float("inf"), 0)
+    if np.any(stats[stats.filter(like="_or").columns].isna()):
+        stats[stats.filter(like="_or").columns] = stats.filter(like="_or").fillna(1)
 
     # Convert stats to dict..
     stats = stats.to_dict(orient="records")[0]
 
-    # Ensure NaN values are converted to None
+    # Err..
     if pd.isna(stats["metric1_pvalue"]):
         stats["metric1_pvalue"] = 1
 
@@ -457,7 +459,7 @@ def get_top_variants(
         log_and_stream(f"Processing statistic {stat}", stream_logger)
 
         # How did this happen?
-        if np.any(stats[f"{stat}_threshold"] <= 0) and np.any(stats[f"{stat}_tp"] == 0):
+        if stats[f"{stat}_threshold"] <= 0 and stats[f"{stat}_tp"] == 0:
             # I think this should have been set this way?
             stats[f"{stat}_threshold"] = 1e308
 
@@ -876,6 +878,7 @@ def main():
 
     phecode = "722.7"
     term = "KW:1167"
+    term = "GO:1900181"
 
     from app import create_app
 
@@ -899,6 +902,8 @@ def main():
             no_cache=True,
             # protective=True,
         )
+
+    data = convert_numpy_types(data)
 
     print(json.dumps(data, indent=2, sort_keys=True))
 
