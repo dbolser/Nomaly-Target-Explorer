@@ -880,28 +880,28 @@ def main():
     term = "KW:1167"
     term = "GO:1900181"
 
-    from app import create_app
+    run = "Run-v1"
+    ancestry = "EUR"
 
-    # TODO: Avoid using app context when we should just be able to 'inject' services...
-    app = create_app("development")
-    with app.app_context():
-        services = current_app.extensions["nomaly_services"]
+    from data_services import StatsRegistry
 
-        run = "Run-v1"
-        ancestry = "EUR"
+    phenotype_service = PhenotypeService(Config.PHENOTYPES_HDF)
+    genotype_service = GenotypeService(Config.GENOTYPES_HDF)
+    nomaly_score_service = NomalyScoreService(Config.NOMALY_SCORES_H5)
+    stats_registry = StatsRegistry(Config.STATS_SELECTOR)
 
-        data = get_top_variants(
-            phecode,
-            term,
-            services.phenotype,
-            services.genotype,
-            services.nomaly_score,
-            services.stats_registry.get(run, ancestry),
-            run,
-            ancestry,
-            no_cache=True,
-            # protective=True,
-        )
+    data = get_top_variants(
+        phecode,
+        term,
+        phenotype_service,
+        genotype_service,
+        nomaly_score_service,
+        stats_registry.get(run, ancestry),
+        run,
+        ancestry,
+        no_cache=True,
+        # protective=True,
+    )
 
     data = convert_numpy_types(data)
 
@@ -909,66 +909,41 @@ def main():
 
     # exit(0)
 
-    phecodes = ["332", "324.1", "334.2", "300.13", "705", "256", "290.11"]
-    terms = [
-        "GO:1901136",
-        "GO:0044559",
-        "GO:0030800",
-        "GO:0034081",
-        "GO:0003960",
-        "GO:0016861",
-        "GO:0009225",
-        "CD:MESH:D009139",
-        "MP:0004986",
-        "MP:0004819",
-    ]
+    phecodes = phenotype_service.phecodes
 
-    from app import create_app
+    # HACK, but fine here
+    stats_service = stats_registry.get(run, ancestry)
+    terms = stats_service._hdf.terms
 
-    # TODO: Avoid using app context when we should just be able to 'inject' services...
-    app = create_app("development")
-    with app.app_context():
-        services = current_app.extensions["nomaly_services"]
+    for _ in range(100_000):
+        phecode = np.random.choice(phecodes)
+        term = np.random.choice(terms)
+        run = np.random.choice(["Run-v1", "Run-v2"])
+        ancestry = np.random.choice(["EUR", "AFR", "EAS", "SAS"])
 
-        for phecode in phecodes:
-            for term in terms:
-                for run in ["Run-v1", "Run-v2"]:
-                    try:
-                        for ancestry in ["EUR", "AFR", "EAS", "SAS"]:
-                            print(f"Running {run} {ancestry} for {phecode} {term}")
-                            print(f"Running {run} {ancestry} for {phecode} {term}")
-                            print(f"Running {run} {ancestry} for {phecode} {term}")
-                            data = get_top_variants(
-                                phecode,
-                                term,
-                                services.phenotype,
-                                services.genotype,
-                                services.nomaly_score,
-                                services.stats_registry.get(run, ancestry),
-                                run,
-                                ancestry,
-                                no_cache=True,
-                                # protective=True,
-                            )
+        print(f"Running {run} {ancestry} for {phecode} {term}")
 
-                            # Clean up any None/null values that would break JavaScript
-                            data = check_json_safety(data)
-                            data: dict = convert_numpy_types(data)  # type: ignore
+        try:
+            print(f"Running {run} {ancestry} for {phecode} {term}")
+            print(f"Running {run} {ancestry} for {phecode} {term}")
+            print(f"Running {run} {ancestry} for {phecode} {term}")
+            data = get_top_variants(
+                phecode,
+                term,
+                phenotype_service,
+                genotype_service,
+                nomaly_score_service,
+                stats_registry.get(run, ancestry),
+                run,
+                ancestry,
+                no_cache=True,
+                # protective=True,
+            )
+        except Exception as e:
+            print(f"Error in main: {e}")
+            logger.error(f"Error in main: {e}")
 
-                            # print(json.dumps(data, indent=2, sort_keys=True))
-
-                            for key, value in data.items():
-                                if "top_variants" in key or "top_gene_set" in key:
-                                    # print(f"{key}: {len(data[key])}")
-                                    data[key] = len(data[key])
-
-                            # print(json.dumps(data, indent=2, sort_keys=True))
-                            print("OK\n")
-                    except Exception as e:
-                        print(f"Error in main: {e}")
-                        logger.error(f"Error in main: {e}")
-
-                    print("OK")
+        print("OK")
 
 
 if __name__ == "__main__":
