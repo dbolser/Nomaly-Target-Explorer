@@ -20,6 +20,5 @@
     "editor.formatOnSave": true,
     "search.exclude": {
         "**/.venv": true
-    },
-    "terminal.integrated.fontSize": 14
+    }
 }
