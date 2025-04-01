@@ -102,16 +102,16 @@
 {% block extra_js %}
 {{ super() }} {# Include parent block's JS #}
 <script>
-        // At the top of your script block
-        console.log('Plotly status at page load:', typeof Plotly !== 'undefined' ? 'Loaded' : 'Not loaded');
+    console.log('Plotly status at page load:', typeof Plotly !== 'undefined' ? 'Loaded' : 'Not loaded');
 
-    // Define phecode and runbatch from template data
+    // Define phecode, runbatch and flush from template data
     const phecode = "{{ data.phecode }}";
     const runbatch = "{{ data.runbatch }}";
+    const flush = "{{ data.flush }}";
 
-        // Function to create the Plotly graph directly
-        function renderPlot(plotData) {
-            console.log('Creating Plotly graph');
+    // Function to create the Plotly graph directly
+    function renderPlot(plotData) {
+        console.log('Creating Plotly graph');
         $('#NomalyResultContainer').show();
 
         // Check if Plotly is available
@@ -324,13 +324,6 @@
         }
     }
 
-    // Function to populate the test numbers
-    function populateTestNumbers(testnumbers) {
-        console.log('Populating test numbers:', testnumbers);
-        const testnumbersDiv = document.getElementById('testnumbers');
-        testnumbersDiv.innerHTML = testnumbers;
-    }
-
     // Function to initialize the DataTable
     function renderDataTable(resultData, columns, defaultColumns, numColumns) {
         console.log('Available columns:', columns); // Debug log
@@ -465,14 +458,14 @@
     }
 
     // Initialize data load on document ready
-                            $(document).ready(function () {
-                            console.log('Document ready, Plotly available:', typeof Plotly !== 'undefined');
+    $(document).ready(function () {
+        console.log('Document ready, Plotly available:', typeof Plotly !== 'undefined');
 
-                            // Add a Plotly check before calling loadNomalyData
-                            if (typeof Plotly === 'undefined') {
-                                console.warn('Plotly not loaded at document ready');
-                            }
-                        
+        // Add a Plotly check before calling loadNomalyData
+        if (typeof Plotly === 'undefined') {
+            console.warn('Plotly not loaded at document ready');
+        }
+                            
         loadNomalyData();
 
         // Conditional Event Listener Attachment
@@ -489,26 +482,26 @@
                         'Content-Type': 'application/json'
                     }
                 })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log('Received response:', data);  // Debug log
-                        if (data.status === "completed") {
-                            resultDiv.innerHTML = `Result: ${data.result}`;
-                            if (data.associations && data.associations.length > 0) {
-                                console.log(`Found ${data.associations.length} associations`);  // Debug log
-                                populateTable(data.associations);
-                            } else {
-                                console.log('No associations found in data');  // Debug log
-                                resultDiv.innerHTML += '<br>No significant associations found.';
-                            }
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Received response:', data);  // Debug log
+                    if (data.status === "completed") {
+                        resultDiv.innerHTML = `Result: ${data.result}`;
+                        if (data.associations && data.associations.length > 0) {
+                            console.log(`Found ${data.associations.length} associations`);  // Debug log
+                            populateTable(data.associations);
                         } else {
-                            resultDiv.innerHTML = `Failed: ${data.result}`;
+                            console.log('No associations found in data');  // Debug log
+                            resultDiv.innerHTML += '<br>No significant associations found.';
                         }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        document.getElementById('taskResult').innerHTML = `Error: ${error.message}`;
-                    });
+                    } else {
+                        resultDiv.innerHTML = `Failed: ${data.result}`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('taskResult').innerHTML = `Error: ${error.message}`;
+                });
             });
         }
     });
