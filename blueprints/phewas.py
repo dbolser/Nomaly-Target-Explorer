@@ -17,7 +17,6 @@ from fisher import pvalue_npy  # type: ignore
 
 from config import Config
 from data_services import GenotypeService, PhenotypeService
-from db import get_all_phecodes
 
 # # Create a 'dummy' profile decorator if we don't have line_profiler installed
 # try:
@@ -214,17 +213,25 @@ def run_phewas_or_load_from_cache(
     Run PheWAS analysis on a variant and save the results to a cache file.
     If the cache file exists, load the results from the cache file.
     """
-    # Parse variant information from 'URL format' (e.g. "5_33951588_C_G")
-    parts = variant_id.split("_")
-    chrom = parts[0]
-    pos = parts[1]
-    allele1 = parts[2]
-    allele2 = parts[3]
 
-    # De-Nom'alize the variant format
-    plnkified_variant_id = f"{chrom}:{pos}_{allele1}/{allele2}"
+    plnkified_variant_id = variant_id
+    flat_variant_id = variant_id
 
-    cache_file = Config.PHEWAS_PHENO_DIR / f"phewas_results_{variant_id}_{ancestry}.tsv"
+    if ":" not in variant_id:
+        # Parse variant information from 'URL format' (e.g. "5_33951588_C_G")
+        parts = variant_id.split("_")
+        chrom = parts[0]
+        pos = parts[1]
+        allele1 = parts[2]
+        allele2 = parts[3]
+
+        plnkified_variant_id = f"{chrom}:{pos}_{allele1}/{allele2}"
+    else:
+        flat_variant_id = variant_id.replace(":", "_").replace("/", "_")
+
+    cache_file = (
+        Config.PHEWAS_PHENO_DIR / f"phewas_results_{flat_variant_id}_{ancestry}.tsv"
+    )
     if cache_file.exists() and not no_cache:
         return pd.read_csv(cache_file, sep="\t", dtype={"phecode": str})
     else:
@@ -243,7 +250,6 @@ def run_full_analysis(
     """Run PheWAS analysis on all variants."""
     from multiprocessing import Pool
 
-    # NOTE: N
     variants = genotype_service.plink_variant_ids
 
     def run_one_variant_id(variant_id):
