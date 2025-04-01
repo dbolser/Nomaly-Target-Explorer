@@ -221,7 +221,7 @@ def calculate_phecode_term_variant_detail(
         data_records = []
         for _, row in term_df.iterrows():
             nomaly_variant_id = str(row["variant_id"])
-            logger.info(f"\nProcessing variant: {nomaly_variant_id}")
+            logger.debug(f"\nProcessing variant: {nomaly_variant_id}")
 
             try:
                 # Calculate genotype frequencies

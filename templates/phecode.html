@@ -475,8 +475,8 @@
                 const resultDiv = document.getElementById('taskResult');
                 console.log('GWAS Task button clicked');
 
-                // fetch(`/run-task/${phecode}?flush=1`, {
-                fetch(`/run-task/${phecode}`, {
+                const endpoint = "{{ url_for('phecode.run_task', phecode=data.phecode, flush=data.flush) }}";
+                fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -484,7 +484,7 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Received response:', data);  // Debug log
+                    // console.log('Received response:', data);
                     if (data.status === "completed") {
                         resultDiv.innerHTML = `Result: ${data.result}`;
                         if (data.associations && data.associations.length > 0) {

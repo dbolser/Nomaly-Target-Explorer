@@ -53,8 +53,8 @@ def show_phecode(phecode):
         phecode_data["ancestry"] = ancestry
 
         # Cobble together a half functional systsem..
-        phecode_data["show_gwas"] = request.args.get("gwas") == "1"
-        phecode_data["flush"] = request.args.get("flush") == "1"
+        phecode_data["show_gwas"] = request.args.get("gwas", default=False)
+        phecode_data["flush"] = request.args.get("flush", default=False)
 
         # And finally shove the whole thing into the template
         return render_template("phecode.html", data=phecode_data)
@@ -386,12 +386,11 @@ def get_column_display_names():
 
 
 # Called by phecode.html
-@phecode_bp.route("/run-task/<string:phecode>", methods=["POST"])
-def run_task(phecode):
+@phecode_bp.route("/run-task/<string:phecode>/<int:flush>", methods=["POST"])
+def run_task(phecode, flush=False):
     """Endpoint to run GWAS analysis."""
 
     # Get flush from POST data
-    flush = request.args.get("flush", False) == "1"
     logger.info(f"Running GWAS for {phecode} with flush={flush}")
 
     # Get ancestry from session
