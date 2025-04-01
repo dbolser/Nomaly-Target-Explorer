@@ -1,6 +1,6 @@
 {% extends "data_base.html" %}
 
-{% block title %}Variant: {{ data.variant_id }}{% endblock %}
+{% block title %}Variant: {{ data.nomalized_variant_id }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -8,9 +8,9 @@
 
     <div class="card mb-4">
         <div class="card-body">
-            <h5 class="card-title">Basic Information</h5>
+            <h5 class="card-title">Basic Information (Ancestry: {{ data.ancestry }})</h5>
             <table class="table table-borderless"></table>
-            <strong>Variant ID:</strong> <span id="variant-display">{{ data.variant_id }}</span> / / {{ data.rsid }}<br>
+            <strong>Variant ID:</strong> <span id="variant-display">{{ data.nomalized_variant_id }}</span> / / {{ data.rsid }}<br>
                 <strong>Chromosome:</strong> {{ data.chromosome }}<br>
                 <strong>Position:</strong> {{ data.position }}<br>
                 <strong>Gene:</strong> {{ data.gene }}<br>
@@ -80,13 +80,13 @@
 <script>
     $(document).ready(function () {
         // Format the variant ID display using variantUtils
-        const variantId = "{{ data.variant_id }}";
+        const variantId = "{{ data.nomalized_variant_id }}";
         document.getElementById('variant-display').innerHTML = variantUtils.createLink(variantId);
         
         // Event listener for the PheWAS button
         document.getElementById('runPheWASButton').addEventListener('click', function () {
             const resultDiv = document.getElementById('phewasResult');
-            const variant = "{{ data.variant_id }}".replace(':', '_').replace('/', '_');
+            const variant = "{{ data.nomalized_variant_id }}".replace(':', '_').replace('/', '_');
 
             // Get the current URL parameters
             const urlParams = new URLSearchParams(window.location.search);
@@ -192,7 +192,7 @@
                         fieldSeparator: '\t',
                         extension: '.tsv',
                         filename: function () {
-                            const variant = "{{ data.variant_id }}".replace(':', '_').replace('/', '_');
+                            const variant = "{{ data.nomalized_variant_id }}".replace(':', '_').replace('/', '_');
                             return `variant_phewas_${variant}`;
                         }
                     },

@@ -1,14 +1,19 @@
-from flask import Blueprint, render_template, jsonify, request, current_app
+import logging
+import re
 import threading
 import traceback
-import re
 
-from blueprints.phewas import get_formatted_phewas_data
+from flask import Blueprint, current_app, jsonify, render_template, request, session
+
+from blueprints.phewas import format_phewas_results, run_phewas_or_load_from_cache
 from data_services import (
+    GenotypeService,
     NomalyDataService,
+    PhenotypeService,
     ServiceRegistry,
 )
 
+logger = logging.getLogger(__name__)
 
 # Create the blueprint
 variant_bp = Blueprint("variant", __name__, template_folder="../templates")
@@ -21,6 +26,13 @@ phewas_results = {}
 @variant_bp.route("/variant/<string:variant>", methods=["POST", "GET"])
 def show_variant(variant):
     try:
+        # Get the ancestry parameter from request
+        ancestry = session.get("ancestry", default="EUR")
+
+        services: ServiceRegistry = current_app.extensions["nomaly_services"]
+        genotype_service: GenotypeService = services.genotype
+        nomaly_data_service: NomalyDataService = services.nomaly_data
+
         # Validate the variant format
         format_str = r"(\d+|MT|[XY])_\d+_[ACGT]+_[ACGT]+"
         if not re.match(format_str, variant):
@@ -36,41 +48,48 @@ def show_variant(variant):
         allele2 = parts[3]
 
         # Nom'alize the variant format
-        nomalized_variant = f"{chrom}_{pos}_{allele1}/{allele2}"
-        plnkified_variant = f"{chrom}:{pos}_{allele1}/{allele2}"
+        nomalized_variant_id = f"{chrom}_{pos}_{allele1}/{allele2}"
+        plnkified_variant_id = f"{chrom}:{pos}_{allele1}/{allele2}"
 
-        # THE KEY THING TO NOTE HERE IS THAT PLINK MAY HAVE FLIPPED THE ALLELES,
-        # AND WE'RE TOO LAZY TO FIX IT!
+        # Check plink_id exists in the genotype service
+        if plnkified_variant_id not in genotype_service.plink_variant_ids:
+            logger.info(
+                f"Variant {plnkified_variant_id} not found in genotype service, trying reverse alleles"
+            )
+            plnkified_variant_id = f"{chrom}:{pos}_{allele2}/{allele1}"
 
-        # Now we use the 'nomaly_data service' to lookup comprehensive variant
-        # information from the 'mapping' hack.
-        app = current_app
-        services: ServiceRegistry = app.extensions["nomaly_services"]
-        nomaly_data_service: NomalyDataService = services.nomaly_data
+            if plnkified_variant_id not in genotype_service.plink_variant_ids:
+                return render_template(
+                    "error.html",
+                    error=f"Variant at {chrom}:{pos} not found genotype data!",
+                )
 
-        variant_info = nomaly_data_service.get_variant_info_nomaly(nomalized_variant)
+        # Use the 'nomaly_data service' to lookup variant information.
+        variant_info = nomaly_data_service.get_variant_info_nomaly(nomalized_variant_id)
 
         if not variant_info:
             return render_template(
                 "error.html",
-                error="Variant not found as a Nomaly Variant ID in the Nomaly mapping data.",
+                error=f"Variant {nomalized_variant_id} not found in the Nomaly Variant data!",
             )
 
-        # Finally get the data we want... easy eh?
         gene = variant_info["gene_id"]
         rsid = variant_info["RSID"]
-        genotypeing_allele1 = variant_info["CHR_BP_A1_A2"].split("_")[1][0]
-        genotypeing_allele2 = variant_info["CHR_BP_A1_A2"].split("_")[1][2]
+        genotypeing_allele1 = plnkified_variant_id.split("_")[1][0]
+        genotypeing_allele2 = plnkified_variant_id.split("_")[1][2]
 
         # Prepare data for the template
         variant_data = {
-            "variant_id": nomalized_variant,
+            "nomalized_variant_id": nomalized_variant_id,
+            # We pass this through to the template so we can call phewas correctly
+            "plnkified_variant_id": plnkified_variant_id,
             "rsid": rsid,
             "chromosome": chrom,
             "position": pos,
             "gene": gene,
             "genotyping_allele1": genotypeing_allele1,
             "genotyping_allele2": genotypeing_allele2,
+            "ancestry": ancestry,
         }
 
         return render_template("variant.html", data=variant_data)
@@ -83,35 +102,39 @@ def show_variant(variant):
 
 
 # Background task function
-def background_task(variant: str, services, flush: bool = False):
+def background_task(
+    variant: str,
+    genotype_service: GenotypeService,
+    phenotype_service: PhenotypeService,
+    ancestry: str = "EUR",
+    flush: bool = False,
+):
     try:
+        phewas_df = run_phewas_or_load_from_cache(
+            variant, genotype_service, phenotype_service, ancestry, no_cache=flush
+        )
 
-        # Get formatted PheWAS results using injected services
-        results = get_formatted_phewas_data(
-            variant, services, no_cache=flush
-        )  # None to get all phecodes
+        phewas_df = phewas_df.sort_values(by="p_value", ascending=True)
 
-        if not results:
-            phewas_results[variant] = {
-                "result": f"No associations found for variant {variant}",
-                "associations": [],
-            }
-        else:
-            # Filter significant associations using raw p-value
-            assoc_sig = [r for r in results if r["p_value"] < 0.05]
+        num_sig_1_star = (phewas_df["p_value"] < 0.05).sum()
+        num_sig_2_star = (phewas_df["p_value"] < 0.01).sum()
+        num_sig_3_star = (phewas_df["p_value"] < 0.001).sum()
 
-            # Drop the p_value key from the dictionary
-            for r in assoc_sig:
-                del r["p_value"]
+        # Format the results
+        phewas_dict = format_phewas_results(phewas_df)
 
-            result = (
-                f"PheWAS identified {len(assoc_sig)} phecodes with association p<0.05."
-            )
-            phewas_results[variant] = {"result": result, "associations": assoc_sig}
+        summary_text = (
+            f"PheWAS identified {num_sig_1_star}*, {num_sig_2_star}**, {num_sig_3_star}***"
+            "phecodes with association p<0.05, p<0.01, p<0.001 respectively."
+        )
+        phewas_results[variant] = {
+            "result": summary_text,
+            "associations": phewas_dict,
+        }
 
     except Exception:
         error_msg = traceback.format_exc()
-        print(f"Error in background task: {error_msg}")
+        logger.error(f"Error in background task: {error_msg}")
         phewas_results[variant] = {
             "result": f"Failed to get phecode-level stats for Variant {variant}, exception was <br> {error_msg}",
             "associations": [],
@@ -121,24 +144,31 @@ def background_task(variant: str, services, flush: bool = False):
 # Endpoint to trigger the PheWAS task
 @variant_bp.route("/run-phewas/<string:variant>", methods=["POST"])
 def run_phewas(variant):
-    from flask import current_app
 
     # Get flush parameter from request
     flush = request.args.get("flush", default="0") == "1"
 
+    # Get the ancestry parameter from request
+    ancestry = session.get("ancestry", default="EUR")
+
+    # Clear any existing results for this variant
     # Clear any existing results for this variant
     if variant in phewas_results:
         del phewas_results[variant]
 
     # Get services from the app context before starting the thread
     services = current_app.extensions["nomaly_services"]
+    genotype_service = services.genotype
+    phenotype_service = services.phenotype
 
     # Start the background task using threading
     task_thread = threading.Thread(
-        target=background_task, args=(variant, services, flush)
+        target=background_task,
+        args=(variant, genotype_service, phenotype_service, ancestry, flush),
     )
     task_thread.daemon = True
     task_thread.start()
+
     return jsonify({"status": "Task started"}), 202
 
 
@@ -147,4 +177,5 @@ def run_phewas(variant):
 def get_phewas_result(variant):
     if variant not in phewas_results:
         return jsonify({"result": "Processing...", "associations": []})
+
     return jsonify(phewas_results[variant])
