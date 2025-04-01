@@ -55,26 +55,11 @@ def format_phewas_row(row: pd.Series) -> dict:
 
 
 def format_phewas_results(phewas_df: pd.DataFrame) -> List[dict[str, str | float]]:
+    """Format the results, row by row for display.
+
+    Return a list of dics, one per row.
     """
-    Format the PheWAS results for display.
-    """
-
-    # Get the phecode data (from the database)
-    phecode_data = get_all_phecodes()
-
-    # Merge the phewas results with the phecode data
-    merged_results = phewas_df.merge(phecode_data, on="phecode", how="left")
-
-    # Sanity check
-    assert len(phewas_df) == len(merged_results)
-
-    # Handle missing phecode descriptions
-    merged_results["description"] = merged_results["description"].fillna("Unknown")
-    merged_results["sex"] = merged_results["sex"].fillna("Unknown")
-    merged_results["phecode_group"] = merged_results["phecode_group"].fillna("Unknown")
-
-    # Format the results, row by row, and return a list of dics, one per row
-    return [format_phewas_row(row) for _, row in merged_results.iterrows()]
+    return [format_phewas_row(row) for _, row in phewas_df.iterrows()]
 
 
 def run_phewas(
