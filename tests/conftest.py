@@ -278,10 +278,10 @@ def mock_stats_hdf5_file():
             # The stats are stored in a 3D array: (term, phecode, stat_type)
 
             # Define the terms we support
-            terms = np.array([b"GO:0030800", b"MP:0005179", b"GO:0006915"])
+            terms = np.array([b"GO:0030800", b"MP:0005179", b"GO:0006915", b"TEST:001"])
 
             # Define the phecodes we support
-            phecodes = np.array([b"250.2", b"290.11", b"401.1", b"635.2", b"601.1"])
+            phecodes = np.array([b"250.2", b"290.11", b"401.1", b"635.2", b"571.5"])
 
             # Define the stat types
             stats_types = np.array(
@@ -328,11 +328,6 @@ def mock_stats_hdf5_file():
             # Create a 3D array to hold the data
             data = np.zeros((len(terms), len(phecodes), len(stats_types)))
 
-            # Fill in test data for GO:0030800 + 250.2 combination
-            # Get the indices for our combination
-            term_idx = np.where(terms == b"GO:0030800")[0][0]
-            phecode_idx = np.where(phecodes == b"250.2")[0][0]
-
             # Create a dictionary mapping stat type to value for our test combo
             test_stats = {
                 "num_rp": 3.0,
@@ -376,6 +371,21 @@ def mock_stats_hdf5_file():
                 "roc_stats_lrn_protective_fp": 84,
                 "roc_stats_lrn_protective_fn": 497,
             }
+
+            # Fill in test data for GO:0030800 + 250.2 combination
+            # Get the indices for our combination
+            term_idx = np.where(terms == b"GO:0030800")[0][0]
+            phecode_idx = np.where(phecodes == b"250.2")[0][0]
+
+            # Populate data for our test combination
+            for stat_name, value in test_stats.items():
+                stat_idx = np.where(stats_types == stat_name.encode())[0][0]
+                data[term_idx, phecode_idx, stat_idx] = value
+
+            # Fill in test data for TEST:001 + 571.5 combination
+            # Get the indices for our combination
+            term_idx = np.where(terms == b"TEST:001")[0][0]
+            phecode_idx = np.where(phecodes == b"571.5")[0][0]
 
             # Populate data for our test combination
             for stat_name, value in test_stats.items():
