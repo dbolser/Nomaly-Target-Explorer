@@ -53,7 +53,7 @@ class Config:
 
     # Nomaly results directories and files (V1)
     NOMALY_RESULTS_DIR = DATA_ROOT / "Run-v1/DatabaseInputs"
-    NOMALY_SCORES_H5 = NOMALY_RESULTS_DIR / "float16_scores.h5"
+    NOMALY_SCORES_H5 = NOMALY_RESULTS_DIR / "float32_scores.h5"
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats.h5"
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats-fixed.h5"
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats-EUR-2025-02-07.h5"
@@ -62,7 +62,7 @@ class Config:
     # TODO: Need to implement this in VP code
     # Nomaly results directories and files (V2)
     NOMALY_RESULTS_DIR_V2 = DATA_ROOT / "Run-v2/DatabaseInputs"
-    NOMALY_SCORES_H5_V2 = NOMALY_RESULTS_DIR_V2 / "float16_scores.h5"
+    NOMALY_SCORES_H5_V2 = NOMALY_RESULTS_DIR_V2 / "float32_scores.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-fixed.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-fixed-EUR.h5"
