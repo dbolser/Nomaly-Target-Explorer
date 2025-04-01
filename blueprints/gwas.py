@@ -52,33 +52,27 @@ def run_gwas(
         --assoc fisher \
         --out {fam_file.with_suffix("")}"""
 
+    # TODO: Migrate to using plink2?
+
+    bfile = f"{bed.parent}/{bed.stem}-{ancestry}"
+    cmd2 = f"""plink2 \
+        --glm sex allow-no-covars --1 \
+        --bfile {bfile} \
+        --pheno {fam_file} \
+        --pheno-col-nums 6 \
+        --require-pheno \
+        --out {fam_file.with_suffix("")}-plink2
+    """
+
     try:
-        process = subprocess.Popen(
-            cmd,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            universal_newlines=True,
-        )
-
-        # Print output in real-time
-        if process.stdout:
-            while True:
-                output = process.stdout.readline()
-                if output == "" and process.poll() is not None:
-                    break
-                if output:
-                    logger.info(output.strip())
-
-        # Check for any errors
-        if process.returncode != 0 and process.stderr:
-            stderr_output = process.stderr.read()
-            logger.error(f"PLINK process failed: {stderr_output}")
-            raise subprocess.CalledProcessError(process.returncode, cmd)
-
+        run_subprocess(cmd)
+        # run_subprocess(cmd2)
     except subprocess.CalledProcessError as e:
+        logger.error(f"PLINK command failed with error: {str(e)}")
+        raise
+    except ValueError:
+        raise
+    except Exception as e:
         logger.error(f"PLINK command failed with error: {str(e)}")
         raise
 
@@ -97,12 +91,10 @@ def run_gwas(
     )
 
     # Add variant annotations
-    print(f"NOMALY VARIANTS: {nomaly_data_service.colapsed_df.shape}")
-    nomaly_variants = nomaly_data_service.colapsed_df
+    nomaly_variant_df = nomaly_data_service.colapsed_df
+    logger.info(f"NOMALY VARIANTS: {nomaly_variant_df.shape}")
 
-    merged = assoc.merge(
-        nomaly_variants[["CHR_BP", "gene_id", "nomaly_variant"]], how="left"
-    )
+    merged = assoc.merge(nomaly_variant_df, on="CHR_BP", how="left")
 
     # NOTE: We get 80k assoiations from GWAS, but we only have 30k
     #       variants in the 'nomaly_variants' dataframe
@@ -113,27 +105,41 @@ def run_gwas(
         lambda x: ", ".join(x) if isinstance(x, set) else x
     )
 
-    # Save and return results
-    result_cols = [
-        "CHR",
-        "BP",
-        "A1",
-        "A2",
-        "CHR_BP",
-        "CHR_BP_A1_A2",
-        "SNP",
-        "F_A",
-        "F_U",
-        "P",
-        "OR",
-        "gene_id",
-        "nomaly_variant",
-    ]
-    merged = merged[result_cols].sort_values("P")
+    merged = merged.sort_values("P")
     merged.to_csv(nom_file, sep="\t", index=False)
 
-    # TODO: NO CLUE WHY RETURNING merged HERE FAILS WITH failed to json serialsei.set...
-    return merged  # pd.read_csv(nom_file, sep="\t")
+    return merged
+
+
+def run_subprocess(cmd: str) -> None:
+    process = subprocess.Popen(
+        cmd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        universal_newlines=True,
+    )
+
+    # Print output in real-time
+    if process.stdout:
+        while True:
+            output = process.stdout.readline()
+            if output == "" and process.poll() is not None:
+                break
+            if output:
+                logger.info(output.strip())
+
+    # Check for any errors
+    if process.returncode != 0 and process.stderr:
+        stderr_output = process.stderr.read()
+        logger.error(f"PLINK process failed: {stderr_output}")
+        if process.returncode == 7:
+            logger.info(f"Hopefully forgivable... {process.returncode}")
+            raise ValueError(f"Hopefully forgivable... {process.returncode}")
+        else:
+            raise subprocess.CalledProcessError(process.returncode, cmd)
 
 
 def create_fam_file(
@@ -185,8 +191,7 @@ def format_gwas_results(
     # Basic column renaming
     assoc_df = assoc_df.rename(columns={"CHR_BP_A1_A2": "Variant", "gene_id": "Gene"})
 
-    # Format RSID as HTML link
-    # TODO: This should probably be done in the frontend
+    # Format RSID as HTML link. TODO: This should probably be done in the frontend
     assoc_df["RSID"] = np.where(
         pd.notna(assoc_df["SNP"]),
         '<a href="https://www.ncbi.nlm.nih.gov/snp/'
@@ -199,7 +204,7 @@ def format_gwas_results(
 
     # Replace NaN with None for JSON serialization
     assoc_df = assoc_df.replace({np.nan: None})
-    assoc_df = assoc_df.where(pd.notna(assoc_df), None)
+    # assoc_df = assoc_df.where(pd.notna(assoc_df), None)
 
     # Convert to records, explicitly replacing NaN with None
     return assoc_df.to_dict(orient="records")
