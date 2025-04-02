@@ -165,7 +165,7 @@ def mock_genotype_hdf5_file_with_npy(mock_genotype_hdf5_file):
 def mock_phenotype_hdf5_file():
     """Create a temporary mock HDF5 file with test phenotype data."""
     with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
-        with h5py.File(tmp.name, "w") as f:
+        with h5py.File(Path(tmp.name), "w") as f:
             # Create required datasets
 
             # Phenotype matrix: columns are eids rows are phecodes,
@@ -206,7 +206,7 @@ def mock_phenotype_hdf5_file():
                 "phecode_sex", data=np.array([b"B", b"B", b"F", b"M", b"B"])
             )
 
-        yield tmp.name
+        yield Path(tmp.name)
 
 
 @pytest.fixture
@@ -465,7 +465,7 @@ def stats_service(stats_registry):
 def mock_nomaly_scores_hdf5_file():
     """Create a temporary mock HDF5 file with test nomaly scores data."""
     with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
-        with h5py.File(tmp.name, "w") as f:
+        with h5py.File(Path(tmp.name), "w") as f:
             # Create required datasets
 
             # Individual IDs - should match those used in other fixtures
@@ -497,7 +497,7 @@ def mock_nomaly_scores_hdf5_file():
             f.create_dataset("scores", data=scores)
 
         # Create the required .npy file
-        np.save(f"{tmp.name}.npy", scores)
+        # np.save(f"{tmp.name}.npy", scores)
 
         yield Path(tmp.name)
 
@@ -540,6 +540,17 @@ def integration_app():
     """App configured for integration tests with real services."""
     # Use DEVELOPMENT instead of TESTING to allow ServiceRegistry to initialize
     _app = create_app("development")
+
+    # IMPORTANT: Explicitly ensure TESTING is False to initialize data services
+    _app.config["TESTING"] = False
+
+    # Configure session for tests
+    _app.config["SESSION_TYPE"] = "filesystem"
+    _app.config["SESSION_PERMANENT"] = True
+    _app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour
+    _app.config["SECRET_KEY"] = "test-integration-secret-key"
+
+    # Server settings
     _app.config.update(
         {
             "SERVER_NAME": "localhost.localdomain",
@@ -548,13 +559,19 @@ def integration_app():
         }
     )
 
+    # Initialize the Flask session extension
+    from flask_session import Session
+
+    Session(_app)
+
     return _app
 
 
 @pytest.fixture
 def integration_app_client(integration_app):
     """Client for integration tests."""
-    return integration_app.test_client()
+    with integration_app.test_client() as client:
+        yield client
 
 
 @pytest.fixture
@@ -569,8 +586,8 @@ def test_admin():
     # Create test admin user
     cursor.execute(
         """
-        INSERT INTO users2 (username, password, email, is_active)
-        VALUES ('test_admin', %s, 'test_admin@example.com', TRUE)
+        INSERT INTO users2 (username, password, email, is_active, is_admin)
+        VALUES ('test_admin', %s, 'test_admin@example.com', TRUE, TRUE)
     """,
         (hashed_password,),
     )
@@ -627,13 +644,17 @@ def cleanup_test_admin_after_test_timeout():
 @pytest.fixture
 def auth_integration_app_client(integration_app_client, test_admin):
     """Authenticated client for integration tests."""
+    # Use the simple login approach
     response = integration_app_client.post(
         "/login",
         data={"username": test_admin["username"], "password": test_admin["password"]},
         follow_redirects=True,
     )
+
+    # Check login was successful
     assert response.status_code == 200
     assert b"welcome" in response.data.lower()
+
     return integration_app_client
 
 

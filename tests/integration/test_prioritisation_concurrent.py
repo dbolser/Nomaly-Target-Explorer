@@ -8,9 +8,9 @@ def test_stream_isolation(unit_test_app_client_with_cache):
     """Test that concurrent requests maintain proper data isolation."""
     # Just test two requests to keep it simple
     test_pairs = [
-        ("250.2", "MP:0005179"),  # This user has access to 250.2
+        ("250.2", "GO:0030800"),  # This user has access to 250.2
         # TODO: Mock data for 561
-        # ("561", "GO:0030800"),  # And to 561
+        # ("561", "MP:0005179"),  # And to 561
     ]
 
     def make_request(disease_code, term):

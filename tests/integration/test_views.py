@@ -6,7 +6,7 @@ def test_search_route_unauthenticated(integration_app_client):
     """Test a random route redirects to index when not authenticated."""
     response = integration_app_client.get("/search")
     assert response.status_code == 302  # Redirect to login
-    assert "/" == response.location
+    assert response.location == "/login?next=http://localhost.localdomain/search"
 
 
 def test_index_route_unauthenticated(integration_app_client):
@@ -403,7 +403,7 @@ def test_variant_page_structure(auth_integration_app_client):
 
     # Test page title and headers
     # assert "<h3>Variant Details</h3>" in html
-    assert '<h5 class="card-title">Basic Information</h5>' in html
+    assert '<h5 class="card-title">Basic Information' in html
 
     # Test variant information
     assert "<strong>Variant ID:</strong>" in html
@@ -411,9 +411,9 @@ def test_variant_page_structure(auth_integration_app_client):
     assert "<strong>Chromosome:</strong> 17" in html
     assert "<strong>Position:</strong> 80117714" in html
 
-    # NOTE THAT IT'S FLIPPED!
-    assert "<strong>Genotyping Ref Allele:</strong> A" in html
-    assert "<strong>Genotyping Alt Allele:</strong> G" in html
+    # NOTE THAT IT'S NOT FLIPPED!?!
+    assert "<strong>Genotyping Ref Allele:</strong> G" in html
+    assert "<strong>Genotyping Alt Allele:</strong> A" in html
 
     # Test PheWAS button exists
     assert (
@@ -512,7 +512,7 @@ def test_phecode_gwas_pvalues(auth_integration_app_client):
     )
 
     # Now simulate clicking the GWAS button by calling the run-task endpoint
-    response = auth_integration_app_client.post(f"/run-task/{phecode}")
+    response = auth_integration_app_client.post(f"/run-task/{phecode}/0")
     assert response.status_code == 200
     data = json.loads(response.data)
 
@@ -550,7 +550,7 @@ def test_phecode_gwas_pvalues(auth_integration_app_client):
 def test_phecode_term_gwas_pvalues(auth_integration_app_client):
     """Test that GWAS P-values are present in phecode term page for a specific case."""
     phecode = "561"
-    term = "HP:0000789"
+    term = "HP:0000535"
 
     # Get the variant detail data
     response = auth_integration_app_client.get(

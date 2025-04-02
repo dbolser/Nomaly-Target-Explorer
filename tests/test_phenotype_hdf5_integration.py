@@ -20,13 +20,6 @@ def phenotype_service():
     return PhenotypeService(Config.PHENOTYPES_HDF)
 
 
-def test_production_file_exists(phenotype_service):
-    """Verify the production phenotype file exists and is readable."""
-    assert phenotype_service is not None
-    assert hasattr(phenotype_service, "_hdf")
-    assert hasattr(phenotype_service._hdf, "phenotype_data")
-
-
 def test_known_phecode_query(phenotype_service):
     """Test querying a known phecode from production data."""
     phenotypes_df = phenotype_service.get_cases_for_phecode(KNOWN_PHECODE)

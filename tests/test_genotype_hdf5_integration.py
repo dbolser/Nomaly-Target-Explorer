@@ -53,7 +53,7 @@ def test_individual_count(genotype_service):
 
 def test_variant_count(genotype_service):
     """Verify the expected number of variants in the dataset."""
-    assert len(genotype_service.plink_variant_id) == NUM_VARIANTS
+    assert len(genotype_service.plink_variant_ids) == NUM_VARIANTS
 
 
 def test_genotype_matrix_shape(genotype_service):
@@ -65,7 +65,7 @@ def test_genotype_matrix_shape(genotype_service):
 def test_get_genotypes_to_hell(genotype_service):
     """Test the get_genotypes method."""
     eids = genotype_service.individual
-    vids = genotype_service.plink_variant_id
+    vids = genotype_service.plink_variant_ids
 
     rand_eid = np.random.choice(eids, size=1000, replace=True)
     rand_vid = np.random.choice(vids, size=100, replace=True)
@@ -213,7 +213,7 @@ def test_get_genotypes_multiple_eids(genotype_service):
 
 def test_get_genotypes_single_vid(genotype_service):
     """Test that get_genotypes works with a single vid."""
-    vid = genotype_service.plink_variant_id[0]
+    vid = genotype_service.plink_variant_ids[0]
     result = genotype_service.get_genotypes(vids=[vid])
     assert result is not None
     assert result.shape == (1, NUM_INDIVIDUALS)
@@ -233,7 +233,7 @@ def test_get_genotypes_single_vid_nomaly_id(genotype_service):
 
 def test_get_genotypes_multiple_vids(genotype_service):
     """Test that get_genotypes works with multiple vids."""
-    vids = genotype_service.plink_variant_id[:10]
+    vids = genotype_service.plink_variant_ids[:10]
     result = genotype_service.get_genotypes(vids=vids)
     assert result is not None
     assert result.shape == (10, NUM_INDIVIDUALS)
@@ -243,7 +243,7 @@ def test_get_genotypes_multiple_vids(genotype_service):
 
 def test_get_genotypes_multiple_vids_nomaly_id(genotype_service):
     """Test that get_genotypes works with multiple vids and nomaly_ids=True."""
-    vids = genotype_service.nomaly_variant_id[:10]
+    vids = genotype_service.nomaly_variant_ids[:10]
     result = genotype_service.get_genotypes(vids=vids, nomaly_ids=True)
     assert result is not None
     assert result.shape == (10, NUM_INDIVIDUALS)
@@ -272,7 +272,7 @@ def test_bad_vids_nomaly_id(genotype_service):
 def test_plink_variant_id_format_in_file(genotype_service):
     """Test that variants in the file follow the expected format."""
     # Sample first 1000 variants
-    sample_variants = genotype_service.plink_variant_id[:1000]
+    sample_variants = genotype_service.plink_variant_ids[:1000]
 
     import re
 
@@ -285,7 +285,7 @@ def test_plink_variant_id_format_in_file(genotype_service):
 def test_nomaly_variant_id_format_in_file(genotype_service):
     """Test that variants in the file follow the expected format."""
     # Sample first 1000 variants
-    sample_variants = genotype_service.nomaly_variant_id[:1000]
+    sample_variants = genotype_service.nomaly_variant_ids[:1000]
 
     import re
 

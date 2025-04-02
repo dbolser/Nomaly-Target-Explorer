@@ -109,28 +109,6 @@ def test_compute_derived_stats():
 
 
 
-def test_term_variant_prioritisation(
-    genotype_service, mock_variant_scores, mock_term_variants
-):
-    """Test the term_variant_prioritisation function."""
-    # In the refactored version, we pass the term_variants DataFrame directly
-    # instead of the term string
-    sorted_eids = np.array([1001, 1002, 1003])
-
-    # result = term_variant_prioritisation(
-    #     mock_term_variants, sorted_eids, genotype_service
-    # )
-
-    # # Test the actual business logic:
-    # assert isinstance(result, pd.DataFrame)
-
-    # # Verify required columns are present
-    # assert all(col in result.columns for col in ["gene", "variant_id", "hmm_score"])
-
-    # # Check that gene is a string (after our fix)
-    # if len(result) > 0:
-    #     assert isinstance(result["gene"].iloc[0], str)
-
 
 def test_process_gene_level_stats():
     """Test processing gene-level statistics."""
