@@ -41,8 +41,8 @@ def format_phewas_row(row: pd.Series) -> dict:
     return {
         "Phecode": row["phecode"],
         "Description": row.get("description", "Unknown"),
-        "Sex": row["sex"],
-        "Group": row["phecode_group"],
+        "Sex": row.get("Sex", "Unknown"),
+        "Group": row.get("phecode_group", "Unknown"),
         "P": f"{row['p_value']:.2e}<br/>",
         "OR": f"{row['odds_ratio']:.2f}<br/>",
         "Counts": f"{row['case_num']:,}<br/>{row['ctrl_num']:,}",
