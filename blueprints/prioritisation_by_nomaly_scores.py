@@ -7,7 +7,6 @@ Genes are prioritised by the sum of Nomaly scores of their variants.
 
 import json
 import logging
-import pickle
 import traceback
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -54,11 +53,6 @@ from config import Config
 
 # TODO: Move to a new variant scores (or 'nomaly_data') data service?
 
-# In memory data
-# variant_scores_old = pd.read_csv(
-#     "/data/clu/ukbb/variantscores.tsv", sep="\t", index_col="variant_id"
-# )
-
 variant_scores = pd.read_csv(
     Config.NOMALY_VARIANT_SCORES_PATH,
     sep="\t",
@@ -77,13 +71,6 @@ variant_processor = ThreadPoolExecutor(
 )
 
 
-def log_and_stream(message, stream_logger=None, level="info"):
-    if stream_logger:
-        stream_logger.info(message)
-    else:
-        getattr(logger, level)(message)
-
-
 # Convert NumPy types to native Python types
 def convert_numpy_types(obj: Any) -> Any:
     if isinstance(obj, np.integer):
@@ -100,34 +87,29 @@ def convert_numpy_types(obj: Any) -> Any:
 
 
 class StreamLogger:
-    """Helper class to capture and stream progress messages."""
+    """Helper class to capture and stream progress messages.
 
-    def __init__(self, message_queue):
+    This is basically a Flask thing as far as I know.
+    """
+
+    def __init__(self, message_queue: Queue):
         self.message_queue = message_queue
 
-    def info(self, message):
-        """Send a progress message immediately to the queue."""
-        msg = {"type": "progress", "data": message}
-        self.message_queue.put(msg)
+    def log(self, message, level="info"):
+        """Send a message immediately to the queue (if defined)."""
 
-
-def read_cases_for_disease_code(phecode: str) -> dict:
-    """Read the case information for the disease code."""
-
-    # TODO: Switch to the phenotype service here!
-    ukbb_pheno_dir = Config.UKBB_PHENO_DIR
-    with open(
-        f"{ukbb_pheno_dir}/phecode_cases_excludes/phecode_{phecode}.pkl", "rb"
-    ) as f:
-        cases = pickle.load(f)
-    return cases
+        if self.message_queue:
+            self.message_queue.put({"type": "progress", "data": message})
+        else:
+            # Not sure how we could end up on this path...
+            getattr(logger, level)(message)
 
 
 # @profile
 def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
     """Return numpy array of variant scores for the selected variants."""
-    indices = term_variant_scores.index
-    sel_vs = term_variant_scores.to_numpy()
+    variants = term_variant_scores["variant_id"].values
+    sel_vs = term_variant_scores[["vs00", "vs01", "vs11"]].to_numpy()
 
     geno_matrix = np.zeros((len(row), 3))
     for i, val in enumerate(row):
@@ -139,9 +121,9 @@ def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
 
     sorted_indices = np.argsort(diagonal_scores)[::-1]
     sorted_scores = diagonal_scores[sorted_indices]
-    sorted_variants = indices[sorted_indices]
+    sorted_variants = variants[sorted_indices]
 
-    top_variants = pd.DataFrame({"vs": sorted_scores}, index=sorted_variants)
+    top_variants = pd.DataFrame({"variant_id": sorted_variants, "vs": sorted_scores})
     top_variants = top_variants.assign(rank=range(1, len(top_variants) + 1))
     top_variants = top_variants[(top_variants["vs"] > 1) | (top_variants["rank"] <= 5)]
 
@@ -149,23 +131,31 @@ def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
 
 
 # @profile
-def process_individual_variants(sel_genotypes, term_variant_scores):
-    """Process variants for all individuals more efficiently"""
+def process_individual_variants(genotypes, term_variant_scores):
+    """Process variants for all individuals more efficiently...
+
+    More efficiently than what?
+    """
     ind_top_variants = defaultdict(int)
     ind_top_variants_scores = defaultdict(float)
 
-    for individual in sel_genotypes["data"]:
+    genotype_data = genotypes.T
+
+    for individual in genotype_data:
         top_variants = individual_variant_prioritisation(
             individual, term_variant_scores
         )
-        for variant, vs in zip(top_variants.index, top_variants["vs"]):
+        for _, row in top_variants.iterrows():
+            variant = row["variant_id"]
+            vs = row["vs"]
             ind_top_variants[variant] += 1
             ind_top_variants_scores[variant] += vs
 
     return pd.DataFrame(
         {
-            "num_individuals": pd.Series(ind_top_variants),
-            "vs": pd.Series(ind_top_variants_scores),
+            "variant_id": list(ind_top_variants.keys()),
+            "num_individuals": list(ind_top_variants.values()),
+            "vs": list(ind_top_variants_scores.values()),
         }
     )
 
@@ -175,7 +165,7 @@ def term_variant_prioritisation(
     term_variants: pd.DataFrame,
     case_eids_above_threshold: np.ndarray,
     genotype_service: GenotypeService,
-    stream_logger=None,
+    stream_logger: StreamLogger,
 ) -> pd.DataFrame:
     """Prioritise a set of variants from a set of eids and their genotypes.
 
@@ -205,16 +195,49 @@ def term_variant_prioritisation(
         term_variants.groupby("variant_id")["hmm_score"].max().reset_index()
     )
     term_variants = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
-    vids_array = term_variants["variant_id"].to_numpy()
 
-    log_and_stream(
-        f"Reading genotypes for {len(term_variants)} variants", stream_logger
+    stream_logger.log(
+        f"Reading genotypes for {len(term_variants)} variants across {len(case_eids_above_threshold)} individuals",
     )
+
+    vids_array = term_variants["variant_id"].to_numpy()
 
     genotypes = genotype_service.get_genotypes(
         eids=case_eids_above_threshold, vids=vids_array, nomaly_ids=True
     )
 
+    genotype_counts = genotype_service.get_genotype_counts_and_freqs(
+        eids=case_eids_above_threshold,
+        vids=vids_array,
+        nomaly_ids=True,
+    )
+
+    # This step just serves to align the variant_id columns
+    genotype_counts_and_hmm_scores = genotype_counts.merge(
+        term_variants_hmmsc, on="variant_id"
+    )
+
+    f00 = genotype_counts_and_hmm_scores["ref_freq"]
+    f11 = genotype_counts_and_hmm_scores["alt_freq"]
+    f01 = genotype_counts_and_hmm_scores["het_freq"]
+
+    hmm2 = genotype_counts_and_hmm_scores["hmm_score"] ** 2
+
+    vs00 = hmm2 * f01 + hmm2 * 4 * f11
+    vs11 = hmm2 * f01 + hmm2 * 4 * f00
+    vs01 = hmm2 * (f00 + f11)
+
+    # Create term_variant_scores DataFrame with variant_id as a column, not index
+    term_variant_scores = pd.DataFrame(
+        {
+            "variant_id": genotype_counts_and_hmm_scores["variant_id"],
+            "vs00": vs00,
+            "vs01": vs01,
+            "vs11": vs11,
+        }
+    )
+
+    # Process individual variants with the calculated scores
     sel_genotypes = {
         "row_eids": case_eids_above_threshold,
         "col_variants": vids_array,
@@ -222,37 +245,23 @@ def term_variant_prioritisation(
         "error_variants": [],
     }
 
-    log_and_stream(
-        f"Genotypes for {len(sel_genotypes['row_eids'])} individuals and {len(sel_genotypes['col_variants'])} variants are read.",
-        stream_logger,
+    ind_top_variants_df = process_individual_variants(genotypes, term_variant_scores)
+
+    stream_logger.log(
+        f"Found {len(ind_top_variants_df)} top variants for {len(case_eids_above_threshold)} individuals",
     )
 
-    # TODO: Again, this can be done back in 'get_top_variants'
-    variant_scores_table = variant_scores.loc[sel_genotypes["col_variants"]]
-    term_variant_scores = variant_scores_table[["vs00", "vs01", "vs11"]]
-
-    log_and_stream(
-        f"We read {len(term_variant_scores)} variant scores for our {len(term_variants)} variants",
-        stream_logger,
+    # Use merge instead of join since ind_top_variants_df now has variant_id as a column
+    top_variants = term_variants.merge(
+        ind_top_variants_df, on="variant_id", how="right"
     )
+    # Join term_variant_scores as well, but using merge since it now has variant_id as a column
+    top_variants = top_variants.merge(term_variant_scores, on="variant_id", how="left")
 
-    # TODO:This is now the bottleneck!
-    ind_top_variants_df = process_individual_variants(
-        sel_genotypes, term_variant_scores
-    )
-
-    log_and_stream(
-        f"For some reason, we get {len(ind_top_variants_df)} top variants for {len(sel_genotypes['row_eids'])} individuals",
-        stream_logger,
-    )
-
-    top_variants = term_variants.join(ind_top_variants_df, on="variant_id", how="right")
-    top_variants = top_variants.join(term_variant_scores, on="variant_id")
-
-    log_and_stream(f"Term variants: {len(term_variants)}", stream_logger)
-    log_and_stream(f"Top variants: {len(top_variants)}", stream_logger)
-    log_and_stream(
-        f"Individual top variants: {len(ind_top_variants_df)}", stream_logger
+    stream_logger.log(
+        f"Term variants: {len(term_variants)}"
+        f"Top variants: {len(top_variants)}"
+        f"Individual top variants: {len(ind_top_variants_df)}"
     )
 
     return top_variants
@@ -319,7 +328,7 @@ def get_top_variants(
     stats_service: StatsService,
     run_version: str,
     ancestry: str,
-    stream_logger=None,
+    stream_logger: StreamLogger,
     protective: bool = False,
     no_cache: bool = False,
 ) -> dict:
@@ -329,23 +338,20 @@ def get_top_variants(
         try:
             cached_results = load_cached_results(phecode, term, run_version, ancestry)
             if cached_results:
-                if stream_logger:
-                    stream_logger.info("Loaded results from cache")
+                stream_logger.log("Loaded results from cache")
                 return cached_results
         except Exception as e:
             logger.error(f"Error loading cached results: {e}")
 
-    log_and_stream(
+    stream_logger.log(
         f"Computing results (not found in cache, flush={no_cache}, protective={protective})",
-        stream_logger,
     )
 
     # Get phenotype data for the given phecode...
     phenotypes = phenotype_service.get_cases_for_phecode(phecode, ancestry)
 
-    log_and_stream(
+    stream_logger.log(
         f"Got {len(phenotypes)} samples for phecode {phecode} with ancestry {ancestry}",
-        stream_logger,
     )
 
     case_eids = phenotypes[phenotypes["phenotype"] == 1]["eid"].to_numpy()
@@ -354,9 +360,8 @@ def get_top_variants(
 
     assert len(phenotypes) == len(case_eids) + len(ctrl_eids) + len(excl_eids)
 
-    log_and_stream(
+    stream_logger.log(
         f"Got {len(case_eids)} cases for {phecode} with ancestry {ancestry}",
-        stream_logger,
     )
 
     # TODO: This should be conditioned on the run_version
@@ -366,9 +371,8 @@ def get_top_variants(
 
     assert len(case_eids) == len(case_scores)
 
-    log_and_stream(
+    stream_logger.log(
         f"Got {len(ctrl_eids)} controls for {phecode} with ancestry {ancestry}",
-        stream_logger,
     )
 
     # TODO: This should be conditioned on the run_version
@@ -378,9 +382,8 @@ def get_top_variants(
 
     assert len(ctrl_eids) == len(ctrl_scores)
 
-    log_and_stream(
+    stream_logger.log(
         f"Got {len(excl_eids)} excluded samples for {phecode} with ancestry {ancestry}",
-        stream_logger,
     )
 
     try:
@@ -425,7 +428,7 @@ def get_top_variants(
 
     term_variants = get_term_variants(term)
 
-    log_and_stream(f"Got {len(term_variants)} variants for term {term}", stream_logger)
+    stream_logger.log(f"Got {len(term_variants)} variants for term {term}")
 
     # Fill in the 'missing' values for metric1
 
@@ -456,7 +459,7 @@ def get_top_variants(
         stats_to_process.append("roc_stats_lrn_protective")
 
     for stat in stats_to_process:
-        log_and_stream(f"Processing statistic {stat}", stream_logger)
+        stream_logger.log(f"Processing statistic {stat}")
 
         # How did this happen?
         if stats[f"{stat}_threshold"] <= 0 and stats[f"{stat}_tp"] == 0:
@@ -470,9 +473,8 @@ def get_top_variants(
                 ctrl_scores >= stats[f"{stat}_threshold"]
             ]
 
-        log_and_stream(
+        stream_logger.log(
             f"Selected for statistic {stat}: {len(case_eids_above_threshold)}",
-            stream_logger,
         )
 
         if len(case_eids_above_threshold) != stats[f"{stat}_tp"]:
@@ -867,21 +869,20 @@ def main():
                 (eids, variants, genotypes)
 
 
-
-
-
-                ->
-                    individual_variant_prioritisation
-                        (row, term_variant_scores)
+                calls:
+                individual_variant_prioritisation
+                    (row, term_variant_scores)
 
     """
+    run = "Run-v1"
+    ancestry = "EUR"
 
     phecode = "722.7"
     term = "KW:1167"
     term = "GO:1900181"
 
-    run = "Run-v1"
-    ancestry = "EUR"
+    phecode = "290.11"
+    term = "MP:0005179"
 
     from data_services import StatsRegistry
 
@@ -899,6 +900,7 @@ def main():
         stats_registry.get(run, ancestry),
         run,
         ancestry,
+        StreamLogger(Queue()),
         no_cache=True,
         # protective=True,
     )
@@ -907,7 +909,13 @@ def main():
 
     print(json.dumps(data, indent=2, sort_keys=True))
 
-    # exit(0)
+    exit(0)
+
+    #
+    #
+    # DOING SOMEETHING ELSE BELOW
+    #
+    #
 
     phecodes = phenotype_service.phecodes
 
