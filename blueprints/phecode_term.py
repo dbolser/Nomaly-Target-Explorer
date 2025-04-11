@@ -226,7 +226,9 @@ def calculate_phecode_term_variant_detail(
             try:
                 # Calculate genotype frequencies
 
-                # TODO: USE THE NEW PHEWAS FUNCTION TO DO THIS IN ONE GO!
+                # TODO: USE THE NEW PHEWAS FUNCTION TO DO THIS IN ONE GO???
+                # Actually, I think we can use the genotype_counts function in the
+                # genotype service to do this in one go...
                 counts = genotype_service.get_variant_counts(
                     nomaly_variant_id=nomaly_variant_id,
                     ancestry=ancestry,
