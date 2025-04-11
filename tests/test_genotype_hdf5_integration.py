@@ -223,7 +223,7 @@ def test_get_genotypes_single_vid(genotype_service):
 
 def test_get_genotypes_single_vid_nomaly_id(genotype_service):
     """Test that get_genotypes works with a single vid and nomaly_ids=True."""
-    vid = genotype_service.nomaly_variant_id[0]
+    vid = genotype_service.nomaly_variant_ids[0]
     result = genotype_service.get_genotypes(vids=[vid], nomaly_ids=True)
     assert result is not None
     assert result.shape == (1, NUM_INDIVIDUALS)

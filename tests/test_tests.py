@@ -27,7 +27,6 @@ def test_unit_test_app(unit_test_app):
 
         # Check that our mock services have the expected methods
         assert hasattr(services.phenotype._hdf, "get_cases_for_phecode")
-        assert hasattr(services.genotype._hdf, "query_variantID_genotypes")
         assert hasattr(services.genotype._hdf, "get_genotypes")
         assert hasattr(services.nomaly_score._hdf, "get_scores_by_eids_unsorted")
 

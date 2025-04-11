@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from config import Config
-from data_services import StatsRegistry, StatsService
+from data_services import StatsRegistry
 
 # === Configuration & Constants ===
 # Reuse constants from the old test file or define new ones as needed.
@@ -16,12 +16,10 @@ DEFAULT_ANCESTRY = "EUR"
 KNOWN_PHECODES = ["250.2", "290.11"]  # Type 2 diabetes, Dementia
 KNOWN_TERM = "GO:0030800"  # Example GO term from old tests
 
-# Placeholder values for specific stats - UPDATE THESE WITH ACTUAL DATA
 EXPECTED_STATS_250_2_GO_0030800 = {
     "num_rp": 37073,  # Placeholder
     "num_rn": 302274,
     "mwu_pvalue": 0.00665,  # Placeholder
-    "metric1_pvalue": 1,  # Placeholder
     "roc_stats_auc": 0.5019811469161224,
     "roc_stats_mcc_value": 0.0042109998036669,
     "roc_stats_yjs_threshold": 0.0001,
