@@ -200,23 +200,55 @@ def calculate_phecode_term_variant_detail(
         term_df = get_term_variants(term)
         logger.debug(f"Initial term_df shape: {term_df.shape}")
 
-        # Fill NA values and merge with pharos and pp data
-        term_df = term_df.fillna("None")
+        # Fill NA values and
+        # term_df = term_df.fillna("None")
+
+        # merge with pharos and pp data
         term_df = term_df.merge(pharos, on="gene", how="left").fillna("None")
         term_df = term_df.merge(pp, on="gene", how="left").fillna("None")
         logger.debug(f"After merges shape: {term_df.shape}")
 
         # Load GWAS data
+        gwas_df = run_gwas(
+            phecode, ancestry, phenotype_service, nomaly_data_service, no_cache
+        )
+        gwas_df = format_gwas_results(gwas_df)
 
-        gwas_data = run_gwas(
-            phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=no_cache
-        )
-        formatted_gwas = pd.DataFrame(
-            format_gwas_results(gwas_data, significance_threshold=0.1)
-        )
-        if not formatted_gwas.empty:
-            logger.info(f"Formatted GWAS data shape: {formatted_gwas.shape}")
-            logger.info(f"Formatted GWAS columns: {formatted_gwas.columns.tolist()}")
+        # TODO: JUST MERGE GWAS DF HERE!
+
+        logger.info(f"Formatted GWAS data shape: {gwas_df.shape}")
+        logger.info(f"Formatted GWAS columns: {gwas_df.columns.tolist()}")
+
+        # TODO: CREATE A TEST SO WE CAN BE SURE THE FOLLOWING IS CORRECT...
+
+        # counts = genotype_service.get_genotype_counts_and_freqs(
+        #     vids=np.array(term_df["variant_id"].unique()),
+        #     nomaly_ids=True,
+        #     ancestry=ancestry,
+        # )
+
+        # merged_df = term_df.merge(counts, on="variant_id")
+        # assert len(merged_df) == len(term_df)
+
+        # merged_df["hmm_score_squared"] = merged_df["hmm_score"] ** 2
+        # merged_df["vs00"] = (
+        #     merged_df["hmm_score_squared"] * merged_df["het_freq"]
+        #     + merged_df["hmm_score_squared"] * 4 * merged_df["alt_freq"]
+        # )
+        # merged_df["vs01"] = (
+        #     merged_df["hmm_score_squared"] * merged_df["ref_freq"]
+        #     + merged_df["hmm_score_squared"] * 4 * merged_df["alt_freq"]
+        # )
+        # merged_df["vs11"] = (
+        #     merged_df["hmm_score_squared"] * merged_df["ref_freq"]
+        #     + merged_df["hmm_score_squared"] * 4 * merged_df["alt_freq"]
+        # )
+
+        # # For reference to the above:
+        # # hmm_squared = float(row["hmm_score"]) ** 2
+        # # vs00 = hmm_squared * f01 + hmm_squared * 4 * f11
+        # # vs11 = hmm_squared * f01 + hmm_squared * 4 * f00
+        # # vs01 = hmm_squared * (f00 + f11)
 
         data_records = []
         for _, row in term_df.iterrows():
@@ -229,22 +261,26 @@ def calculate_phecode_term_variant_detail(
                 # TODO: USE THE NEW PHEWAS FUNCTION TO DO THIS IN ONE GO???
                 # Actually, I think we can use the genotype_counts function in the
                 # genotype service to do this in one go...
-                counts = genotype_service.get_variant_counts(
-                    nomaly_variant_id=nomaly_variant_id,
+                # Yes we can! Just get counts outside this loop for all variants
+
+                counts = genotype_service.get_genotype_counts_and_freqs(
+                    vids=np.array([nomaly_variant_id]),
+                    nomaly_ids=True,
                     ancestry=ancestry,
                 )
-                total = counts["total"]
-                f00 = float(counts["homozygous_ref"]) / total
-                f11 = float(counts["homozygous_alt"]) / total
-                f01 = float(counts["heterozygous"]) / total
+                counts = counts.iloc[0].to_dict()
 
-                # Calculate variant scores
-                HMM_score = float(row["hmm_score"])
-                hmm2 = HMM_score * HMM_score
+                f00 = counts["ref_freq"]
+                f11 = counts["alt_freq"]
+                f01 = counts["het_freq"]
 
-                vs00 = hmm2 * f01 + hmm2 * 4 * f11
-                vs11 = hmm2 * f01 + hmm2 * 4 * f00
-                vs01 = hmm2 * (f00 + f11)
+                # TODO: Write tests for this!
+
+                # Calculate variant scores...
+                hmm_squared = float(row["hmm_score"]) ** 2
+                vs00 = hmm_squared * f01 + hmm_squared * 4 * f11
+                vs11 = hmm_squared * f01 + hmm_squared * 4 * f00
+                vs01 = hmm_squared * (f00 + f11)
 
                 # Build record with explicit type conversion
                 record = {
@@ -261,9 +297,9 @@ def calculate_phecode_term_variant_detail(
                     "vs00": f"{vs00:.4f}",
                     "vs01": f"{vs01:.4f}",
                     "vs11": f"{vs11:.4f}",
-                    "hmoz_ref": counts["homozygous_ref"],
-                    "hmoz_alt": counts["homozygous_alt"],
-                    "htrz": counts["heterozygous"],
+                    "hmoz_ref": counts["ref_count"],
+                    "hmoz_alt": counts["alt_count"],
+                    "htrz": counts["het_count"],
                     # Initialize GWAS fields with default values
                     "GWAS_P": "",
                     "GWAS_OR": "",
@@ -272,23 +308,26 @@ def calculate_phecode_term_variant_detail(
                     "GWAS_RSID": "",
                 }
 
-                # Add GWAS data if available
+                # Add GWAS data
+                # TODO: Merge this above (with the genotype counts)!!!
 
-                if not formatted_gwas.empty:
-                    gwas_row = formatted_gwas[
-                        formatted_gwas["nomaly_variant"] == nomaly_variant_id
-                    ]
-                    if not gwas_row.empty:
-                        gwas_data = gwas_row.iloc[0].to_dict()
-                        record.update(
-                            {
-                                "GWAS_P": f"{float(gwas_data.get('P', 1.0)):.2e}",
-                                "GWAS_OR": f"{float(gwas_data.get('OR', 1.0)):.2f}",
-                                "GWAS_F_A": f"{float(gwas_data.get('F_A', 0.0)):.5f}",
-                                "GWAS_F_U": f"{float(gwas_data.get('F_U', 0.0)):.5f}",
-                                "GWAS_RSID": str(gwas_data.get("RSID", "")),
-                            }
-                        )
+                if nomaly_variant_id in gwas_df["nomaly_variant"].values:
+                    gwas_row = (
+                        gwas_df[gwas_df["nomaly_variant"] == nomaly_variant_id]
+                        .iloc[0]
+                        .to_dict()
+                    )
+
+                    # TODO: Write tests for this!
+                    record.update(
+                        {
+                            "GWAS_P": f"{gwas_row['P']:.2e}",
+                            "GWAS_OR": f"{gwas_row['OR']:.2f}",
+                            "GWAS_F_A": f"{gwas_row['F_A']:.5f}",
+                            "GWAS_F_U": f"{gwas_row['F_U']:.5f}",
+                            "GWAS_RSID": str(gwas_row["RSID"]),
+                        }
+                    )
 
                 logger.debug(f"Final record GWAS fields: {record}")
                 data_records.append(record)
@@ -327,14 +366,16 @@ def main():
     # phecode = "564.1"
     # phecode = "338"
     # phecode = "332"
-    phecode = "722.7"
 
     # term = "MP:0004957"
     # term = "HP:0000789"
     # term = "KW:0544"
     # term = "MP:0000948"
     # term = "MP:0004986"
-    term = "GO:0045244"
+    # term = "GO:0045244"
+
+    phecode = "722.7"
+    term = "GO:0045717"
 
     # gwas_data = run_gwas(
     #     phecode, "EUR", services.phenotype, services.nomaly_data, no_cache=True
@@ -351,9 +392,11 @@ def main():
         services.phenotype,
         services.nomaly_data,
         ancestry="EUR",
-        # no_cache=True,
+        no_cache=True,
     )
     print(result)
+
+    exit(0)
 
     import numpy as np
 

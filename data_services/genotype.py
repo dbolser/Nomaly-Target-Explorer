@@ -286,13 +286,12 @@ class GenotypesHDF5:
         NOTE: The ancestry param is a bit of a hack...
         """
 
-        # This is rather annoying...
-        if eids is None:
-            ancestry_mask = self.ancestry == ancestry
-        else:
-            ancestry_mask = np.ones(eids.shape, dtype=bool)
-
+        # Get the genotypes
         genotypes = self.get_genotypes(eids=eids, vids=vids, nomaly_ids=nomaly_ids)
+
+        # Cludge in ancestry after the fact...
+        if eids is None:
+            genotypes = genotypes[:, self.ancestry == ancestry]
 
         # Get the individual genotype masks
         het_genotype_mask = genotypes == 1
@@ -301,10 +300,10 @@ class GenotypesHDF5:
         mis_genotype_mask = genotypes == -9
 
         # Get the counts
-        het_count = np.sum(het_genotype_mask & ancestry_mask)
-        ref_count = np.sum(ref_genotype_mask & ancestry_mask)
-        alt_count = np.sum(alt_genotype_mask & ancestry_mask)
-        mis_count = np.sum(mis_genotype_mask & ancestry_mask)
+        het_count = np.sum(het_genotype_mask, axis=1)
+        ref_count = np.sum(ref_genotype_mask, axis=1)
+        alt_count = np.sum(alt_genotype_mask, axis=1)
+        mis_count = np.sum(mis_genotype_mask, axis=1)
 
         # Get the frequencies
         total = het_count + ref_count + alt_count + mis_count
@@ -317,6 +316,7 @@ class GenotypesHDF5:
         return pd.DataFrame(
             {
                 "variant_id": vids,
+                "total": total,
                 "het_count": het_count,
                 "ref_count": ref_count,
                 "alt_count": alt_count,
