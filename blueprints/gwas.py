@@ -181,7 +181,7 @@ def create_fam_file(
 
 def format_gwas_results(
     assoc_df: pd.DataFrame, significance_threshold: float = 1
-) -> list:
+) -> pd.DataFrame:
     """Format GWAS results for JSON response."""
 
     # Filter significant results first
@@ -202,13 +202,14 @@ def format_gwas_results(
         "",
     )
 
-    # Replace NaN with None for JSON serialization
-    assoc_df = assoc_df.replace({np.nan: None})
-    # assoc_df = assoc_df.where(pd.notna(assoc_df), None)
+    # Replace NaN with 1 for OR
+    assoc_df["OR"] = assoc_df["OR"].replace(np.nan, 1)
 
-    # Convert to records, explicitly replacing NaN with None
-    return assoc_df.to_dict(orient="records")
+    # Replace 'isna' with None for nomaly_variant and Gene
+    assoc_df["nomaly_variant"] = assoc_df["nomaly_variant"].replace(np.nan, None)
+    assoc_df["Gene"] = assoc_df["Gene"].replace(np.nan, None)
 
+    return assoc_df
 
 def main():
     phenotype_service = PhenotypeService(Config.PHENOTYPES_HDF)
