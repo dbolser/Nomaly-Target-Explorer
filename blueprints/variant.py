@@ -151,31 +151,27 @@ def background_task(
         )
 
         # Get the phecode data (from the database)
-        phecode_data = get_all_phecodes()
+        phecode_df = get_all_phecodes()
 
         # Merge the phewas results with the phecode data
-        phewas_df = phewas_df.merge(phecode_data, on="phecode", how="inner")
+        merged_df = phewas_df.merge(phecode_df, on="phecode", how="inner")
 
-        # Sanity check
-        assert len(phecode_data) == len(phewas_df)
+        # Sanity check...
+        assert len(merged_df) == len(phecode_df)
 
-        # Handle missing phecode descriptions
-        # phewas_df["description"] = phewas_df["description"].fillna("Unknown")
-        # phewas_df["sex"] = phewas_df["sex"].fillna("Unknown")
-        # phewas_df["phecode_group"] = phewas_df["phecode_group"].fillna("Unknown")
-
-        phewas_df = phewas_df.sort_values(by="p_value", ascending=True)
-
-        num_sig_1_star = (phewas_df["p_value"] < 0.05).sum()
-        num_sig_2_star = (phewas_df["p_value"] < 0.01).sum()
-        num_sig_3_star = (phewas_df["p_value"] < 0.001).sum()
+        # Get some summary stats...
+        num_sig_0_star = (merged_df["p_value"] == 1).sum()
+        num_sig_1_star = (merged_df["p_value"] < 0.05).sum()
+        num_sig_2_star = (merged_df["p_value"] < 0.01).sum()
+        num_sig_3_star = (merged_df["p_value"] < 0.001).sum()
 
         # Format the results for display
-        phewas_dict = format_phewas_results(phewas_df)
+        phewas_dict = format_phewas_results(merged_df)
 
         summary_text = (
-            f"PheWAS identified {num_sig_1_star}*, {num_sig_2_star}**, {num_sig_3_star}***"
-            "phecodes with association p<0.05, p<0.01, p<0.001 respectively."
+            f"PheWAS identified {num_sig_1_star}*, {num_sig_2_star}** and {num_sig_3_star}*** "
+            f"phecodes (out of {len(merged_df):,}) with association p<0.05, p<0.01 and p<0.001 respectively. "
+            f"We removed {num_sig_0_star:,} p=1.00 results."
         )
         phewas_results[variant] = {
             "result": summary_text,
@@ -198,3 +194,22 @@ def get_phewas_result(variant):
         return jsonify({"result": "Processing...", "associations": []})
 
     return jsonify(phewas_results[variant])
+
+
+def main():
+    """Debug entry point for blueprint development."""
+
+    from config import Config
+    from data_services import ServiceRegistry
+
+    services = ServiceRegistry.from_config(Config)
+    genotype_service = services.genotype
+    phenotype_service = services.phenotype
+
+    variant = "11_116836316_A_G"
+
+    background_task(variant, genotype_service, phenotype_service, "AFR", flush=True)
+
+
+if __name__ == "__main__":
+    main()
