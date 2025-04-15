@@ -424,7 +424,7 @@ def run_task(phecode, flush=False):
             {
                 "status": "completed",
                 "result": summary_text,
-                "associations": formatted_results,
+                "associations": formatted_results.to_dict(orient="records"),
             }
         )
     

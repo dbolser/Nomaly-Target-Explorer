@@ -181,7 +181,7 @@ def create_fam_file(
 
 def format_gwas_results(
     assoc_df: pd.DataFrame, significance_threshold: float = 1
-) -> list:
+) -> pd.DataFrame:
     """Format GWAS results for JSON response."""
 
     # Filter significant results first
