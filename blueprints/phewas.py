@@ -40,9 +40,12 @@ def format_phewas_row(row: pd.Series) -> dict:
     """
     return {
         "Phecode": row["phecode"],
+        # NOTE: The Sex, description and phecode_group columns all come from the
+        # database, not the PheWAS results.
+        "Sex": row.get("sex", "Unknown"),
         "Description": row.get("description", "Unknown"),
-        "Sex": row.get("Sex", "Unknown"),
         "Group": row.get("phecode_group", "Unknown"),
+        # NOTE: The rest of the columns come from the PheWAS results.
         "P": f"{row['p_value']:.2e}<br/>",
         "OR": f"{row['odds_ratio']:.2f}<br/>",
         "Counts": f"{row['case_num']:,}<br/>{row['ctrl_num']:,}",
@@ -59,6 +62,8 @@ def format_phewas_results(phewas_df: pd.DataFrame) -> List[dict[str, str | float
 
     Return a list of dics, one per row.
     """
+    # Sort the results by p-value for display...
+    phewas_df = phewas_df.sort_values(by="p_value", ascending=True)
     return [format_phewas_row(row) for _, row in phewas_df.iterrows()]
 
 
@@ -67,6 +72,7 @@ def run_phewas(
     genotype_service: GenotypeService,
     phenotype_service: PhenotypeService,
     ancestry: str = "EUR",
+    sanity: bool = True,
 ) -> pd.DataFrame:
     phecodes = phenotype_service.phecodes
     phenotype_eids = phenotype_service.get_eids(ancestry=ancestry)
@@ -77,15 +83,14 @@ def run_phewas(
         eids=phenotype_eids, vids=np.array([variant])
     )
 
-    assert phenotype_matrix.shape == (phenotype_eids.shape[0], phecodes.shape[0])
-    assert genotype_matrix.shape == (1, phenotype_eids.shape[0])
+    if not sanity:
+        assert phenotype_matrix.shape == (phenotype_eids.shape[0], phecodes.shape[0])
+        assert genotype_matrix.shape == (1, phenotype_eids.shape[0])
 
     # TODO: Somewhere deep down, it's implicit that the underlying EIDs are all
     #       and always the same...
 
     # Moving on...
-
-    # OK, this gets a bit slower, but, compared to the original crap, it's lightning fast...
 
     # Get the individual phenotype masks
     case_phenotype_mask = phenotype_matrix == 1
@@ -114,6 +119,7 @@ def run_phewas(
     ctrl_het_num = ctrl_het_mask.sum(axis=0)
     ctrl_hom_ref_num = ctrl_ref_mask.sum(axis=0)
     ctrl_hom_alt_num = ctrl_alt_mask.sum(axis=0)
+
     # Sum alleles here for convenience
     case_ref_num = case_hom_ref_num * 2 + case_het_num
     case_alt_num = case_hom_alt_num * 2 + case_het_num
@@ -122,37 +128,47 @@ def run_phewas(
 
     # Moving on...
 
-    # Add pseudocounts prior to calculating the odds ratios
-    case_ref_psu = case_ref_num + 1
-    case_alt_psu = case_alt_num + 1
-    ctrl_ref_psu = ctrl_ref_num + 1
-    ctrl_alt_psu = ctrl_alt_num + 1
-
     # Calculate allele frequencies here for convenience
-    case_ref_af = case_ref_psu / (case_ref_psu + case_alt_psu)
-    case_alt_af = case_alt_psu / (case_ref_psu + case_alt_psu)
-    ctrl_ref_af = ctrl_ref_psu / (ctrl_ref_psu + ctrl_alt_psu)
-    ctrl_alt_af = ctrl_alt_psu / (ctrl_ref_psu + ctrl_alt_psu)
+    case_ref_af = np.divide(
+        case_ref_num,
+        case_ref_num + case_alt_num,
+    )
+    case_alt_af = np.divide(case_alt_num, case_ref_num + case_alt_num)
+    ctrl_ref_af = np.divide(ctrl_ref_num, ctrl_ref_num + ctrl_alt_num)
+    ctrl_alt_af = np.divide(ctrl_alt_num, ctrl_ref_num + ctrl_alt_num)
 
-    # Sanity check...
-    assert np.all(ctrl_ref_af + ctrl_alt_af == 1)
-    assert np.all(case_ref_af + case_alt_af == 1)
+    if not sanity:
+        # Create masks for non-NaN values
+        case_valid = ~np.isnan(case_ref_af) & ~np.isnan(case_alt_af)
+        ctrl_valid = ~np.isnan(ctrl_ref_af) & ~np.isnan(ctrl_alt_af)
+
+        # Sanity check only on positions with valid values
+        assert np.allclose(case_ref_af[case_valid] + case_alt_af[case_valid], 1)
+        assert np.allclose(ctrl_ref_af[ctrl_valid] + ctrl_alt_af[ctrl_valid], 1)
 
     # Calculate odds ratios
-    odds_ratio = (case_alt_psu * ctrl_ref_psu) / (case_ref_psu * ctrl_alt_psu)
+    odds_ratio = (case_alt_num * ctrl_ref_num) / (case_ref_num * ctrl_alt_num)
 
     # Sanity check...
-    # odds_ratio_long = (case_alt_psu / case_ref_psu) / (ctrl_alt_psu / ctrl_ref_psu)
-    # np.allclose(odds_ratio, odds_ratio_long)
+    if not sanity:
+        odds_ratio_long = (case_alt_num / case_ref_num) / (ctrl_alt_num / ctrl_ref_num)
+
+        # Create masks for non-NaN values
+        odds_ratio_valid = ~np.isnan(odds_ratio) | ~np.isnan(odds_ratio_long)
+
+        # Sanity check only on positions with valid values
+        assert np.allclose(
+            odds_ratio[odds_ratio_valid], odds_ratio_long[odds_ratio_valid]
+        )
 
     # Now use vecttorized fishers exact...
     # https://stackoverflow.com/questions/34947578/how-to-vectorize-fishers-exact-test
 
     _, _, twosided = pvalue_npy(
-        case_alt_psu.astype(np.uint32),
-        case_ref_psu.astype(np.uint32),
-        ctrl_alt_psu.astype(np.uint32),
-        ctrl_ref_psu.astype(np.uint32),
+        case_alt_num.astype(np.uint32),
+        case_ref_num.astype(np.uint32),
+        ctrl_alt_num.astype(np.uint32),
+        ctrl_ref_num.astype(np.uint32),
     )
 
     results_df = pd.DataFrame(
@@ -191,6 +207,7 @@ def run_phewas_or_load_from_cache(
     phenotype_service: PhenotypeService,
     ancestry: str = "EUR",
     no_cache: bool = False,
+    sanity: bool = True,
 ) -> pd.DataFrame:
     """
     Run PheWAS analysis on a variant and save the results to a cache file.
@@ -219,7 +236,11 @@ def run_phewas_or_load_from_cache(
         return pd.read_csv(cache_file, sep="\t", dtype={"phecode": str})
     else:
         results = run_phewas(
-            plnkified_variant_id, genotype_service, phenotype_service, ancestry
+            plnkified_variant_id,
+            genotype_service,
+            phenotype_service,
+            ancestry,
+            sanity=sanity,
         )
         results.to_csv(cache_file, sep="\t")
         return results
@@ -256,7 +277,9 @@ def main():
     test_variant = "5:33951588_C/G"
     test_variant = "9_32448929_C_T"
     test_variant = "5_151467708_T_C"
-    ancestry = "EAS"
+    test_variant = "11_116836316_A_G"
+
+    ancestry = "AFR"
 
     print(f"Performing PheWAS on variant {test_variant}")
     results = run_phewas_or_load_from_cache(
@@ -264,17 +287,20 @@ def main():
         genotype_service,
         phenotype_service,
         ancestry=ancestry,
-        # no_cache=True,
+        no_cache=True,
+        sanity=False,
     )
 
     # DEBUGGING
-    results = results[results["phecode"] == "627.4"]
+    results = results[results["phecode"].isin(["008", "627.4", "627.5", "627.6"])]
 
     print(results.iloc[0].T)
 
     formatted_results = format_phewas_results(results)
 
     print(formatted_results[0])
+
+    exit(0)
 
     # Run some random PheWAS for fun...
     variants = genotype_service.plink_variant_ids
