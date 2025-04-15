@@ -50,6 +50,10 @@ class PhenotypeService:
     def phecodes(self):
         return self._hdf.phecode
 
+    @property
+    def phecode_sex(self):
+        return self._hdf.disease_sex
+
     def get_eids(self, ancestry: str = "EUR"):
         return self._hdf.get_eids(ancestry)
 
