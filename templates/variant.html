@@ -29,9 +29,17 @@
     <br>
 
     <!-- PheWAS Results Table -->
-    <div id="phewasTableContainer" style="display: none;">
+    <div id="phewasResultsContainer" style="display: none;">
         <h4>PheWAS Results</h4>
-        <div class="datatable-container">
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="significanceFilter" checked>
+                    <label class="form-check-label" for="significanceFilter">Show only significant results (p < 0.05)</label>
+                </div>
+            </div>
+        </div>
+        <div id="phewasTableContainer" class="datatable-container">
             <!-- Table will be dynamically inserted here -->
         </div>
     </div>
@@ -83,10 +91,41 @@
         const variantId = "{{ data.nomalized_variant_id }}";
         document.getElementById('variant-display').innerHTML = variantUtils.createLink(variantId);
         
+        // Store the filter function reference
+        let pValueFilter = null;
+        let phewasTable = null;  // Store the DataTable instance
+
+        // Event listener for the significance filter
+        $(document).on('change', '#significanceFilter', function () {
+            if (!phewasTable) return;  // Don't try to filter if table isn't initialized
+
+            // Remove any existing filter
+            if (pValueFilter) {
+                const index = $.fn.dataTable.ext.search.indexOf(pValueFilter);
+                if (index !== -1) {
+                    $.fn.dataTable.ext.search.splice(index, 1);
+                }
+            }
+
+            if ($(this).is(':checked')) {
+                // Create and store the filter function
+                pValueFilter = function (settings, data, dataIndex) {
+                    const pValue = parseFloat(data[4]);
+                    return !isNaN(pValue) && pValue < 0.05;
+                };
+                $.fn.dataTable.ext.search.push(pValueFilter);
+            }
+
+            phewasTable.draw();
+        });
+        
         // Event listener for the PheWAS button
         document.getElementById('runPheWASButton').addEventListener('click', function () {
             const resultDiv = document.getElementById('phewasResult');
             const variant = "{{ data.nomalized_variant_id }}".replace(':', '_').replace('/', '_');
+
+            // Show the results container immediately
+            document.getElementById('phewasResultsContainer').style.display = 'block';
 
             // Get the current URL parameters
             const urlParams = new URLSearchParams(window.location.search);
@@ -174,7 +213,7 @@
             }));
 
             // Initialize the DataTable using the common function
-            initializeDataTable('phewasTable', data, columns, {
+            phewasTable = initializeDataTable('phewasTable', data, columns, {
                 order: [[4, 'asc']],  // Order by P (Significance) column
                 buttons: [
                     {
@@ -202,6 +241,14 @@
                     }
                 ]
             });
+
+            // Apply the significance filter by default
+            pValueFilter = function (settings, data, dataIndex) {
+                const pValue = parseFloat(data[4]);
+                return !isNaN(pValue) && pValue < 0.05;
+            };
+            $.fn.dataTable.ext.search.push(pValueFilter);
+            phewasTable.draw();
         }
     });
 </script>
