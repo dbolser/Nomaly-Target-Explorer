@@ -323,10 +323,6 @@ def get_term_variants(term: str) -> pd.DataFrame:
     """
     Return a DataFrame of variant_id, gene, aa, hmm_score for the given term.
     """
-    if not term:
-        logger.warning("No term provided")
-        return pd.DataFrame()
-
     try:
         with get_db_connection() as conn:
             with conn.cursor(dictionary=True) as cur:
