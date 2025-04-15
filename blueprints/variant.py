@@ -111,7 +111,7 @@ def run_phewas(variant):
     """Endpoint to trigger the PheWAS task"""
 
     # Get flush parameter from request
-    flush = request.args.get("flush", default="0") == "1"
+    flush = request.args.get("flush", "0") == "1"
 
     # Get the ancestry parameter from request
     ancestry = session.get("ancestry", default="EUR")
