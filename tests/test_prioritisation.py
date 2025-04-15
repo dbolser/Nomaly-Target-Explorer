@@ -5,35 +5,16 @@ from unittest.mock import patch
 from queue import Queue
 
 from blueprints.prioritisation_by_nomaly_scores import (
-    read_cases_for_disease_code,
-    read_nomaly_filtered_genotypes,
-    individual_variant_prioritisation,
-    term_variant_prioritisation,
-    get_top_variants,
     StreamLogger,
 )
 
-
-@pytest.fixture
-def mock_variant_scores():
-    """Test variant scores matching our test HDF5 variants."""
-    return pd.DataFrame(
-        {"VS00": [0.1, 0.2, 0.3], "VS01": [0.4, 0.5, 0.6], "VS11": [0.7, 0.8, 0.9]},
-        index=["1_186977737_A/G", "1_186977780_G/A", "1_46813503_C/T"],
-    )
-
-
-@pytest.fixture
-def mock_cases_info():
-    """Test cases matching our test HDF5 individuals."""
-    return {
-        "phecode": "571.5",
-        "Sex": "both",
-        "phecode_exclude_range": [],
-        "cases": [1001, 1002, 1003],
-        "exclude": [],
-        "controls_num": 1000,
-    }
+from blueprints.prioritisation_by_nomaly_scores_refactored import (
+    fetch_phenotype_data,
+    fetch_nomaly_scores,
+    add_threshold_and_t_table_for_metric1,
+    term_variant_prioritisation,
+    process_gene_level_stats,
+)
 
 
 @pytest.fixture
@@ -44,124 +25,118 @@ def mock_term_variants():
             "variant_id": ["1_186977737_A/G", "1_186977780_G/A", "1_46813503_C/T"],
             "gene": ["GENE1", "GENE2", "GENE3"],
             "hmm_score": [0.5, 0.6, 0.7],
-            "term": ["TEST:001"] * 3,
+            "aa": ["p.Ala123Val", "p.Ser456Thr", "p.Gly789Ala"],
         }
     )
 
 
-@pytest.fixture
-def genotype_service(mock_genotype_hdf5_file_with_npy):
-    """Create a genotype service directly without Flask app."""
-    from data_services.genotype import GenotypeService
+def test_fetch_phenotype_data(phenotype_service):
+    """Test fetching phenotype data."""
+    phecode = "571.5"
 
-    return GenotypeService(mock_genotype_hdf5_file_with_npy)
+    case_eids, control_eids = fetch_phenotype_data(phecode, phenotype_service)
 
-
-def test_read_nomaly_filtered_genotypes(genotype_service):
-    sorted_eids = np.array([1001, 1002, 1003])
-    variants = ["1_186977737_A/G", "1_186977780_G/A", "1_46813503_C/T"]
-
-    result = read_nomaly_filtered_genotypes(sorted_eids, variants, genotype_service)
-
-    assert result is not None
-    assert np.array_equal(result["row_eids"], sorted_eids)
-    assert result["col_variants"] == variants
-    assert np.array_equal(result["data"], np.array([[2, -1, 0], [2, -1, 1], [2, 2, 0]]))
-    assert len(result["error_variants"]) == 0
+    # Basic validation
+    assert len(case_eids) == 1  # 3 cases (phenotype=1)
+    assert len(control_eids) == 0  # 5 controls (phenotype=0)
+    assert np.all(np.diff(case_eids) > 0), "case_eids should be sorted"
 
 
-def test_read_cases_for_disease_code(mock_cases_info):
-    with patch(
-        "blueprints.prioritisation_by_nomaly_scores.pickle.load",
-        return_value=mock_cases_info,
-    ):
-        cases = read_cases_for_disease_code("571.5")
-        assert cases["phecode"] == "571.5"
-        assert len(cases["cases"]) == 3
-        assert cases["Sex"] == "both"
-
-
-def test_individual_variant_prioritisation(mock_variant_scores):
-    row = np.array([0, 1, 2])  # Example genotypes for one individual
-    term_variant_scores = mock_variant_scores
-
-    top_variants = individual_variant_prioritisation(row, term_variant_scores)
-
-    assert isinstance(top_variants, set)
-    assert len(top_variants) > 0
-
-
-def test_term_variant_prioritisation(
-    genotype_service, mock_variant_scores, mock_term_variants
-):
-    sorted_eids = np.array([1001, 1002, 1003])
+def test_fetch_nomaly_scores(nomaly_scores_service):
+    """Test fetching Nomaly scores."""
+    case_eids = np.array([1001, 1002, 1003])
+    control_eids = np.array([1004, 1005, 1006, 1007, 1008])
     term = "TEST:001"
 
-    with patch(
-        "blueprints.prioritisation_by_nomaly_scores.get_term_variants",
-        return_value=mock_term_variants,
-    ):
-        result = term_variant_prioritisation(
-            sorted_eids, mock_variant_scores, term, genotype_service
-        )
+    result_case_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
+        case_eids, term
+    )
+    result_control_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
+        control_eids, term
+    )
 
-        # Test the actual business logic:
-        assert isinstance(result, pd.DataFrame)
-
-        # 1. Test that variants are properly filtered based on individual prioritisation
-        # The function should select variants where VS scores exceed threshold
-        for variant_id in result["variant_id"]:
-            scores = mock_variant_scores.loc[variant_id]
-            assert any(scores > 1.0), (
-                f"Variant {variant_id} included but has no high scores"
-            )
-
-        # 2. Test that variants are properly sorted by hmm_score
-        assert result["hmm_score"].is_monotonic_decreasing, (
-            "Results not sorted by hmm_score"
-        )
-
-        # 3. Test that the genotype data was actually used
-        # Each returned variant should have appeared in at least one individual's top variants
-        genotype_data = genotype_service.genotype_matrix[:]
-        assert all(
-            any(genotype_data[:, i] > 0)
-            for i, variant in enumerate(mock_term_variants["variant_id"])
-            if variant in result["variant_id"]
-        ), "Returned variants don't match genotype data"
-
-        # 4. Verify required columns are present with correct types
-        assert all(col in result.columns for col in ["gene", "variant_id", "hmm_score"])
-        assert result["hmm_score"].dtype in (np.float64, float)
+    assert len(result_case_scores) == len(case_eids)
+    assert len(result_control_scores) == len(control_eids)
+    assert np.array_equal(result_case_scores, np.array([0.001, 0.002, 0.003])), (
+        "Case scores should be [0.001, 0.002, 0.003]",
+        "instead we got",
+        result_case_scores,
+    )
+    assert np.array_equal(
+        result_control_scores, np.array([0.004, 0.005, 0.006, 0.007, 0.008])
+    ), "Control scores should be [0.004, 0.005, 0.006, 0.007, 0.008]"
 
 
-def test_get_top_variants(genotype_service, mock_cases_info, mock_term_variants):
-    disease_code = "571.5"
+def test_fetch_stats_data(stats_service):
+    """Test fetching statistics data."""
     term = "TEST:001"
+    phecode = "571.5"
 
-    with (
-        patch(
-            "blueprints.prioritisation_by_nomaly_scores.read_cases_for_disease_code",
-            return_value=mock_cases_info,
-        ),
-        patch(
-            "blueprints.prioritisation_by_nomaly_scores.get_term_variants",
-            return_value=mock_term_variants,
-        ),
-    ):
-        top_variants, top_gene_set = get_top_variants(
-            disease_code, term, genotype_service
-        )
+    stats = stats_service.get_term_stats(term, phecode=phecode)
 
-        assert isinstance(top_variants, pd.DataFrame)
-        assert isinstance(top_gene_set, pd.DataFrame)
-        assert "gene" in top_variants.columns
-        assert "variant_id" in top_variants.columns
-        assert "hmm_score" in top_variants.columns
-        assert "variant_num" in top_gene_set.columns
+    assert len(stats) == 1
+    stats = stats.iloc[0]
+
+    assert stats["num_rp"] == 3.0
+    assert stats["num_rn"] == 5.0
+    assert stats["metric1_pvalue"] == 0.0026
+    assert stats["roc_stats_mcc_pvalue"] == 0.0015
+
+
+def test_compute_derived_stats():
+    """Test computing derived statistics."""
+    stats = {
+        "num_rp": 3.0,
+        "num_rn": 5.0,
+        "metric1_pvalue": 0.04,
+    }
+
+    case_eids = np.array([1001, 1002, 1003])
+    control_eids = np.array([2001, 2002, 2003, 2004, 2005])
+    case_scores = np.array([0.03, 0.025, 0.01])  # 2 above threshold
+    control_scores = np.array([0.005, 0.015, 0.03, 0.01, 0.005])  # 1 above threshold
+    phecode = "571.5"
+
+    result = add_threshold_and_t_table_for_metric1(
+        stats, case_eids, control_eids, case_scores, control_scores, phecode
+    )
+
+    assert result["metric1_threshold"] == 0.022
+    assert result["metric1_tp"] == 2  # 2 cases above threshold
+    assert result["metric1_fp"] == 1  # 1 control above threshold
+    assert result["metric1_fn"] == 1  # 1 case below threshold
+    assert result["metric1_tn"] == 4  # 4 controls below threshold
+
+
+
+
+def test_process_gene_level_stats():
+    """Test processing gene-level statistics."""
+    # Create a sample DataFrame of top variants
+    top_variants = pd.DataFrame(
+        {
+            "variant_id": ["1_123_A/G", "1_456_G/A", "2_789_C/T"],
+            "gene": ["GENE1", "GENE1, GENE2", "GENE3"],
+            "hmm_score": [0.8, 0.7, 0.6],
+            "vs": [0.3, 0.4, 0.5],
+            "num_individuals": [10, 15, 20],
+        }
+    )
+
+    result = process_gene_level_stats(top_variants)
+
+    assert isinstance(result, list)
+    assert len(result) > 0
+    assert "gene" in result[0]
+    assert "variant_id" in result[0]
+    assert "hmm_score" in result[0]
+    assert "total_vs" in result[0]
+    assert "variant_num" in result[0]
+    assert "num_individuals" in result[0]
 
 
 def test_stream_logger():
+    """Test the StreamLogger class."""
     queue = Queue()
     logger = StreamLogger(queue)
 

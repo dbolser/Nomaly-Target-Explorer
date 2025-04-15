@@ -1,0 +1,497 @@
+{
+  "num_rp": 1125.0,
+  "num_rn": 418990.0,
+  "metric1_pvalue": 0.0088816899100527,
+  "roc_stats_mcc_threshold": 0.0009,
+  "roc_stats_mcc_all_index": 7088.0,
+  "roc_stats_mcc_tp": 45.0,
+  "roc_stats_mcc_fp": 7043.0,
+  "roc_stats_mcc_fn": 1080.0,
+  "roc_stats_mcc_tn": 411947.0,
+  "roc_stats_mcc_or": 2.4370947512896968,
+  "roc_stats_mcc_pvalue": 2.8554905524865253e-07,
+  "roc_stats_yjs_threshold": 0.0009,
+  "roc_stats_yjs_tp": 45.0,
+  "roc_stats_yjs_fp": 7043.0,
+  "roc_stats_yjs_fn": 1080.0,
+  "roc_stats_yjs_tn": 411947.0,
+  "roc_stats_yjs_or": 2.4370947512896968,
+  "roc_stats_yjs_pvalue": 2.8554905524865253e-07,
+  "roc_stats_lrp_threshold": 0.0073,
+  "roc_stats_lrp_tp": 32.0,
+  "roc_stats_lrp_fp": 4598.0,
+  "roc_stats_lrp_fn": 1093.0,
+  "roc_stats_lrp_tn": 414392.0,
+  "roc_stats_lrp_or": 2.638591821815205,
+  "roc_stats_lrp_pvalue": 1.9580634627452765e-06,
+  "roc_stats_lrn_protective_threshold": 0.036,
+  "roc_stats_lrn_protective_tp": 0.0,
+  "roc_stats_lrn_protective_fp": 2562.0,
+  "roc_stats_lrn_protective_fn": 1125.0,
+  "roc_stats_lrn_protective_tn": 416428.0,
+  "roc_stats_lrn_protective_or": 0.0,
+  "roc_stats_lrn_protective_pvalue": 0.0017432400722919,
+  "metric1_threshold": 0.022,
+  "metric1_tp": 2,
+  "metric1_fp": 2878,
+  "metric1_fn": 1317,
+  "metric1_tn": 432945,
+  "metric1_tpr": 0.0017777777777777779,
+  "metric1_fpr": 0.006868899019069667,
+  "metric1_lrp": 0.2588155317119525,
+  "metric1_top_variants": [
+    {
+      "variant_id": "2_10444500_C/T",
+      "gene": "ODC1",
+      "hmm_score": 2.3989800214767456,
+      "num_individuals": 2,
+      "vs": 11.45258,
+      "vs00": 22.9336,
+      "vs01": 5.72629,
+      "vs11": 0.029153
+    },
+    {
+      "variant_id": "1_33094609_C/T",
+      "gene": "AZIN2",
+      "hmm_score": 2.080130100250244,
+      "num_individuals": 2,
+      "vs": 0.00731538,
+      "vs00": 17.2968,
+      "vs01": 4.32328,
+      "vs11": 0.00365769
+    },
+    {
+      "variant_id": "2_10443739_G/A",
+      "gene": "ODC1",
+      "hmm_score": 2.126580238342285,
+      "num_individuals": 2,
+      "vs": 0.00617962,
+      "vs00": 18.0801,
+      "vs01": 4.51925,
+      "vs11": 0.00308981
+    },
+    {
+      "variant_id": "8_37762729_G/A",
+      "gene": "PROSC",
+      "hmm_score": 1.6011700630187988,
+      "num_individuals": 2,
+      "vs": 0.0047286,
+      "vs00": 10.2479,
+      "vs01": 2.56138,
+      "vs11": 0.0023643
+    },
+    {
+      "variant_id": "8_37765583_A/G",
+      "gene": "PROSC",
+      "hmm_score": 0.6820600032806396,
+      "num_individuals": 2,
+      "vs": 0.00366164,
+      "vs00": 1.85539,
+      "vs01": 0.463406,
+      "vs11": 0.00183082
+    }
+  ],
+  "metric1_top_gene_set": [
+    {
+      "gene": "ODC1",
+      "variant_id": "2_10444500_C/T, 2_10443739_G/A",
+      "hmm_score": 4.525560259819031,
+      "total_vs": 11.458759619999999,
+      "variant_num": 2,
+      "num_individuals": 4
+    },
+    {
+      "gene": "PROSC",
+      "variant_id": "8_37762729_G/A, 8_37765583_A/G",
+      "hmm_score": 2.2832300662994385,
+      "total_vs": 0.00839024,
+      "variant_num": 2,
+      "num_individuals": 4
+    },
+    {
+      "gene": "AZIN2",
+      "variant_id": "1_33094609_C/T",
+      "hmm_score": 2.080130100250244,
+      "total_vs": 0.00731538,
+      "variant_num": 1,
+      "num_individuals": 2
+    }
+  ],
+  "roc_stats_mcc_tpr": 0.04,
+  "roc_stats_mcc_fpr": 0.016809470393088142,
+  "roc_stats_mcc_lrp": 2.3796109470817375,
+  "roc_stats_mcc_top_variants": [
+    {
+      "variant_id": "1_33093391_C/A",
+      "gene": "AZIN2",
+      "hmm_score": 0.23843979835510254,
+      "num_individuals": 13,
+      "vs": 1.5862413999999998,
+      "vs00": 0.226667,
+      "vs01": 0.0566133,
+      "vs11": 0.000266386
+    },
+    {
+      "variant_id": "2_10444500_C/T",
+      "gene": "ODC1",
+      "hmm_score": 2.3989800214767456,
+      "num_individuals": 48,
+      "vs": 12.793618000000013,
+      "vs00": 22.9336,
+      "vs01": 5.72629,
+      "vs11": 0.029153
+    },
+    {
+      "variant_id": "1_33094609_C/T",
+      "gene": "AZIN2",
+      "hmm_score": 2.080130100250244,
+      "num_individuals": 49,
+      "vs": 0.17922680999999993,
+      "vs00": 17.2968,
+      "vs01": 4.32328,
+      "vs11": 0.00365769
+    },
+    {
+      "variant_id": "2_10443739_G/A",
+      "gene": "ODC1",
+      "hmm_score": 2.126580238342285,
+      "num_individuals": 48,
+      "vs": 0.14831087999999995,
+      "vs00": 18.0801,
+      "vs01": 4.51925,
+      "vs11": 0.00308981
+    },
+    {
+      "variant_id": "8_37762729_G/A",
+      "gene": "PROSC",
+      "hmm_score": 1.6011700630187988,
+      "num_individuals": 49,
+      "vs": 66.65025890000004,
+      "vs00": 10.2479,
+      "vs01": 2.56138,
+      "vs11": 0.0023643
+    },
+    {
+      "variant_id": "8_37765583_A/G",
+      "gene": "PROSC",
+      "hmm_score": 0.6820600032806396,
+      "num_individuals": 28,
+      "vs": 2.8207140399999995,
+      "vs00": 1.85539,
+      "vs01": 0.463406,
+      "vs11": 0.00183082
+    },
+    {
+      "variant_id": "1_33098117_G/A",
+      "gene": "AZIN2",
+      "hmm_score": 0.42073988914489746,
+      "num_individuals": 6,
+      "vs": 1.060482,
+      "vs00": 0.707264,
+      "vs01": 0.176747,
+      "vs11": 0.00027463
+    },
+    {
+      "variant_id": "8_37772797_A/G",
+      "gene": "PROSC",
+      "hmm_score": 0.9697099924087524,
+      "num_individuals": 2,
+      "vs": 1.878822,
+      "vs00": 3.75857,
+      "vs01": 0.939411,
+      "vs11": 0.000926762
+    },
+    {
+      "variant_id": "8_102838819_T/G",
+      "gene": "AZIN1",
+      "hmm_score": 1.0140798091888428,
+      "num_individuals": 2,
+      "vs": 2.05452,
+      "vs00": 4.11015,
+      "vs01": 1.02726,
+      "vs11": 0.00109422
+    }
+  ],
+  "roc_stats_mcc_top_gene_set": [
+    {
+      "gene": "ODC1",
+      "variant_id": "2_10444500_C/T, 2_10443739_G/A",
+      "hmm_score": 4.525560259819031,
+      "total_vs": 12.941928880000013,
+      "variant_num": 2,
+      "num_individuals": 96
+    },
+    {
+      "gene": "PROSC",
+      "variant_id": "8_37762729_G/A, 8_37765583_A/G, 8_37772797_A/G",
+      "hmm_score": 3.252940058708191,
+      "total_vs": 71.34979494000004,
+      "variant_num": 3,
+      "num_individuals": 79
+    },
+    {
+      "gene": "AZIN2",
+      "variant_id": "1_33093391_C/A, 1_33094609_C/T, 1_33098117_G/A",
+      "hmm_score": 2.739309787750244,
+      "total_vs": 2.8259502099999994,
+      "variant_num": 3,
+      "num_individuals": 68
+    },
+    {
+      "gene": "AZIN1",
+      "variant_id": "8_102838819_T/G",
+      "hmm_score": 1.0140798091888428,
+      "total_vs": 2.05452,
+      "variant_num": 1,
+      "num_individuals": 2
+    }
+  ],
+  "roc_stats_yjs_tpr": 0.04,
+  "roc_stats_yjs_fpr": 0.016809470393088142,
+  "roc_stats_yjs_lrp": 2.3796109470817375,
+  "roc_stats_yjs_top_variants": [
+    {
+      "variant_id": "1_33093391_C/A",
+      "gene": "AZIN2",
+      "hmm_score": 0.23843979835510254,
+      "num_individuals": 13,
+      "vs": 1.5862413999999998,
+      "vs00": 0.226667,
+      "vs01": 0.0566133,
+      "vs11": 0.000266386
+    },
+    {
+      "variant_id": "2_10444500_C/T",
+      "gene": "ODC1",
+      "hmm_score": 2.3989800214767456,
+      "num_individuals": 48,
+      "vs": 12.793618000000013,
+      "vs00": 22.9336,
+      "vs01": 5.72629,
+      "vs11": 0.029153
+    },
+    {
+      "variant_id": "1_33094609_C/T",
+      "gene": "AZIN2",
+      "hmm_score": 2.080130100250244,
+      "num_individuals": 49,
+      "vs": 0.17922680999999993,
+      "vs00": 17.2968,
+      "vs01": 4.32328,
+      "vs11": 0.00365769
+    },
+    {
+      "variant_id": "2_10443739_G/A",
+      "gene": "ODC1",
+      "hmm_score": 2.126580238342285,
+      "num_individuals": 48,
+      "vs": 0.14831087999999995,
+      "vs00": 18.0801,
+      "vs01": 4.51925,
+      "vs11": 0.00308981
+    },
+    {
+      "variant_id": "8_37762729_G/A",
+      "gene": "PROSC",
+      "hmm_score": 1.6011700630187988,
+      "num_individuals": 49,
+      "vs": 66.65025890000004,
+      "vs00": 10.2479,
+      "vs01": 2.56138,
+      "vs11": 0.0023643
+    },
+    {
+      "variant_id": "8_37765583_A/G",
+      "gene": "PROSC",
+      "hmm_score": 0.6820600032806396,
+      "num_individuals": 28,
+      "vs": 2.8207140399999995,
+      "vs00": 1.85539,
+      "vs01": 0.463406,
+      "vs11": 0.00183082
+    },
+    {
+      "variant_id": "1_33098117_G/A",
+      "gene": "AZIN2",
+      "hmm_score": 0.42073988914489746,
+      "num_individuals": 6,
+      "vs": 1.060482,
+      "vs00": 0.707264,
+      "vs01": 0.176747,
+      "vs11": 0.00027463
+    },
+    {
+      "variant_id": "8_37772797_A/G",
+      "gene": "PROSC",
+      "hmm_score": 0.9697099924087524,
+      "num_individuals": 2,
+      "vs": 1.878822,
+      "vs00": 3.75857,
+      "vs01": 0.939411,
+      "vs11": 0.000926762
+    },
+    {
+      "variant_id": "8_102838819_T/G",
+      "gene": "AZIN1",
+      "hmm_score": 1.0140798091888428,
+      "num_individuals": 2,
+      "vs": 2.05452,
+      "vs00": 4.11015,
+      "vs01": 1.02726,
+      "vs11": 0.00109422
+    }
+  ],
+  "roc_stats_yjs_top_gene_set": [
+    {
+      "gene": "ODC1",
+      "variant_id": "2_10444500_C/T, 2_10443739_G/A",
+      "hmm_score": 4.525560259819031,
+      "total_vs": 12.941928880000013,
+      "variant_num": 2,
+      "num_individuals": 96
+    },
+    {
+      "gene": "PROSC",
+      "variant_id": "8_37762729_G/A, 8_37765583_A/G, 8_37772797_A/G",
+      "hmm_score": 3.252940058708191,
+      "total_vs": 71.34979494000004,
+      "variant_num": 3,
+      "num_individuals": 79
+    },
+    {
+      "gene": "AZIN2",
+      "variant_id": "1_33093391_C/A, 1_33094609_C/T, 1_33098117_G/A",
+      "hmm_score": 2.739309787750244,
+      "total_vs": 2.8259502099999994,
+      "variant_num": 3,
+      "num_individuals": 68
+    },
+    {
+      "gene": "AZIN1",
+      "variant_id": "8_102838819_T/G",
+      "hmm_score": 1.0140798091888428,
+      "total_vs": 2.05452,
+      "variant_num": 1,
+      "num_individuals": 2
+    }
+  ],
+  "roc_stats_lrp_tpr": 0.028444444444444446,
+  "roc_stats_lrp_fpr": 0.010974008926227356,
+  "roc_stats_lrp_lrp": 2.591982964153172,
+  "roc_stats_lrp_top_variants": [
+    {
+      "variant_id": "8_37772797_A/G",
+      "gene": "PROSC",
+      "hmm_score": 0.9697099924087524,
+      "num_individuals": 2,
+      "vs": 1.878822,
+      "vs00": 3.75857,
+      "vs01": 0.939411,
+      "vs11": 0.000926762
+    },
+    {
+      "variant_id": "2_10444500_C/T",
+      "gene": "ODC1",
+      "hmm_score": 2.3989800214767456,
+      "num_individuals": 26,
+      "vs": 12.15225200000001,
+      "vs00": 22.9336,
+      "vs01": 5.72629,
+      "vs11": 0.029153
+    },
+    {
+      "variant_id": "1_33094609_C/T",
+      "gene": "AZIN2",
+      "hmm_score": 2.080130100250244,
+      "num_individuals": 26,
+      "vs": 0.09509994000000002,
+      "vs00": 17.2968,
+      "vs01": 4.32328,
+      "vs11": 0.00365769
+    },
+    {
+      "variant_id": "2_10443739_G/A",
+      "gene": "ODC1",
+      "hmm_score": 2.126580238342285,
+      "num_individuals": 26,
+      "vs": 0.08033505999999997,
+      "vs00": 18.0801,
+      "vs01": 4.51925,
+      "vs11": 0.00308981
+    },
+    {
+      "variant_id": "8_37762729_G/A",
+      "gene": "PROSC",
+      "hmm_score": 1.6011700630187988,
+      "num_individuals": 26,
+      "vs": 43.564738700000014,
+      "vs00": 10.2479,
+      "vs01": 2.56138,
+      "vs11": 0.0023643
+    },
+    {
+      "variant_id": "8_37765583_A/G",
+      "gene": "PROSC",
+      "hmm_score": 0.6820600032806396,
+      "num_individuals": 14,
+      "vs": 1.41035702,
+      "vs00": 1.85539,
+      "vs01": 0.463406,
+      "vs11": 0.00183082
+    },
+    {
+      "variant_id": "8_102838819_T/G",
+      "gene": "AZIN1",
+      "hmm_score": 1.0140798091888428,
+      "num_individuals": 2,
+      "vs": 2.05452,
+      "vs00": 4.11015,
+      "vs01": 1.02726,
+      "vs11": 0.00109422
+    },
+    {
+      "variant_id": "1_33093391_C/A",
+      "gene": "AZIN2",
+      "hmm_score": 0.23843979835510254,
+      "num_individuals": 8,
+      "vs": 0.45290639999999993,
+      "vs00": 0.226667,
+      "vs01": 0.0566133,
+      "vs11": 0.000266386
+    }
+  ],
+  "roc_stats_lrp_top_gene_set": [
+    {
+      "gene": "ODC1",
+      "variant_id": "2_10444500_C/T, 2_10443739_G/A",
+      "hmm_score": 4.525560259819031,
+      "total_vs": 12.232587060000009,
+      "variant_num": 2,
+      "num_individuals": 52
+    },
+    {
+      "gene": "PROSC",
+      "variant_id": "8_37772797_A/G, 8_37762729_G/A, 8_37765583_A/G",
+      "hmm_score": 3.252940058708191,
+      "total_vs": 46.85391772000001,
+      "variant_num": 3,
+      "num_individuals": 42
+    },
+    {
+      "gene": "AZIN2",
+      "variant_id": "1_33094609_C/T, 1_33093391_C/A",
+      "hmm_score": 2.3185698986053467,
+      "total_vs": 0.5480063399999999,
+      "variant_num": 2,
+      "num_individuals": 34
+    },
+    {
+      "gene": "AZIN1",
+      "variant_id": "8_102838819_T/G",
+      "hmm_score": 1.0140798091888428,
+      "total_vs": 2.05452,
+      "variant_num": 1,
+      "num_individuals": 2
+    }
+  ]
+}

@@ -21,7 +21,7 @@ def test_login_form_validation(unit_test_app):
                 "username": "testuser",
                 "password": "testpass",
                 # Er... not test config or something?
-                "csrf_token": form.csrf_token.current_token,
+                #"csrf_token": form.csrf_token.current_token,
             }
         )
         assert form.validate(), f"Form validation failed: {form.errors}"

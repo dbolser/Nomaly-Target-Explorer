@@ -29,48 +29,65 @@ class Config:
     MYSQL_DB = os.getenv("MYSQL_DB")
 
     # Tools directories
-    SOURCE_PLINK_GENOME = "/data/clu/ukbb/genotypes_nomaly"
-    # SOURCE_PLINK_GENOME = "/data/clu/ukbb/genotypes_nomaly_eur"
     PLINK_BINARY = "/data/clu/ukbb/plink"
 
-    # Important mapping file
-    NOMALY_VARIANTS_PATH = Path("/data/clu/ukbb/nomaly_variants.tsv")
+    # Important mapping files and other junk
+    NOMALY_VARIANT_MAPPING_PATH = Path("/data/clu/ukbb/nomaly_variants.tsv")
+    NOMALY_VARIANT_SCORES_PATH = Path("/data/clu/ukbb/variantscores.tsv")
+    NOMALY_VARIANT_SCORES_PATH = Path("/data/clu/ukbb/genotype_counts_with_vs.tsv")
+    NOMALY_VARIANT2GENE_PATH = Path("/data/clu/ukbb/variant2gene.tsv")
+
+    DATA_ROOT = Path("/data/general/UKBB")
 
     # Phenotype directories and files
-    UKBB_PHENO_DIR = Path("/data/general/UKBB/Phenotypes")
+    UKBB_PHENO_DIR = DATA_ROOT / "Phenotypes"
     # PHENOTYPES_H5 = UKBB_PHENO_DIR / "phecode_cases_excludes.h5"
-    PHENOTYPES_H5 = UKBB_PHENO_DIR / "phecode_cases_excludes_with_metadata.h5"
+    PHENOTYPES_HDF = UKBB_PHENO_DIR / "phecode_cases_excludes_with_metadata.h5"
     # PHENOTYPES_PKL = UKBB_PHENO_DIR / "phecode_cases_excludes.pkl"
 
     # Genotype directories and files
-    UKBB_GENOTYPES_DIR = Path("/data/general/UKBB/Genotypes/GRCh38")
-    # GENOTYPES_H5 = UKBB_GENOTYPES_DIR / "genotypes_with_counts.h5"
-    GENOTYPES_H5 = UKBB_GENOTYPES_DIR / "genotypes_with_metadata.h5"
+    UKBB_GENOTYPES_DIR = DATA_ROOT / "Genotypes/GRCh38"
+
+    GENOTYPES_BED = UKBB_GENOTYPES_DIR / "genotypes-ukbb.bed"
+    GENOTYPES_HDF = UKBB_GENOTYPES_DIR / "genotypes-ukbb.h5"
+    GENOTYPES_NPY = UKBB_GENOTYPES_DIR / "genotypes-ukbb.npy"
 
     # Nomaly results directories and files (V1)
-    NOMALY_RESULTS_DIR = Path("/data/general/UKBB/Run-v1/DatabaseInputs")
-    NOMALY_SCORES_H5 = NOMALY_RESULTS_DIR / "float16_scores.h5"
+    NOMALY_RESULTS_DIR = DATA_ROOT / "Run-v1/DatabaseInputs"
+    NOMALY_SCORES_H5 = NOMALY_RESULTS_DIR / "float32_scores.h5"
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats.h5"
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats-fixed.h5"
     # STATS_H5 = NOMALY_RESULTS_DIR / "stats-EUR-2025-02-07.h5"
     STATS_H5 = NOMALY_RESULTS_DIR / "stats-All-2025-02-10.h5"
 
+    # TODO: Need to implement this in VP code
     # Nomaly results directories and files (V2)
-    NOMALY_RESULTS_DIR_V2 = Path("/data/general/UKBB/Run-v2/DatabaseInputs")
-    NOMALY_SCORES_H5_V2 = NOMALY_RESULTS_DIR_V2 / "float16_scores.h5"
+    NOMALY_RESULTS_DIR_V2 = DATA_ROOT / "Run-v2/DatabaseInputs"
+    NOMALY_SCORES_H5_V2 = NOMALY_RESULTS_DIR_V2 / "float32_scores.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-fixed.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-fixed-EUR.h5"
     # STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-EUR-2025-02-07.h5"
     STATS_H5_V2 = NOMALY_RESULTS_DIR_V2 / "stats-All-2025-02-10.h5"
 
-    RESOURCE_DATA_DIR = Path("/data/general/Data/")
+    STATS_SELECTOR = {
+        "Run-v1": {
+            "AFR": DATA_ROOT / "Run-v1/DatabaseInputs/AFR-sexmatch.h5",
+            "EUR": DATA_ROOT / "Run-v1/DatabaseInputs/EUR-sexmatch.h5",
+            "SAS": DATA_ROOT / "Run-v1/DatabaseInputs/SAS-sexmatch.h5",
+            "EAS": DATA_ROOT / "Run-v1/DatabaseInputs/EAS-sexmatch.h5",
+            "ALL": DATA_ROOT / "Run-v1/DatabaseInputs/ALL-sexmatch.h5",
+        },
+        "Run-v2": {
+            "AFR": DATA_ROOT / "Run-v2/DatabaseInputs/AFR-sexmatch.h5",
+            "EUR": DATA_ROOT / "Run-v2/DatabaseInputs/EUR-sexmatch.h5",
+            "SAS": DATA_ROOT / "Run-v2/DatabaseInputs/SAS-sexmatch.h5",
+            "EAS": DATA_ROOT / "Run-v2/DatabaseInputs/EAS-sexmatch.h5",
+            "ALL": DATA_ROOT / "Run-v2/DatabaseInputs/ALL-sexmatch.h5",
+        },
+    }
 
-    # Caching directoriesd
-    # GWAS_PHENO_DIR = Path("/data/clu/ukbb/by_pheno")
-    # PHEWAS_PHENO_DIR = Path("/data/clu/ukbb/by_variant")
-    # PHECODE_TERM_DIR = Path("/data/clu/ukbb/by_phecode_term")
-    # VARIANT_SCORES_DIR = Path("/data/clu/ukbb/variant_scores")
+    PHAROS_DATA_DIR = Path("/data/general/Pharos")
 
     # Caching directories
     GWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/cache/by_pheno")
@@ -113,6 +130,12 @@ class TestingConfig(Config):
     MYSQL_USER = "testuser"
     MYSQL_PASSWORD = "testpass"
     MYSQL_DB = "testdb"
+
+    # Mock file paths for testing - these should be overridden in tests
+    # GENOTYPES_HDF = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    # PHENOTYPES_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    # NOMALY_SCORES_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
+    # STATS_H5 = "MOCK_PATH_OVERRIDE_IN_TESTS"
 
     # Other test settings
     WTF_CSRF_ENABLED = False

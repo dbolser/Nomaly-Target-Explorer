@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}My Phecodes - Nomaly{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">My Phecodes</h1>
+
+    {% if categories %}
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <p class="lead">
+                Below are the phecodes you have permission to access, organized by disease category.
+            </p>
+        </div>
+    </div>
+
+    <div class="accordion" id="phecodeCategories">
+        {% for category, phecodes in categories.items() %}
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading{{ loop.index }}">
+                <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}"
+                    aria-expanded="false" aria-controls="collapse{{ loop.index }}">
+                    {{ category|capitalize }} ({{ phecodes|length }})
+                </button>
+            </h2>
+            <div id="collapse{{ loop.index }}" class="accordion-collapse collapse"
+                aria-labelledby="heading{{ loop.index }}" data-bs-parent="#phecodeCategories">
+                <div class="accordion-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Phecode</th>
+                                    <th>Description</th>
+                                    <th>Sex</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for phecode in phecodes %}
+                                <tr>
+                                    <td>{{ phecode.phecode }}</td>
+                                    <td>{{ phecode.description }}</td>
+                                    <td>{{ phecode.sex }}</td>
+                                    <td>
+                                        <a href="{{ url_for('phecode.show_phecode', phecode=phecode.phecode) }}"
+                                            class="btn btn-sm btn-primary">
+                                            View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <h4 class="alert-heading">No Phecodes Available</h4>
+        <p>You don't have access to any phecodes yet. Please contact an administrator to request access.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

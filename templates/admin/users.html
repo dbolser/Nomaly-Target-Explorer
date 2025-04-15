@@ -31,6 +31,12 @@
                         </div>
                     </div>
                 </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="is_admin_new" id="is_admin_new">
+                    <label class="form-check-label" for="is_admin_new">
+                        Make admin
+                    </label>
+                </div>
                 <button type="submit" class="btn btn-primary">Add User</button>
             </form>
         </div>
@@ -61,19 +67,83 @@
                         <td>
                             <form action="{{ url_for('admin.update_permissions') }}" method="POST">
                                 <input type="hidden" name="user_id" value="{{ user.id }}">
-                                <select name="phecodes" class="form-select" multiple>
-                                    {% for phecode in available_phecodes %}
-                                    <option value="{{ phecode.phecode }}" {% if user.allowed_paths and phecode.phecode
-                                        in user.allowed_paths.split(',') %}selected{% endif %}>
-                                        {{ phecode.phecode }} - {{ phecode.description }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse"
+                                        data-bs-target="#phecodeSection{{ user.id }}" aria-expanded="false">
+                                        <i class="bi bi-chevron-down"></i> Manage Phecode Permissions
+                                        {% if user.allowed_paths %}
+                                        <span class="badge bg-primary ms-1">{{ user.allowed_paths.split(',') | length }} phecodes</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary ms-1">0 phecodes</span>
+                                        {% endif %}
+                                    </button>
+                                
+                                    <div class="form-check mt-0">
+                                        <input class="form-check-input" type="checkbox" name="is_admin" id="is_admin_{{ user.id }}" {% if user.is_admin
+                                            %}checked{% endif %}>
+                                        <label class="form-check-label" for="is_admin_{{ user.id }}">
+                                            Make admin
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="collapse" id="phecodeSection{{ user.id }}">
+                                    <div class="accordion mb-3" id="phecodeAccordion{{ user.id }}">
+                                        {% for base_code, base_data in hierarchical_phecodes.items() %}
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="heading{{ user.id }}{{ base_code }}">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                                    data-bs-target="#collapse{{ user.id }}{{ base_code }}" aria-expanded="false"
+                                                    aria-controls="collapse{{ user.id }}{{ base_code }}">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input base-code-checkbox" type="checkbox"
+                                                            id="baseCode{{ user.id }}{{ base_code }}" name="phecodes" value="{{ base_code }}"
+                                                            data-user="{{ user.id }}" data-base="{{ base_code }}" {% if user.allowed_paths and base_code
+                                                            in user.allowed_paths.split(',') %}checked{% endif %} onchange="toggleSubcodes(this)">
+                                                        <label class="form-check-label" for="baseCode{{ user.id }}{{ base_code }}">
+                                                            {{ base_code }} - {{ base_data.description }}
+                                                        </label>
+                                                    </div>
+                                                </button>
+                                            </h2>
+                                            <div id="collapse{{ user.id }}{{ base_code }}" class="accordion-collapse collapse"
+                                                aria-labelledby="heading{{ user.id }}{{ base_code }}" data-bs-parent="#phecodeAccordion{{ user.id }}">
+                                                <div class="accordion-body">
+                                                    {% if base_data.subcodes %}
+                                                    <div class="subcodes-container" id="subcodes{{ user.id }}{{ base_code }}">
+                                                        {% for subcode in base_data.subcodes %}
+                                                        <div class="form-check">
+                                                            <input class="form-check-input subcode-checkbox" type="checkbox"
+                                                                id="subCode{{ user.id }}{{ subcode.phecode }}" name="phecodes"
+                                                                value="{{ subcode.phecode }}" data-base="{{ base_code }}" data-user="{{ user.id }}" {%
+                                                                if user.allowed_paths and subcode.phecode in user.allowed_paths.split(',') %}checked{%
+                                                                endif %}>
+                                                            <label class="form-check-label" for="subCode{{ user.id }}{{ subcode.phecode }}">
+                                                                {{ subcode.phecode }} - {{ subcode.description }}
+                                                            </label>
+                                                        </div>
+                                                        {% endfor %}
+                                                    </div>
+                                                    {% else %}
+                                                    <p>No subcodes available</p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    </div>
                                 <button type="submit" class="btn btn-sm btn-primary mt-2">Update Permissions</button>
                             </form>
                         </td>
                         <td>
                             <!-- Add actions like edit/delete here if needed -->
+                            <form action="{{ url_for('admin.toggle_user_status') }}" method="POST" class="d-inline">
+                                <input type="hidden" name="user_id" value="{{ user.id }}">
+                                <button type="submit" class="btn btn-sm {% if user.is_active %}btn-warning{% else %}btn-success{% endif %}">
+                                    {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
+                                </button>
+                            </form>
                         </td>
                     </tr>
                     {% endfor %}
@@ -82,4 +152,49 @@
         </div>
     </div>
 </div>
+<script>
+    function toggleSubcodes(checkbox) {
+        const userId = checkbox.dataset.user;
+        const baseCode = checkbox.dataset.base;
+        const isChecked = checkbox.checked;
+
+        // Find all subcodes checkboxes related to this base code
+        const subcodesContainer = document.getElementById(`subcodes${userId}${baseCode}`);
+        if (subcodesContainer) {
+            const subcodeCheckboxes = subcodesContainer.querySelectorAll('.subcode-checkbox');
+
+            // Toggle all subcodes to match the base code state
+            subcodeCheckboxes.forEach(subcodeCheckbox => {
+                subcodeCheckbox.checked = isChecked;
+            });
+        }
+    }
+
+    // Add an event listener to sync the base code checkbox when all subcodes are checked/unchecked
+    document.addEventListener('DOMContentLoaded', function () {
+        const subcodeCheckboxes = document.querySelectorAll('.subcode-checkbox');
+
+        subcodeCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function () {
+                const baseCode = this.dataset.base;
+                const userId = this.dataset.user;
+                const baseCodeCheckbox = document.getElementById(`baseCode${userId}${baseCode}`);
+
+                // Find all subcodes for this base code
+                const subcodes = document.querySelectorAll(`.subcode-checkbox[data-base="${baseCode}"][data-user="${userId}"]`);
+
+                // Check if all subcodes are checked or not
+                const allChecked = Array.from(subcodes).every(cb => cb.checked);
+                const anyChecked = Array.from(subcodes).some(cb => cb.checked);
+
+                // Update base code checkbox accordingly
+                if (baseCodeCheckbox) {
+                    baseCodeCheckbox.checked = allChecked;
+                    // For partial selection, you might want to add a visual indication
+                    // e.g., baseCodeCheckbox.indeterminate = anyChecked && !allChecked;
+                }
+            });
+        });
+    });
+</script>
 {% endblock %}

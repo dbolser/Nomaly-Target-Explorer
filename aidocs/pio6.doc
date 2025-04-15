@@ -1,0 +1,638 @@
+Help on package plotly.io in plotly:
+
+NAME
+    plotly.io
+
+PACKAGE CONTENTS
+    _base_renderers
+    _html
+    _json
+    _kaleido
+    _orca
+    _renderers
+    _sg_scraper
+    _templates
+    _utils
+    base_renderers
+    json
+    kaleido
+    orca
+
+FUNCTIONS
+    from_json(value, output_type='Figure', skip_invalid=False, engine=None)
+        Construct a figure from a JSON string
+
+        Parameters
+        ----------
+        value: str or bytes
+            String or bytes object containing the JSON representation of a figure
+
+        output_type: type or str (default 'Figure')
+            The output figure type or type name.
+            One of:  graph_objs.Figure, 'Figure', graph_objs.FigureWidget, 'FigureWidget'
+
+        skip_invalid: bool (default False)
+            False if invalid figure properties should result in an exception.
+            True if invalid figure properties should be silently ignored.
+
+        engine: str (default None)
+            The JSON decoding engine to use. One of:
+              - if "json", parse JSON using built in json module
+              - if "orjson", parse using the faster orjson module, requires the orjson
+                package
+              - if "auto" use orjson module if available, otherwise use the json module
+
+            If not specified, the default engine is set to the current value of
+            plotly.io.json.config.default_engine.
+
+        Raises
+        ------
+        ValueError
+            if value is not a string, or if skip_invalid=False and value contains
+            invalid figure properties
+
+        Returns
+        -------
+        Figure or FigureWidget
+
+    full_figure_for_development(fig, warn=True, as_dict=False)
+        Compute default values for all attributes not specified in the input figure and
+        returns the output as a "full" figure. This function calls Plotly.js via Kaleido
+        to populate unspecified attributes. This function is intended for interactive use
+        during development to learn more about how Plotly.js computes default values and is
+        not generally necessary or recommended for production use.
+
+        Parameters
+        ----------
+        fig:
+            Figure object or dict representing a figure
+
+        warn: bool
+            If False, suppress warnings about not using this in production.
+
+        as_dict: bool
+            If True, output is a dict with some keys that go.Figure can't parse.
+            If False, output is a go.Figure with unparseable keys skipped.
+
+        Returns
+        -------
+        plotly.graph_objects.Figure or dict
+            The full figure
+
+    read_json(file, output_type='Figure', skip_invalid=False, engine=None)
+        Construct a figure from the JSON contents of a local file or readable
+        Python object
+
+        Parameters
+        ----------
+        file: str or readable
+           A string containing the path to a local file or a read-able Python
+           object (e.g. a pathlib.Path object or an open file descriptor)
+
+        output_type: type or str (default 'Figure')
+            The output figure type or type name.
+            One of:  graph_objs.Figure, 'Figure', graph_objs.FigureWidget, 'FigureWidget'
+
+        skip_invalid: bool (default False)
+            False if invalid figure properties should result in an exception.
+            True if invalid figure properties should be silently ignored.
+
+        engine: str (default None)
+            The JSON decoding engine to use. One of:
+              - if "json", parse JSON using built in json module
+              - if "orjson", parse using the faster orjson module, requires the orjson
+                package
+              - if "auto" use orjson module if available, otherwise use the json module
+
+            If not specified, the default engine is set to the current value of
+            plotly.io.json.config.default_engine.
+
+        Returns
+        -------
+        Figure or FigureWidget
+
+    show(fig, renderer=None, validate=True, **kwargs)
+        Show a figure using either the default renderer(s) or the renderer(s)
+        specified by the renderer argument
+
+        Parameters
+        ----------
+        fig: dict of Figure
+            The Figure object or figure dict to display
+
+        renderer: str or None (default None)
+            A string containing the names of one or more registered renderers
+            (separated by '+' characters) or None.  If None, then the default
+            renderers specified in plotly.io.renderers.default are used.
+
+        validate: bool (default True)
+            True if the figure should be validated before being shown,
+            False otherwise.
+
+        width: int or float
+            An integer or float that determines the number of pixels wide the
+            plot is. The default is set in plotly.js.
+
+        height: int or float
+            An integer or float that determines the number of pixels wide the
+            plot is. The default is set in plotly.js.
+
+        config: dict
+            A dict of parameters to configure the figure. The defaults are set
+            in plotly.js.
+
+        Returns
+        -------
+        None
+
+    to_html(fig, config=None, auto_play=True, include_plotlyjs=True, include_mathjax=False, post_script=None, full_html=True, animation_opts=None, default_width='100%', default_height='100%', validate=True, div_id=None)
+        Convert a figure to an HTML string representation.
+
+        Parameters
+        ----------
+        fig:
+            Figure object or dict representing a figure
+        config: dict or None (default None)
+            Plotly.js figure config options
+        auto_play: bool (default=True)
+            Whether to automatically start the animation sequence on page load
+            if the figure contains frames. Has no effect if the figure does not
+            contain frames.
+        include_plotlyjs: bool or string (default True)
+            Specifies how the plotly.js library is included/loaded in the output
+            div string.
+
+            If True, a script tag containing the plotly.js source code (~3MB)
+            is included in the output.  HTML files generated with this option are
+            fully self-contained and can be used offline.
+
+            If 'cdn', a script tag that references the plotly.js CDN is included
+            in the output. The url used is versioned to match the bundled plotly.js.
+            HTML files generated with this option are about 3MB smaller than those
+            generated with include_plotlyjs=True, but they require an active
+            internet connection in order to load the plotly.js library.
+
+            If 'directory', a script tag is included that references an external
+            plotly.min.js bundle that is assumed to reside in the same
+            directory as the HTML file.
+
+            If a string that ends in '.js', a script tag is included that
+            references the specified path. This approach can be used to point
+            the resulting HTML file to an alternative CDN or local bundle.
+
+            If False, no script tag referencing plotly.js is included. This is
+            useful when the resulting div string will be placed inside an HTML
+            document that already loads plotly.js. This option is not advised
+            when full_html=True as it will result in a non-functional html file.
+        include_mathjax: bool or string (default False)
+            Specifies how the MathJax.js library is included in the output html
+            div string.  MathJax is required in order to display labels
+            with LaTeX typesetting.
+
+            If False, no script tag referencing MathJax.js will be included in the
+            output.
+
+            If 'cdn', a script tag that references a MathJax CDN location will be
+            included in the output.  HTML div strings generated with this option
+            will be able to display LaTeX typesetting as long as internet access
+            is available.
+
+            If a string that ends in '.js', a script tag is included that
+            references the specified path. This approach can be used to point the
+            resulting HTML div string to an alternative CDN.
+        post_script: str or list or None (default None)
+            JavaScript snippet(s) to be included in the resulting div just after
+            plot creation.  The string(s) may include '{plot_id}' placeholders
+            that will then be replaced by the `id` of the div element that the
+            plotly.js figure is associated with.  One application for this script
+            is to install custom plotly.js event handlers.
+        full_html: bool (default True)
+            If True, produce a string containing a complete HTML document
+            starting with an <html> tag.  If False, produce a string containing
+            a single <div> element.
+        animation_opts: dict or None (default None)
+            dict of custom animation parameters to be passed to the function
+            Plotly.animate in Plotly.js. See
+            https://github.com/plotly/plotly.js/blob/master/src/plots/animation_attributes.js
+            for available options. Has no effect if the figure does not contain
+            frames, or auto_play is False.
+        default_width, default_height: number or str (default '100%')
+            The default figure width/height to use if the provided figure does not
+            specify its own layout.width/layout.height property.  May be
+            specified in pixels as an integer (e.g. 500), or as a css width style
+            string (e.g. '500px', '100%').
+        validate: bool (default True)
+            True if the figure should be validated before being converted to
+            JSON, False otherwise.
+        div_id: str (default None)
+            If provided, this is the value of the id attribute of the div tag. If None, the
+            id attribute is a UUID.
+
+        Returns
+        -------
+        str
+            Representation of figure as an HTML div string
+
+    to_image(fig, format=None, width=None, height=None, scale=None, validate=True, engine='auto')
+        Convert a figure to a static image bytes string
+
+        Parameters
+        ----------
+        fig:
+            Figure object or dict representing a figure
+
+        format: str or None
+            The desired image format. One of
+              - 'png'
+              - 'jpg' or 'jpeg'
+              - 'webp'
+              - 'svg'
+              - 'pdf'
+              - 'eps' (Requires the poppler library to be installed and on the PATH)
+
+            If not specified, will default to:
+                 - `plotly.io.kaleido.scope.default_format` if engine is "kaleido"
+                 - `plotly.io.orca.config.default_format` if engine is "orca"
+
+        width: int or None
+            The width of the exported image in layout pixels. If the `scale`
+            property is 1.0, this will also be the width of the exported image
+            in physical pixels.
+
+            If not specified, will default to:
+                 - `plotly.io.kaleido.scope.default_width` if engine is "kaleido"
+                 - `plotly.io.orca.config.default_width` if engine is "orca"
+
+        height: int or None
+            The height of the exported image in layout pixels. If the `scale`
+            property is 1.0, this will also be the height of the exported image
+            in physical pixels.
+
+            If not specified, will default to:
+                 - `plotly.io.kaleido.scope.default_height` if engine is "kaleido"
+                 - `plotly.io.orca.config.default_height` if engine is "orca"
+
+        scale: int or float or None
+            The scale factor to use when exporting the figure. A scale factor
+            larger than 1.0 will increase the image resolution with respect
+            to the figure's layout pixel dimensions. Whereas as scale factor of
+            less than 1.0 will decrease the image resolution.
+
+            If not specified, will default to:
+                 - `plotly.io.kaleido.scope.default_scale` if engine is "kaleido"
+                 - `plotly.io.orca.config.default_scale` if engine is "orca"
+
+
+        validate: bool
+            True if the figure should be validated before being converted to
+            an image, False otherwise.
+
+        engine: str
+            Image export engine to use:
+             - "kaleido": Use Kaleido for image export
+             - "orca": Use Orca for image export
+             - "auto" (default): Use Kaleido if installed, otherwise use orca
+
+        Returns
+        -------
+        bytes
+            The image data
+
+    to_json(fig, validate=True, pretty=False, remove_uids=True, engine=None)
+        Convert a figure to a JSON string representation
+
+        Parameters
+        ----------
+        fig:
+            Figure object or dict representing a figure
+
+        validate: bool (default True)
+            True if the figure should be validated before being converted to
+            JSON, False otherwise.
+
+        pretty: bool (default False)
+            True if JSON representation should be pretty-printed, False if
+            representation should be as compact as possible.
+
+        remove_uids: bool (default True)
+            True if trace UIDs should be omitted from the JSON representation
+
+        engine: str (default None)
+            The JSON encoding engine to use. One of:
+              - "json" for an engine based on the built-in Python json module
+              - "orjson" for a faster engine that requires the orjson package
+              - "auto" for the "orjson" engine if available, otherwise "json"
+            If not specified, the default engine is set to the current value of
+            plotly.io.json.config.default_engine.
+
+        Returns
+        -------
+        str
+            Representation of figure as a JSON string
+
+        See Also
+        --------
+        to_json_plotly : Convert an arbitrary plotly graph_object or Dash component to JSON
+
+    to_templated(fig, skip=('title', 'text'))
+        Return a copy of a figure where all styling properties have been moved
+        into the figure's template.  The template property of the resulting figure
+        may then be used to set the default styling of other figures.
+
+        Parameters
+        ----------
+        fig
+            Figure object or dict representing a figure
+        skip
+            A collection of names of properties to skip when moving properties to
+            the template. Defaults to ('title', 'text') so that the text
+            of figure titles, axis titles, and annotations does not become part of
+            the template
+
+        Examples
+        --------
+        Imports
+
+        >>> import plotly.graph_objs as go
+        >>> import plotly.io as pio
+
+        Construct a figure with large courier text
+
+        >>> fig = go.Figure(layout={'title': 'Figure Title',
+        ...                         'font': {'size': 20, 'family': 'Courier'},
+        ...                         'template':"none"})
+        >>> fig # doctest: +NORMALIZE_WHITESPACE
+        Figure({
+            'data': [],
+            'layout': {'font': {'family': 'Courier', 'size': 20},
+                       'template': '...', 'title': {'text': 'Figure Title'}}
+        })
+
+        Convert to a figure with a template. Note how the 'font' properties have
+        been moved into the template property.
+
+        >>> templated_fig = pio.to_templated(fig)
+        >>> templated_fig.layout.template
+        layout.Template({
+            'layout': {'font': {'family': 'Courier', 'size': 20}}
+        })
+        >>> templated_fig
+        Figure({
+            'data': [], 'layout': {'template': '...', 'title': {'text': 'Figure Title'}}
+        })
+
+
+        Next create a new figure with this template
+
+        >>> fig2 = go.Figure(layout={
+        ...     'title': 'Figure 2 Title',
+        ...     'template': templated_fig.layout.template})
+        >>> fig2.layout.template
+        layout.Template({
+            'layout': {'font': {'family': 'Courier', 'size': 20}}
+        })
+
+        The default font in fig2 will now be size 20 Courier.
+
+        Next, register as a named template...
+
+        >>> pio.templates['large_courier'] = templated_fig.layout.template
+
+        and specify this template by name when constructing a figure.
+
+        >>> go.Figure(layout={
+        ...     'title': 'Figure 3 Title',
+        ...     'template': 'large_courier'}) # doctest: +ELLIPSIS
+        Figure(...)
+
+        Finally, set this as the default template to be applied to all new figures
+
+        >>> pio.templates.default = 'large_courier'
+        >>> fig = go.Figure(layout={'title': 'Figure 4 Title'})
+        >>> fig.layout.template
+        layout.Template({
+            'layout': {'font': {'family': 'Courier', 'size': 20}}
+        })
+
+        Returns
+        -------
+        go.Figure
+
+    write_html(fig, file, config=None, auto_play=True, include_plotlyjs=True, include_mathjax=False, post_script=None, full_html=True, animation_opts=None, validate=True, default_width='100%', default_height='100%', auto_open=False, div_id=None)
+        Write a figure to an HTML file representation
+
+        Parameters
+        ----------
+        fig:
+            Figure object or dict representing a figure
+        file: str or writeable
+            A string representing a local file path or a writeable object
+            (e.g. a pathlib.Path object or an open file descriptor)
+        config: dict or None (default None)
+            Plotly.js figure config options
+        auto_play: bool (default=True)
+            Whether to automatically start the animation sequence on page load
+            if the figure contains frames. Has no effect if the figure does not
+            contain frames.
+        include_plotlyjs: bool or string (default True)
+            Specifies how the plotly.js library is included/loaded in the output
+            div string.
+
+            If True, a script tag containing the plotly.js source code (~3MB)
+            is included in the output.  HTML files generated with this option are
+            fully self-contained and can be used offline.
+
+            If 'cdn', a script tag that references the plotly.js CDN is included
+            in the output. The url used is versioned to match the bundled plotly.js.
+            HTML files generated with this option are about 3MB smaller than those
+            generated with include_plotlyjs=True, but they require an active
+            internet connection in order to load the plotly.js library.
+
+            If 'directory', a script tag is included that references an external
+            plotly.min.js bundle that is assumed to reside in the same
+            directory as the HTML file.  If `file` is a string to a local file
+            path and `full_html` is True, then the plotly.min.js bundle is copied
+            into the directory of the resulting HTML file. If a file named
+            plotly.min.js already exists in the output directory then this file
+            is left unmodified and no copy is performed. HTML files generated
+            with this option can be used offline, but they require a copy of
+            the plotly.min.js bundle in the same directory. This option is
+            useful when many figures will be saved as HTML files in the same
+            directory because the plotly.js source code will be included only
+            once per output directory, rather than once per output file.
+
+            If a string that ends in '.js', a script tag is included that
+            references the specified path. This approach can be used to point
+            the resulting HTML file to an alternative CDN or local bundle.
+
+            If False, no script tag referencing plotly.js is included. This is
+            useful when the resulting div string will be placed inside an HTML
+            document that already loads plotly.js.  This option is not advised
+            when full_html=True as it will result in a non-functional html file.
+
+        include_mathjax: bool or string (default False)
+            Specifies how the MathJax.js library is included in the output html
+            div string.  MathJax is required in order to display labels
+            with LaTeX typesetting.
+
+            If False, no script tag referencing MathJax.js will be included in the
+            output.
+
+            If 'cdn', a script tag that references a MathJax CDN location will be
+            included in the output.  HTML div strings generated with this option
+            will be able to display LaTeX typesetting as long as internet access
+            is available.
+
+            If a string that ends in '.js', a script tag is included that
+            references the specified path. This approach can be used to point the
+            resulting HTML div string to an alternative CDN.
+        post_script: str or list or None (default None)
+            JavaScript snippet(s) to be included in the resulting div just after
+            plot creation.  The string(s) may include '{plot_id}' placeholders
+            that will then be replaced by the `id` of the div element that the
+            plotly.js figure is associated with.  One application for this script
+            is to install custom plotly.js event handlers.
+        full_html: bool (default True)
+            If True, produce a string containing a complete HTML document
+            starting with an <html> tag.  If False, produce a string containing
+            a single <div> element.
+        animation_opts: dict or None (default None)
+            dict of custom animation parameters to be passed to the function
+            Plotly.animate in Plotly.js. See
+            https://github.com/plotly/plotly.js/blob/master/src/plots/animation_attributes.js
+            for available options. Has no effect if the figure does not contain
+            frames, or auto_play is False.
+        default_width, default_height: number or str (default '100%')
+            The default figure width/height to use if the provided figure does not
+            specify its own layout.width/layout.height property.  May be
+            specified in pixels as an integer (e.g. 500), or as a css width style
+            string (e.g. '500px', '100%').
+        validate: bool (default True)
+            True if the figure should be validated before being converted to
+            JSON, False otherwise.
+        auto_open: bool (default True)
+            If True, open the saved file in a web browser after saving.
+            This argument only applies if `full_html` is True.
+        div_id: str (default None)
+            If provided, this is the value of the id attribute of the div tag. If None, the
+            id attribute is a UUID.
+
+        Returns
+        -------
+        str
+            Representation of figure as an HTML div string
+
+    write_image(fig, file, format=None, scale=None, width=None, height=None, validate=True, engine='auto')
+        Convert a figure to a static image and write it to a file or writeable
+        object
+
+        Parameters
+        ----------
+        fig:
+            Figure object or dict representing a figure
+
+        file: str or writeable
+            A string representing a local file path or a writeable object
+            (e.g. a pathlib.Path object or an open file descriptor)
+
+        format: str or None
+            The desired image format. One of
+              - 'png'
+              - 'jpg' or 'jpeg'
+              - 'webp'
+              - 'svg'
+              - 'pdf'
+              - 'eps' (Requires the poppler library to be installed and on the PATH)
+
+            If not specified and `file` is a string then this will default to the
+            file extension. If not specified and `file` is not a string then this
+            will default to:
+                - `plotly.io.kaleido.scope.default_format` if engine is "kaleido"
+                - `plotly.io.orca.config.default_format` if engine is "orca"
+
+        width: int or None
+            The width of the exported image in layout pixels. If the `scale`
+            property is 1.0, this will also be the width of the exported image
+            in physical pixels.
+
+            If not specified, will default to:
+                - `plotly.io.kaleido.scope.default_width` if engine is "kaleido"
+                - `plotly.io.orca.config.default_width` if engine is "orca"
+
+        height: int or None
+            The height of the exported image in layout pixels. If the `scale`
+            property is 1.0, this will also be the height of the exported image
+            in physical pixels.
+
+            If not specified, will default to:
+                - `plotly.io.kaleido.scope.default_height` if engine is "kaleido"
+                - `plotly.io.orca.config.default_height` if engine is "orca"
+
+        scale: int or float or None
+            The scale factor to use when exporting the figure. A scale factor
+            larger than 1.0 will increase the image resolution with respect
+            to the figure's layout pixel dimensions. Whereas as scale factor of
+            less than 1.0 will decrease the image resolution.
+
+            If not specified, will default to:
+                - `plotly.io.kaleido.scope.default_scale` if engine is "kaleido"
+                - `plotly.io.orca.config.default_scale` if engine is "orca"
+
+        validate: bool
+            True if the figure should be validated before being converted to
+            an image, False otherwise.
+
+        engine: str
+            Image export engine to use:
+             - "kaleido": Use Kaleido for image export
+             - "orca": Use Orca for image export
+             - "auto" (default): Use Kaleido if installed, otherwise use orca
+
+        Returns
+        -------
+        None
+
+    write_json(fig, file, validate=True, pretty=False, remove_uids=True, engine=None)
+        Convert a figure to JSON and write it to a file or writeable
+        object
+
+        Parameters
+        ----------
+        fig:
+            Figure object or dict representing a figure
+
+        file: str or writeable
+            A string representing a local file path or a writeable object
+            (e.g. a pathlib.Path object or an open file descriptor)
+
+        pretty: bool (default False)
+            True if JSON representation should be pretty-printed, False if
+            representation should be as compact as possible.
+
+        remove_uids: bool (default True)
+            True if trace UIDs should be omitted from the JSON representation
+
+        engine: str (default None)
+            The JSON encoding engine to use. One of:
+              - "json" for an engine based on the built-in Python json module
+              - "orjson" for a faster engine that requires the orjson package
+              - "auto" for the "orjson" engine if available, otherwise "json"
+            If not specified, the default engine is set to the current value of
+            plotly.io.json.config.default_engine.
+        Returns
+        -------
+        None
+
+DATA
+    renderers = Renderers configuration
+    -----------------------
+    ...nected'...
+    templates = Templates configuration
+    -----------------------
+    ...gridoff...
+
+FILE
+    /home/danbolser/Work/nomaly-disease-browser/.venv/lib/python3.12/site-packages/plotly/io/__init__.py
+
+
+None

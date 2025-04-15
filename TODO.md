@@ -1,9 +1,13 @@
 
+# Things TODO
+
+## DAN'S SPRINT
+
+- [] Sex matched stats for All.
+- [] Bonferoni correction (and friends).
 
 
 ## Migration plan
-
-
 
 1. **Data Services First**
 ```python
@@ -64,6 +68,41 @@ This order minimizes disruption because:
 3. Can roll back easily
 4. Testing remains straightforward
 5. Users see minimal disruption
+
+
+### More on migration to data services
+
+#### variant prioritization blueprint
+
+Below is an analysis of the current version of blueprints/prioritisation_by_nomaly_scores.py:
+
+1. Data Service Interfaces in Use  
+   • The pipeline does call methods on injected service objects in get_top_variants. For example, it calls:
+  – phenotype_service.get_cases_for_phecode(phecode, population, biological_sex) to get phenotype data  
+  – nomaly_scores_service.get_scores_by_eids_unsorted(...) to obtain Nomaly scores  
+  – stats_service.get_stats_by_term_phecode(...) to fetch statistics  
+  – genotype_service.get_genotypes (wrapped in read_nomaly_filtered_genotypes_new) to load genotype data  
+   These calls adhere to the “data service” interface pattern.
+
+2. Areas Bypassing the Data Service Interface  
+   • Variant scores and variant–gene mapping are loaded directly via pandas from hard-coded file paths. Near the top of the file the code does:  
+  variant_scores = pd.read_csv("/data/clu/ukbb/genotype_counts_with_vs.tsv", …)  
+  and  
+  variant2gene = pd.read_csv("/data/clu/ukbb/variant2gene.tsv", …)  
+   This is not using a dedicated data service interface (as hinted by the TODO comment “Move to a new variant scores (or 'nomaly_data') data service?”).
+
+   • The term variants are retrieved by calling get_term_variants(term) which is imported directly from the db module. This direct database call means that the variant lookup bypasses any wrapper service interface.
+
+   • There is also a function read_cases_for_disease_code (which reads a pickle file from a configured directory using Config.UKBB_PHENO_DIR) and a TODO noting “Switch to the phenotype service here!” Although get_top_variants uses phenotype_service.get_cases_for_phecode instead, the existence of read_cases_for_disease_code shows an instance where data is fetched directly from the filesystem.
+
+   • The caching functions (get_cache_path, load_cached_results, and save_results_to_cache) interact directly with the filesystem (reading and writing JSON files) instead of through a dedicated data service.
+
+In summary, while the core parts of the pipeline that fetch phenotype, Nomaly scores, statistics, and genotypes do use the injected data service interfaces, the pipeline still bypasses these interfaces in several places:
+ – It loads variant scores and variant–gene mappings directly from hard-coded file paths instead of via a service.
+ – It retrieves term variants via a direct DB call (get_term_variants) rather than through a dedicated service.
+ – The caching and (legacy) case data reading (read_cases_for_disease_code) are done by direct file I/O.
+
+This mixed approach indicates that although many core data queries use the service interfaces, some parts of the data (especially regarding variants and caching) are still being fetched directly.
 
 
 ### More on Task Services...

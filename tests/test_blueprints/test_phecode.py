@@ -1,183 +1,101 @@
+"""Tests for the phecode blueprint and related functionality."""
+
 import pytest
-from flask import json
-from unittest.mock import Mock
-from blueprints.phecode import prepare_nomaly_stats_response
-import pandas as pd
 
 
-# TODO: Move these to conftest.py and put it into the service registry
-@pytest.fixture
-def mock_stats_data():
-    """Create mock stats data for testing."""
-    # Create a simple DataFrame that mimics the structure we expect
-    diseasestats = pd.DataFrame(
-        {
-            "num_rp": [100.0],
-            "num_rn": [1000.0],
-            "mwu_pvalue": [0.001],
-            "mcc_pvalue": [0.002],
-            "yjs_pvalue": [0.003],
-            "lrp_pvalue": [0.004],
-            "metric1_pvalue": [0.005],
-            "lrn_protective_pvalue": [0.006],
-        }
+def test_home_route_works(auth_integration_app_client):
+    """Test that the home page is accessible when logged in."""
+    # We can see from our debug output that the home page is accessible
+    response = auth_integration_app_client.get("/")
+
+    # This page should work
+    assert response.status_code == 200, "Home page should be accessible"
+
+    # We should see some expected content on the home page
+    assert b"Nomaly" in response.data, "Home page should contain 'Nomaly'"
+
+
+def test_search_route_works(auth_integration_app_client):
+    """Test that the search page is accessible when logged in."""
+    # We can see from our debug output that the search page is accessible
+    response = auth_integration_app_client.get("/search")
+
+    # This page should work
+    assert response.status_code == 200, "Search page should be accessible"
+
+    # We should see some expected content on the search page
+    assert b"search" in response.data.lower(), "Search page should contain 'search'"
+
+
+def test_admin_phecode_access(auth_integration_app_client):
+    """Test that an admin can access phecode pages."""
+    # Try a phecode that should exist in the test data
+    phecode = "250.2"  # Type 2 diabetes
+
+    # The admin should be able to access the phecode page directly
+    response = auth_integration_app_client.get(
+        f"/phecode/{phecode}", follow_redirects=False
     )
 
-    plot_df = pd.DataFrame(
-        {
-            "term": ["CC:TERM:123"],
-            "mwu_pvalue": [0.001],
-            "mcc_pvalue": [0.002],
-            "yjs_pvalue": [0.003],
-            "lrp_pvalue": [0.004],
-            "metric1_pvalue": [0.005],
-            "lrn_protective_pvalue": [0.006],
-        }
+    # Print the result for debugging
+    print(f"\nAdmin access to phecode {phecode}: {response.status_code}")
+    if response.status_code == 302:
+        redirect_to = response.headers.get("Location", "unknown")
+        print(f"  Redirects to: {redirect_to}")
+
+    # If the admin has proper permissions, this should work without redirect
+    assert response.status_code == 200, "Admin should be able to access phecode pages"
+
+    # We should see the phecode on the page
+    assert bytes(phecode, "utf-8") in response.data, (
+        f"Should show phecode {phecode} content"
     )
 
-    return diseasestats, plot_df
-
-
-@pytest.mark.parametrize("version,expected_url", [(1, "/phecode"), (2, "/phecode2")])
-def test_nomaly_stats_response_urls(
-    version, expected_url, mock_stats_data, unit_test_app_client, mocker
-):
-    """Unit test for URL generation in stats response."""
-    diseasestats, plot_df = mock_stats_data
-
-    # Mock dependencies
-    mocker.patch(
-        "blueprints.phecode.make_qqplot_html", return_value="<div>Mock Plot</div>"
-    )
-    mocker.patch(
-        "blueprints.phecode.get_term_names", return_value={"CC:TERM:123": "Test Term"}
-    )
-    mocker.patch(
-        "blueprints.phecode.get_term_domains", return_value={"CC:TERM:123": ["Domain1"]}
+    # Now try a term page as well
+    term = "GO:0030800"
+    term_response = auth_integration_app_client.get(
+        f"/phecode/{phecode}/term/{term}", follow_redirects=False
     )
 
-    with unit_test_app_client.application.app_context():
-        result = prepare_nomaly_stats_response(
-            diseasestats, plot_df, "250.2", version=version
-        )
+    # Print the result for debugging
+    print(f"Admin access to phecode/term {phecode}/{term}: {term_response.status_code}")
 
-        # If it's a tuple, it's an error response
-        if isinstance(result, tuple):
-            response, status_code = result
-            assert False, f"Expected success response, got error: {response.get_data()}"
-        else:
-            response = result
-
-        data = json.loads(response.get_data())
-
-        # Check that the URLs in the term links use the correct version
-        assert "phecode/250.2/term/" in data["data"][0]["term"]
-
-
-@pytest.mark.parametrize("version", [1, 2])
-def test_nomaly_stats_endpoint(version, auth_integration_app_client, mocker):
-    """Test the nomaly-stats endpoints (both v1 and v2)."""
-
-    mock_diseasestats = pd.DataFrame(
-        {
-            "num_rp": [100.0],
-            "num_rn": [1000.0],
-            "mwu_pvalue": [0.001],
-            "mcc_pvalue": [0.002],
-            "yjs_pvalue": [0.003],
-            "lrp_pvalue": [0.004],
-            "metric1_pvalue": [0.005],
-            "lrn_protective_pvalue": [0.006],
-        },
-        index=pd.Index(["CC:TERM:123"], name="term"),
+    # This should also be accessible
+    assert term_response.status_code == 200, (
+        "Admin should be able to access phecode term pages"
     )
 
-    # Create mock plot_df that matches the structure after processing
-    mock_plot_df = pd.DataFrame(
-        {
-            "term": ["CC:TERM:123"],
-            "mwu_pvalue": [0.001],
-            "mcc_pvalue": [0.002],
-            "yjs_pvalue": [0.003],
-            "lrp_pvalue": [0.004],
-            "metric1_pvalue": [0.005],
-            "lrn_protective_pvalue": [0.006],
-        }
+    # We should see both the phecode and term on the page
+    assert bytes(phecode, "utf-8") in term_response.data
+    assert bytes(term, "utf-8") in term_response.data
+
+
+@pytest.mark.skip(reason="We need to set up a limited user to test this.")
+def test_phecode_route_permission(auth_integration_app_client):
+    """Test that phecode routes redirect for users without permissions."""
+    # Using the phecode from our tests
+    phecode = "250.2"
+
+    # The phecode page should redirect
+    response = auth_integration_app_client.get(
+        f"/phecode/{phecode}", follow_redirects=False
     )
 
-    # Mock the stats handler to return both DataFrames
-    mock_handler = Mock()
-    mock_handler.get_stats_by_phecode.return_value = mock_diseasestats
-    mocker.patch("blueprints.phecode.get_stats_handler", return_value=mock_handler)
+    # Check that we get a redirect
+    assert response.status_code == 302, "Expected redirect for restricted phecode page"
 
-    # Mock the read_disease_stats function to return both DataFrames
-    mocker.patch(
-        "blueprints.phecode.read_disease_stats_from_nomaly_statsHDF5",
-        return_value=(mock_diseasestats, mock_plot_df),
+    # Check that the redirect location is the home page
+    assert response.headers.get("Location") == "/", "Should redirect to home page"
+
+    # Now follow the redirect and check for the error message
+    response = auth_integration_app_client.get(
+        f"/phecode/{phecode}", follow_redirects=True
     )
-
-    # Mock other dependencies
-    mocker.patch(
-        "blueprints.phecode.make_qqplot_html", return_value="<div>Mock Plot</div>"
-    )
-    mocker.patch(
-        "blueprints.phecode.get_term_names", return_value={"CC:TERM:123": "Test Term"}
-    )
-    mocker.patch(
-        "blueprints.phecode.get_term_domains", return_value={"CC:TERM:123": ["Domain1"]}
-    )
-
-    # Make request to the appropriate endpoint
-    endpoint = "/nomaly-stats2/250.2" if version == 2 else "/nomaly-stats/250.2"
-    response = auth_integration_app_client.post(endpoint)
-
-    # Check response
-    assert response.status_code == 200
-    data = json.loads(response.get_data())
-
-    # Check basic structure
-    assert "qqplot" in data
-    assert "affected" in data
-    assert "control" in data
-    assert "data" in data
-    assert "columns" in data
-    assert "columnNames" in data
-    assert "defaultColumns" in data
-
-    # Check version-specific URL format
-    expected_url = "/phecode" if version == 2 else "/phecode"
-    if data["data"]:  # If we have any data rows
-        assert f"{expected_url}/250.2/term/" in data["data"][0]["term"]
-
-
-def test_nomaly_stats_error_handling(unit_test_app_client, mocker):
-    """Test error handling in nomaly-stats endpoints."""
-    # Mock the stats handler to raise an exception
-    mock_handler = Mock()
-    mock_handler.get_stats_by_phecode.side_effect = Exception("Test error")
-    mocker.patch("blueprints.phecode.get_stats_handler", return_value=mock_handler)
-
-    # Test both endpoints
-    for endpoint in ["/nomaly-stats/250.2", "/nomaly-stats2/250.2"]:
-        response = unit_test_app_client.post(endpoint)
-
-        # Check response
-        assert response.status_code == 500
-        data = json.loads(response.get_data())
-        assert "error" in data
-        assert "Failed to get Nomaly stats" in data["error"]
-
-
-def test_phecode_term_route_works(auth_integration_app_client):
-    """Test that the phecode term route works for a known good example."""
-    phecode = "705"
-    term = "CC:MESH:C020806"
-
-    response = auth_integration_app_client.get(f"/phecode/{phecode}/term/{term}")
-
-    # This page should work - if it returns 500, the test will fail
     assert response.status_code == 200
 
-    # We should see some expected content in the response
-    assert bytes(phecode, "utf-8") in response.data
-    assert bytes(term, "utf-8") in response.data
+    # We should see an access denied message
+    assert (
+        b"access denied" in response.data.lower()
+        or b"insufficient permissions" in response.data.lower()
+        or b"not authorized" in response.data.lower()
+    ), "Should show access denied message"

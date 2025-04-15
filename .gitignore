@@ -1,6 +1,7 @@
 __pycache__
 .env*
 .venv
+.venv*
 flask_session/*
 logs/*
 .aider*

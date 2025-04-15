@@ -1,81 +1,63 @@
-import os
-from typing import Dict, List
-import logging
 import json
-from datetime import datetime
+import logging
+from pathlib import Path
+from typing import Dict, List
 
 from config import Config
 
+
+class CacheMiss(Exception):
+    """Exception raised when cache miss occurs."""
+
+    pass
+
+
 logger = logging.getLogger(__name__)
 
-PHECODE_TERM_DIR = Config.PHECODE_TERM_DIR
+PHECODE_TERM_DIR: Path = Config.PHECODE_TERM_DIR
 
 
-def ensure_cache_dir():
-    """Ensure cache directory exists"""
-    os.makedirs(PHECODE_TERM_DIR, exist_ok=True)
+def get_cache_path(phecode: str, term: str, ancestry: str) -> Path:
+    """Get cache path."""
+    return PHECODE_TERM_DIR / f"ancestry_{ancestry}_phecode_{phecode}_term_{term}.json"
 
 
-def get_cache_path(phecode: str, term: str) -> str:
-    """Get path for cached results"""
-    return os.path.join(PHECODE_TERM_DIR, f"phecode_{phecode}_term_{term}.json")
+def load_cache_results(phecode: str, term: str, ancestry: str) -> Dict:
+    """Load results from cache."""
 
+    cache_path = get_cache_path(phecode, term, ancestry)
+    logger.debug(f"Checking cache at: {cache_path}")
 
-def delete_cache(phecode: str, term: str) -> bool:
-    """Delete cached results if they exist"""
-    cache_path = get_cache_path(phecode, term)
-    if os.path.exists(cache_path):
-        try:
-            os.remove(cache_path)
-            logger.info(f"Deleted cache for phecode {phecode}, term {term}")
-            return True
-        except Exception as e:
-            logger.error(f"Error deleting cache: {e}")
-    return False
-
-
-def load_cached_results(phecode: str, term: str, flush: bool = False) -> Dict | None:
-    """Load cached results if they exist and flush is not requested"""
-    if flush:
-        logger.info(f"Flush requested for phecode {phecode}, term {term}")
-        delete_cache(phecode, term)
-        return None
-
-    cache_path = get_cache_path(phecode, term)
-    logger.info(f"Checking cache at: {cache_path}")
-
-    if os.path.exists(cache_path):
+    if cache_path.exists():
         try:
             with open(cache_path, "r") as f:
                 cached_data = json.load(f)
-            logger.info(f"Successfully loaded cache for phecode {phecode}, term {term}")
             return cached_data
         except Exception as e:
-            logger.error(f"Error loading cached results: {e}")
-            # If there's an error reading the cache, delete it
-            delete_cache(phecode, term)
-            return None
+            raise Exception(f"Error loading cached results: {e}")
 
-    logger.info(f"No cache file found at {cache_path}")
-    return None
+    logger.info(f"No cache found at {cache_path}")
+    raise CacheMiss(f"No cache found at {cache_path}")
 
 
-def save_results(phecode: str, term: str, data: List[Dict]):
-    """Save results to cache"""
-    ensure_cache_dir()
-    cache_path = get_cache_path(phecode, term)
+def save_cache_results(phecode: str, term: str, ancestry: str, data: List[Dict]):
+    """Save results to cache."""
+
+    cache_path = get_cache_path(phecode, term, ancestry)
     try:
         with open(cache_path, "w") as f:
             json.dump(
                 {
-                    "timestamp": datetime.now().isoformat(),
                     "phecode": phecode,
                     "term": term,
+                    "ancestry": ancestry,
                     "data": data,
                 },
                 f,
                 indent=2,
             )
-        logger.info(f"Saved results to cache for phecode {phecode}, term {term}")
+        logger.info(
+            f"Saved results to cache for phecode {phecode}, term {term}, ancestry {ancestry}"
+        )
     except Exception as e:
         logger.error(f"Error saving results to cache: {e}")

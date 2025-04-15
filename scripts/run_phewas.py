@@ -1,5 +1,7 @@
 """Production CLI for PheWAS analysis."""
 
+
+# TODO: Don't use the app, get the services via config!
 import click
 from app import create_app
 

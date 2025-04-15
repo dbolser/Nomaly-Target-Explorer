@@ -6,7 +6,7 @@
 <div class="row justify-content-center">
     <div class="col-md-6">
         <h2>Login</h2>
-        <form method="POST" action="{{ url_for('login') }}">
+        <form method="POST" action="{{ url_for('login', next=next) if next else url_for('login') }}">
             <div class="mb-3">
                 <label for="username" class="form-label">Username</label>
                 <input type="text" class="form-control" id="username" name="username" required>
@@ -15,6 +15,9 @@
                 <label for="password" class="form-label">Password</label>
                 <input type="password" class="form-control" id="password" name="password" required>
             </div>
+            {% if next %}
+            <input type="hidden" name="next" value="{{ next }}">
+            {% endif %}
             <button type="submit" class="btn btn-primary">Login</button>
         </form>
     </div>

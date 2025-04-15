@@ -1,16 +1,16 @@
-from unittest.mock import patch, MagicMock
-import pytest
-from werkzeug.security import generate_password_hash
-import numpy as np
-import h5py
+import os
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
+
+import h5py
+import numpy as np
+import pandas as pd
+import pytest
+from werkzeug.security import generate_password_hash
 
 from app import create_app
-from data_services.registry import ServiceRegistry
 from db import get_db_connection
-import os
-
 
 """ Our lovely fixtures:
 
@@ -18,7 +18,7 @@ test_app (session scope)
 └── unit_test_app
     ├── mock_genotype_hdf5_file (session scope)
     │   └── mock_genotype_hdf5_file_with_npy
-    ├── mock_phenotype_file
+    ├── mock_phenotype_hdf5_file
     └── unit_test_app_client
 
 integration_app (session scope)
@@ -29,7 +29,7 @@ integration_app (session scope)
 
 TODOs for later cleanup:
 1. The genotype fixture's matrix shape looks wrong (5x4 instead of 4x5 - variants should be columns)
-2. Some fixture names are inconsistent (`mock_genotype_hdf5_file` vs `mock_phenotype_file`)
+2. Some fixture names are inconsistent (`mock_genotype_hdf5_file` vs `mock_phenotype_hdf5_file`)
 3. The test hierarchy comment could live in a proper docstring at the top of `conftest.py`
 4. `test_tests.py` has some commented-out assertions that should be cleaned up
 5. Integration tests could use better documentation about what real data they expect
@@ -44,15 +44,19 @@ But for now, let's add the integration test and call it a day! Would you like me
 @pytest.fixture(scope="session")
 def test_app():
     """Base Flask app for all tests with common configuration."""
-    _app = create_app()  # NOTE: Services get create as normal here!
-    _app.config.update(
-        {
-            "TESTING": True,
-            "SERVER_NAME": "localhost.localdomain",
-            "PREFERRED_URL_SCHEME": "http",
-            "APPLICATION_ROOT": "/",
-        }
-    )
+    # Override the environment to use TestingConfig
+    os.environ["FLASK_ENV"] = "testing"
+    
+    # Create app with testing config
+    _app = create_app("testing")
+    
+    # Additional test-specific configuration
+    _app.config.update({
+        "SERVER_NAME": "localhost.localdomain",
+        "PREFERRED_URL_SCHEME": "http",
+        "APPLICATION_ROOT": "/",
+    })
+    
     return _app
 
 
@@ -63,26 +67,35 @@ def mock_genotype_hdf5_file():
         with h5py.File(f.name, "w") as hdf:
             # Add test individuals (using all 4 to cover both cases)
             eids = np.array([1001, 1002, 1003, 1004])
-            hdf.create_dataset("fam", data=eids)
+            hdf.create_dataset("eid", data=eids)
 
-            biological_sex = np.array(["M", "F", "M", "F"], dtype=np.string_)
-            hdf.create_dataset("sex", data=biological_sex)
+            individual_sex = np.array(["M", "F", "M", "F"], dtype=np.bytes_)
+            hdf.create_dataset("sex", data=individual_sex)
 
-            ancestry = np.array(["EUR", "EUR", "EUR", "SAS"], dtype=np.string_)
+            ancestry = np.array(["EUR", "EUR", "EUR", "SAS"], dtype=np.bytes_)
             hdf.create_dataset("ancestry", data=ancestry)
 
-            # Add test variants (combining both sets)
-            bim = np.array(
+            ref = np.array(
                 [
-                    b"1:100:A:T",
-                    b"2:200:C:G",
-                    b"1:186977737:A:G",
-                    b"1:186977780:A:G",
-                    b"1:46813503:C:T",
+                    b"A",
+                    b"C",
+                    b"A",
+                    b"A",
+                    b"C",
                 ]
             )
-            hdf.create_dataset("bim", data=bim)
-            hdf.create_dataset("genotype_variant_id", data=bim)
+            alt = np.array(
+                [
+                    b"T",
+                    b"G",
+                    b"G",
+                    b"A",
+                    b"T",
+                ]
+            )
+
+            hdf.create_dataset("REF", data=ref)
+            hdf.create_dataset("ALT", data=alt)
 
             plink_variant_id = np.array(
                 [
@@ -107,6 +120,17 @@ def mock_genotype_hdf5_file():
             )
             hdf.create_dataset("nomaly_variant_id", data=nomaly_variant_id)
 
+            rsIDs = np.array(
+                [
+                    b"rs123456789",
+                    b"rs123456790",
+                    b"rs123456791",
+                    b"rs123456792",
+                    b"Missing",
+                ]
+            )
+            hdf.create_dataset("rsID", data=rsIDs)
+
             # Add test genotypes (4 individuals x 5 variants)
             # Combining both matrices and ensuring consistent patterns
             genotypes = np.array(
@@ -118,9 +142,9 @@ def mock_genotype_hdf5_file():
                     [0, 1, 0, 2],  # Variant 5
                 ]
             )
-            hdf.create_dataset("genotype_matrix", data=genotypes)
+            hdf.create_dataset("genotypes", data=genotypes)
 
-    yield f.name
+    yield Path(f.name)
     Path(f.name).unlink()  # Clean up after tests
 
 
@@ -129,19 +153,19 @@ def mock_genotype_hdf5_file_with_npy(mock_genotype_hdf5_file):
     """The current implementation of GenotypesHDF5 requires a .npy file to be
     present 'next to' the HDF5 file. This fixture creates that .npy file."""
     with h5py.File(mock_genotype_hdf5_file, "r") as f:
-        matrix = f["genotype_matrix"]
+        matrix = f["genotypes"]
         assert isinstance(matrix, h5py.Dataset)
         np_matrix = matrix[:]
-        np.save(f"{mock_genotype_hdf5_file}.npy", np_matrix)
+        np.save(mock_genotype_hdf5_file.with_suffix(".npy"), np_matrix)
         yield mock_genotype_hdf5_file
-        os.unlink(f"{mock_genotype_hdf5_file}.npy")
+        os.unlink(mock_genotype_hdf5_file.with_suffix(".npy"))
 
 
 @pytest.fixture
-def mock_phenotype_file():
+def mock_phenotype_hdf5_file():
     """Create a temporary mock HDF5 file with test phenotype data."""
     with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
-        with h5py.File(tmp.name, "w") as f:
+        with h5py.File(Path(tmp.name), "w") as f:
             # Create required datasets
 
             # Phenotype matrix: columns are eids rows are phecodes,
@@ -150,10 +174,10 @@ def mock_phenotype_file():
                 "phenotype_data",
                 data=np.array(
                     [
-                        [9, 1, 0, 1],  # M
-                        [0, 0, 1, 0],  # F
-                        [1, 9, 0, 1],  # M
-                        [0, 1, 0, 0],  # F
+                        [9, 1, 0, 1, 9],  # M
+                        [0, 0, 1, 0, 1],  # F
+                        [1, 9, 0, 1, 9],  # M
+                        [0, 1, 0, 0, 1],  # F
                     ],
                     dtype=np.int8,
                 ),
@@ -174,47 +198,335 @@ def mock_phenotype_file():
             f.create_dataset(
                 "phecodes",
                 # Diabetes, Hypertension, Female-specific, Male-specific
-                data=np.array([b"250.2", b"401.1", b"635.2", b"601.1"]),
+                data=np.array([b"250.2", b"401.1", b"635.2", b"601.1", b"571.5"]),
             )
 
             # Affected sex labels
-            f.create_dataset("phecode_sex", data=np.array([b"B", b"B", b"F", b"M"]))
+            f.create_dataset(
+                "phecode_sex", data=np.array([b"B", b"B", b"F", b"M", b"B"])
+            )
 
-        yield tmp.name
+        yield Path(tmp.name)
 
 
 @pytest.fixture
-def unit_test_app(test_app, mock_genotype_hdf5_file_with_npy, mock_phenotype_file):
+def unit_test_app(
+    test_app,
+    phenotype_service,
+    genotype_service,
+    nomaly_scores_service,
+    nomaly_data_service,
+    stats_registry,
+):
     """App configured for unit tests with mocked services."""
 
-    test_app.config["LOGIN_DISABLED"] = True
+    # Override config for testing
+    test_app.config.update(
+        {
+            "LOGIN_DISABLED": True,
+        }
+    )
 
     with test_app.app_context():
-        from data_services.genotype import GenotypeService
-        from data_services.phenotype import PhenotypeService
+        from data_services.registry import ServiceRegistry
 
-        from data_services.stats import StatsService
-        from data_services.nomaly_score import NomalyScoreService
-
-        # Create test services
+        # Create test services registry with our mock services
         services = ServiceRegistry()
 
-        services.genotype = GenotypeService(mock_genotype_hdf5_file_with_npy)
-        services.phenotype = PhenotypeService(mock_phenotype_file)
+        # Use our mock services instead of creating new ones
+        services.genotype = genotype_service
+        services.phenotype = phenotype_service
+        services.nomaly_score = nomaly_scores_service
+        services.nomaly_data = nomaly_data_service
 
-        # TODO: Mock these out using fixtures from specific tests.
-        services.stats = MagicMock()
-        services.stats_v2 = MagicMock()
-        services.nomaly_score = MagicMock()
+        services.stats_registry = stats_registry
 
+        # Register the services with the app
         test_app.extensions["nomaly_services"] = services
 
         yield test_app
 
 
 @pytest.fixture
-def phenotype_service(unit_test_app):
-    return unit_test_app.extensions["nomaly_services"].phenotype._hdf
+def phenotype_service(mock_phenotype_hdf5_file):
+    """Mock phenotype service for unit tests."""
+    from data_services.phenotype import PhenotypeService
+
+    # Create a real PhenotypeService instance with our mock file
+    service = PhenotypeService(mock_phenotype_hdf5_file)
+
+    return service
+
+
+@pytest.fixture
+def genotype_service(mock_genotype_hdf5_file_with_npy):
+    """Mock genotype service for unit tests."""
+    from data_services.genotype import GenotypeService
+
+    # Create a real GenotypeService instance with our mock file
+    service = GenotypeService(mock_genotype_hdf5_file_with_npy)
+
+    return service
+
+
+@pytest.fixture
+def mock_stats_hdf5_file():
+    """Create a temporary mock HDF5 file with test stats data."""
+    with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
+        with h5py.File(tmp.name, "w") as f:
+            # Define our test data
+            # The stats are stored in a 3D array: (term, phecode, stat_type)
+
+            # Define the terms we support
+            terms = np.array([b"GO:0030800", b"MP:0005179", b"GO:0006915", b"TEST:001"])
+
+            # Define the phecodes we support
+            phecodes = np.array([b"250.2", b"290.11", b"401.1", b"635.2", b"571.5"])
+
+            # Define the stat types
+            stats_types = np.array(
+                [
+                    b"num_rp",
+                    b"num_rn",
+                    b"metric1_pvalue",
+                    b"metric1_tp",
+                    b"metric1_tn",
+                    b"metric1_fp",
+                    b"metric1_fn",
+                    b"metric1_threshold",
+                    b"roc_stats_mcc_pvalue",
+                    b"roc_stats_mcc_or",
+                    b"roc_stats_mcc_threshold",
+                    b"roc_stats_mcc_tp",
+                    b"roc_stats_mcc_tn",
+                    b"roc_stats_mcc_fp",
+                    b"roc_stats_mcc_fn",
+                    b"roc_stats_yjs_pvalue",
+                    b"roc_stats_yjs_or",
+                    b"roc_stats_yjs_threshold",
+                    b"roc_stats_yjs_tp",
+                    b"roc_stats_yjs_tn",
+                    b"roc_stats_yjs_fp",
+                    b"roc_stats_yjs_fn",
+                    b"roc_stats_lrp_pvalue",
+                    b"roc_stats_lrp_or",
+                    b"roc_stats_lrp_threshold",
+                    b"roc_stats_lrp_tp",
+                    b"roc_stats_lrp_tn",
+                    b"roc_stats_lrp_fp",
+                    b"roc_stats_lrp_fn",
+                    b"roc_stats_lrn_protective_pvalue",
+                    b"roc_stats_lrn_protective_or",
+                    b"roc_stats_lrn_protective_threshold",
+                    b"roc_stats_lrn_protective_tp",
+                    b"roc_stats_lrn_protective_tn",
+                    b"roc_stats_lrn_protective_fp",
+                    b"roc_stats_lrn_protective_fn",
+                ]
+            )
+
+            # Create a 3D array to hold the data
+            data = np.zeros((len(terms), len(phecodes), len(stats_types)))
+
+            # Create a dictionary mapping stat type to value for our test combo
+            test_stats = {
+                "num_rp": 3.0,
+                "num_rn": 5.0,
+                "metric1_pvalue": 0.0026,
+                "metric1_tp": 2,
+                "metric1_tn": 685,
+                "metric1_fp": 257045,
+                "metric1_fn": 532,
+                "metric1_threshold": 0.022,
+                # MCC stats
+                "roc_stats_mcc_pvalue": 0.0015,
+                "roc_stats_mcc_or": 2.5,
+                "roc_stats_mcc_threshold": 0.025,
+                "roc_stats_mcc_tp": 2,
+                "roc_stats_mcc_tn": 4,
+                "roc_stats_mcc_fp": 1,
+                "roc_stats_mcc_fn": 1,
+                # YJS stats
+                "roc_stats_yjs_pvalue": 0.045,
+                "roc_stats_yjs_or": 3.0,
+                "roc_stats_yjs_threshold": 0.02,
+                "roc_stats_yjs_tp": 2,
+                "roc_stats_yjs_tn": 3,
+                "roc_stats_yjs_fp": 2,
+                "roc_stats_yjs_fn": 1,
+                # LRP stats
+                "roc_stats_lrp_pvalue": 0.16,
+                "roc_stats_lrp_or": 2.0,
+                "roc_stats_lrp_threshold": 0.03,
+                "roc_stats_lrp_tp": 1,
+                "roc_stats_lrp_tn": 4,
+                "roc_stats_lrp_fp": 1,
+                "roc_stats_lrp_fn": 2,
+                # Protective stats
+                "roc_stats_lrn_protective_pvalue": 1.0,
+                "roc_stats_lrn_protective_or": 0.5,
+                "roc_stats_lrn_protective_threshold": 0.0303,
+                "roc_stats_lrn_protective_tp": 0,
+                "roc_stats_lrn_protective_tn": 247353,
+                "roc_stats_lrn_protective_fp": 84,
+                "roc_stats_lrn_protective_fn": 497,
+            }
+
+            # Fill in test data for GO:0030800 + 250.2 combination
+            # Get the indices for our combination
+            term_idx = np.where(terms == b"GO:0030800")[0][0]
+            phecode_idx = np.where(phecodes == b"250.2")[0][0]
+
+            # Populate data for our test combination
+            for stat_name, value in test_stats.items():
+                stat_idx = np.where(stats_types == stat_name.encode())[0][0]
+                data[term_idx, phecode_idx, stat_idx] = value
+
+            # Fill in test data for TEST:001 + 571.5 combination
+            # Get the indices for our combination
+            term_idx = np.where(terms == b"TEST:001")[0][0]
+            phecode_idx = np.where(phecodes == b"571.5")[0][0]
+
+            # Populate data for our test combination
+            for stat_name, value in test_stats.items():
+                stat_idx = np.where(stats_types == stat_name.encode())[0][0]
+                data[term_idx, phecode_idx, stat_idx] = value
+
+            # Save datasets to file
+            f.create_dataset("data", data=data)
+            f.create_dataset("term", data=terms)
+            f.create_dataset("phecode", data=phecodes)
+            f.create_dataset("stats_type", data=stats_types)
+
+        yield tmp.name
+
+
+# TODO: Move these to conftest.py and put it into the service registry
+@pytest.fixture
+def mock_stats_data():
+    """Create mock stats data for testing."""
+    # Create a simple DataFrame that mimics the structure we expect
+    diseasestats = pd.DataFrame(
+        {
+            "num_rp": [100.0],
+            "num_rn": [1000.0],
+            "mwu_pvalue": [0.001],
+            "mcc_pvalue": [0.002],
+            "yjs_pvalue": [0.003],
+            "lrp_pvalue": [0.004],
+            "metric1_pvalue": [0.005],
+            "lrn_protective_pvalue": [0.006],
+        }
+    )
+
+    plot_df = pd.DataFrame(
+        {
+            "term": ["CC:TERM:123"],
+            "mwu_pvalue": [0.001],
+            "mcc_pvalue": [0.002],
+            "yjs_pvalue": [0.003],
+            "lrp_pvalue": [0.004],
+            "metric1_pvalue": [0.005],
+            "lrn_protective_pvalue": [0.006],
+        }
+    )
+
+    return diseasestats, plot_df
+
+
+@pytest.fixture
+def stats_registry(mock_stats_hdf5_file):
+    """Mock stats registry using real StatsRegistry with mock file."""
+    from pathlib import Path
+
+    from data_services.stats import StatsRegistry
+
+    # Create the selector dictionary in the format expected by StatsRegistry
+    # {run_version: {ancestry: path}}
+    selector = {
+        "Run-v1": {"EUR": Path(mock_stats_hdf5_file)},
+        "Run-v2": {"EUR": Path(mock_stats_hdf5_file)},
+    }
+
+    # Create a real StatsRegistry with our mock selector
+    registry = StatsRegistry(selector)
+
+    return registry
+
+
+@pytest.fixture
+def stats_service(stats_registry):
+    """Get a stats service from the registry for tests that need it directly."""
+    # Get the default service (Run-v1, EUR)
+    return stats_registry.get("Run-v1", "EUR")
+
+
+@pytest.fixture
+def mock_nomaly_scores_hdf5_file():
+    """Create a temporary mock HDF5 file with test nomaly scores data."""
+    with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
+        with h5py.File(Path(tmp.name), "w") as f:
+            # Create required datasets
+
+            # Individual IDs - should match those used in other fixtures
+            test_eids = np.array(
+                [1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010]
+            )
+            f.create_dataset("eid", data=test_eids)
+
+            # Define some terms
+            terms = np.array([b"GO:0030800", b"MP:0005179", b"GO:0006915", b"TEST:001"])
+            f.create_dataset("term", data=terms)
+
+            # Create score matrix (eids x terms)
+            # Define scores that align with our test cases/controls
+            scores = np.array(
+                [
+                    [0.030, 0.020, 0.010, 0.001],  # 1001 (case)
+                    [0.025, 0.015, 0.020, 0.002],  # 1002 (case)
+                    [0.010, 0.030, 0.015, 0.003],  # 1003 (case)
+                    [0.005, 0.010, 0.020, 0.004],  # 1004 (control)
+                    [0.015, 0.005, 0.010, 0.005],  # 1005 (control)
+                    [0.030, 0.015, 0.008, 0.006],  # 1006 (control)
+                    [0.010, 0.005, 0.002, 0.007],  # 1007 (control)
+                    [0.005, 0.010, 0.005, 0.008],  # 1008 (control)
+                    [0.000, 0.000, 0.000, 0.009],  # 1009 (excluded)
+                    [0.000, 0.000, 0.000, 0.010],  # 1010 (excluded)
+                ]
+            )
+            f.create_dataset("scores", data=scores)
+
+        # Create the required .npy file
+        # np.save(f"{tmp.name}.npy", scores)
+
+        yield Path(tmp.name)
+
+        # Clean up the .npy file
+        try:
+            os.unlink(f"{tmp.name}.npy")
+        except OSError:
+            pass
+
+
+@pytest.fixture
+def nomaly_scores_service(mock_nomaly_scores_hdf5_file):
+    """Mock nomaly scores service for unit tests."""
+    from data_services.nomaly_score import NomalyScoreService
+
+    # Create a real NomalyScoreService instance with our mock file
+    service = NomalyScoreService(mock_nomaly_scores_hdf5_file)
+
+    return service
+
+
+@pytest.fixture
+def nomaly_data_service():
+    """Mock nomaly data service for unit tests."""
+    from unittest.mock import MagicMock
+
+    # Create a mock nomaly data service
+    mock_service = MagicMock()
+    return mock_service
 
 
 @pytest.fixture
@@ -226,7 +538,19 @@ def unit_test_app_client(unit_test_app):
 @pytest.fixture(scope="session")
 def integration_app():
     """App configured for integration tests with real services."""
-    _app = create_app()
+    # Use DEVELOPMENT instead of TESTING to allow ServiceRegistry to initialize
+    _app = create_app("development")
+
+    # IMPORTANT: Explicitly ensure TESTING is False to initialize data services
+    _app.config["TESTING"] = False
+
+    # Configure session for tests
+    _app.config["SESSION_TYPE"] = "filesystem"
+    _app.config["SESSION_PERMANENT"] = True
+    _app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour
+    _app.config["SECRET_KEY"] = "test-integration-secret-key"
+
+    # Server settings
     _app.config.update(
         {
             "SERVER_NAME": "localhost.localdomain",
@@ -234,13 +558,20 @@ def integration_app():
             "APPLICATION_ROOT": "/",
         }
     )
+
+    # Initialize the Flask session extension
+    from flask_session import Session
+
+    Session(_app)
+
     return _app
 
 
 @pytest.fixture
 def integration_app_client(integration_app):
     """Client for integration tests."""
-    return integration_app.test_client()
+    with integration_app.test_client() as client:
+        yield client
 
 
 @pytest.fixture
@@ -255,8 +586,8 @@ def test_admin():
     # Create test admin user
     cursor.execute(
         """
-        INSERT INTO users2 (username, password, email, is_active)
-        VALUES ('test_admin', %s, 'test_admin@example.com', TRUE)
+        INSERT INTO users2 (username, password, email, is_active, is_admin)
+        VALUES ('test_admin', %s, 'test_admin@example.com', TRUE, TRUE)
     """,
         (hashed_password,),
     )
@@ -313,13 +644,17 @@ def cleanup_test_admin_after_test_timeout():
 @pytest.fixture
 def auth_integration_app_client(integration_app_client, test_admin):
     """Authenticated client for integration tests."""
+    # Use the simple login approach
     response = integration_app_client.post(
         "/login",
         data={"username": test_admin["username"], "password": test_admin["password"]},
         follow_redirects=True,
     )
+
+    # Check login was successful
     assert response.status_code == 200
     assert b"welcome" in response.data.lower()
+
     return integration_app_client
 
 

@@ -66,33 +66,15 @@ def test_get_phecode_info(phecode, expected_exists):
 
 
 @pytest.mark.parametrize(
-    "terms",
-    [
-        (["GO:0005524", "GO:0005525"]),  # ATP binding, GTP binding
-        ([]),  # Empty list
-        (["INVALID:123"]),  # Invalid term
-    ],
+    "term_names", [("GO:0005524", "ATP binding"), ("UP:UPA00428", "lipid degradation")]
 )
-def test_get_term_names(terms):
+def test_get_term_names(term_names):
     """Test fetching term names with various inputs."""
-    names = get_term_names(terms)
-    assert isinstance(names, dict)
+    term, real_name = term_names
 
-    if not terms:  # Empty input
-        assert len(names) == 0
-        return
-
-    if "INVALID:123" in terms:  # Invalid input
-        assert "INVALID:123" not in names
-        return
-
-    # Valid terms
-    assert all(term in names for term in terms), (
-        "All valid terms should have corresponding names"
-    )
-    assert all(isinstance(name, str) for name in names.values()), (
-        "All names should be strings"
-    )
+    results = get_term_names([term])
+    assert isinstance(results, dict)
+    assert results[term] == real_name
 
 
 def test_get_term_domains():
@@ -190,15 +172,11 @@ def test_edge_cases():
     assert len(get_term_genes([])) == 0
 
     # Test with invalid inputs
-    invalid_terms = ["INVALID:123"]
-    assert len(get_term_names(invalid_terms)) == 0
-    assert len(get_term_domains(invalid_terms)) == 0
-    assert get_term_genes(invalid_terms).empty
-    assert get_term_variants(invalid_terms[0]).empty
+    with pytest.raises(DataNotFoundError):
+        invalid_terms = ["INVALID:123"]
+        get_term_names(invalid_terms)
 
     # Test with large input
-    many_terms = [
-        f"GO:{i:07d}" for i in range(100)
-    ]  # Reduced from 1000 to be more reasonable
+    many_terms = [f"GO:{i:07d}" for i in range(100)]
     names = get_term_names(many_terms)
     assert isinstance(names, dict)

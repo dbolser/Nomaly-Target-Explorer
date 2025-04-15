@@ -1,38 +1,77 @@
-import re
+import logging
 from pathlib import Path
-from typing import Optional
-from functools import wraps
 
 import h5py
 import numpy as np
-import warnings
+import pandas as pd
 
-import logging
+from data_services.utils import deprecated
 
 logger = logging.getLogger(__name__)
 
-chr_str = re.compile("chr", re.IGNORECASE)
-
-
-def deprecated(message: str):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            warnings.warn(
-                f"{func.__name__} is deprecated. {message}",
-                category=DeprecationWarning,
-                stacklevel=2,
-            )
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
 
 class GenotypeService:
-    def __init__(self, hdf5_file: Path | str):
-        self._hdf = GenotypesHDF5(hdf5_file)  # Existing implementation
+    """Service for getting genotype data."""
+
+    def __init__(self, hdf5_file: Path | None = None):
+        self.hdf5_file = hdf5_file
+        self.initialized = hdf5_file is not None
+
+        if hdf5_file is not None:
+            self._hdf = GenotypesHDF5(hdf5_file)  # Existing implementation
+
+    def _check_initialized(self):
+        if not self.initialized:
+            raise ValueError("Service not properly initialized: missing filename")
+
+    def get_genotypes(
+        self,
+        eids: np.ndarray | None = None,
+        vids: np.ndarray | None = None,
+        nomaly_ids: bool = False,
+    ) -> np.ndarray:
+        """Delegate to the underlying HDF5 file's method."""
+        self._check_initialized()
+        return self._hdf.get_genotypes(eids=eids, vids=vids, nomaly_ids=nomaly_ids)
+
+    def get_genotype_counts_and_freqs(
+        self,
+        eids: np.ndarray | None = None,
+        vids: np.ndarray | None = None,
+        nomaly_ids: bool = False,
+        ancestry: str = "EUR",
+    ) -> pd.DataFrame:
+        """Delegate to the underlying HDF5 file's method."""
+        self._check_initialized()
+        return self._hdf.get_genotype_counts_and_freqs(
+            eids=eids, vids=vids, nomaly_ids=nomaly_ids, ancestry=ancestry
+        )
+
+    @deprecated("Use get_genotype_counts_and_freqs instead.")
+    def get_variant_counts(
+        self, nomaly_variant_id: str, ancestry: str = "EUR"
+    ) -> dict[str, int]:
+        """Delegate to the underlying HDF5 file's get_variant_counts method."""
+        self._check_initialized()
+        return self._hdf.get_variant_counts(nomaly_variant_id, ancestry)
+
+    @property
+    def individual(self):
+        """Delegate to the underlying HDF5 file's individual property."""
+        self._check_initialized()
+        return self._hdf.individual
+
+    @property
+    def plink_variant_ids(self) -> np.ndarray:
+        """Delegate to the underlying HDF5 file's genotype_variant_id property."""
+        self._check_initialized()
+        return self._hdf.plink_variant_id
+
+    @property
+    def nomaly_variant_ids(self) -> np.ndarray:
+        """Delegate to the underlying HDF5 file's genotype_variant_id property."""
+        self._check_initialized()
+        return self._hdf.nomaly_variant_id
 
 
 class GenotypesHDF5:
@@ -48,208 +87,184 @@ class GenotypesHDF5:
     """
 
     def __init__(self, hdf5_file: Path):
-        self.hdf5_file = hdf5_file
+        self.f = h5py.File(hdf5_file, "r")
 
-        with h5py.File(hdf5_file, "r") as f:
-            self.f = f
+        genotype_matrix = self.f["genotypes"]
 
-            # Jumping through hoops to fix the type checker...
-            # TODO: Fix the naming of the fields!
-            genotype_matrix = self.f["genotype_matrix"]
-            individual = self.f["fam"]
-            biological_sex = self.f["sex"]
-            ancestry = self.f["ancestry"]
+        # COLUMNS
+        individual = self.f["eid"]
+        individual_sex = self.f["sex"]
+        ancestry = self.f["ancestry"]
 
-            genotype_variant_id = self.f["bim"]
-            nomaly_variant_id = self.f["nomaly_variant_id"]
-            plink_variant_id = self.f["plink_variant_id"]
+        # ROWS
+        plink_variant_id = self.f["plink_variant_id"]
+        nomaly_variant_id = self.f["nomaly_variant_id"]
+        reference_allele = self.f["REF"]
+        alternate_allele = self.f["ALT"]
+        rsid = self.f["rsID"]
 
-            # genotype_counts = self.f["genotype_counts"]
+        # NOTE: We used to explicitly store genotype counts in the HDF5 file
+        # genotype_counts = self.f["genotype_counts"]
 
-            assert isinstance(genotype_matrix, h5py.Dataset)
-            assert isinstance(individual, h5py.Dataset)
-            assert isinstance(biological_sex, h5py.Dataset)
-            assert isinstance(ancestry, h5py.Dataset)
+        # Jumping through hoops to fix the type checker...
+        assert isinstance(genotype_matrix, h5py.Dataset)
 
-            assert isinstance(genotype_variant_id, h5py.Dataset)
-            assert isinstance(nomaly_variant_id, h5py.Dataset)
-            assert isinstance(plink_variant_id, h5py.Dataset)
+        assert isinstance(individual, h5py.Dataset)
+        assert isinstance(individual_sex, h5py.Dataset)
+        assert isinstance(ancestry, h5py.Dataset)
 
-            # assert isinstance(genotype_counts, h5py.Dataset)
+        assert isinstance(plink_variant_id, h5py.Dataset)
+        assert isinstance(nomaly_variant_id, h5py.Dataset)
+        assert isinstance(reference_allele, h5py.Dataset)
+        assert isinstance(alternate_allele, h5py.Dataset)
+        assert isinstance(rsid, h5py.Dataset)
 
-            # Sanity checks (TODO: Move these to integration tests)
-            try:
-                assert genotype_matrix.shape[0] == genotype_variant_id.shape[0]
-                assert genotype_matrix.shape[1] == individual.shape[0]
+        # Sanity checks
+        try:
+            print(f"RUNNING SANITY CHECK ON {self.f.filename}")
 
-                assert biological_sex.shape[0] == individual.shape[0]
-                assert ancestry.shape[0] == individual.shape[0]
+            assert genotype_matrix.shape[0] == plink_variant_id.shape[0]
+            assert genotype_matrix.shape[1] == individual.shape[0]
 
-                assert nomaly_variant_id.shape[0] == genotype_variant_id.shape[0]
+            assert individual.shape[0] == individual_sex.shape[0]
+            assert individual.shape[0] == ancestry.shape[0]
 
-                # assert genotype_counts.shape[0] == genotype_variant_id.shape[0]
-            except Exception as e:
-                print(f"Error in sanity checks: {str(e)}")
-                raise
+            assert plink_variant_id.shape[0] == nomaly_variant_id.shape[0]
+            assert plink_variant_id.shape[0] == reference_allele.shape[0]
+            assert plink_variant_id.shape[0] == alternate_allele.shape[0]
+            assert plink_variant_id.shape[0] == rsid.shape[0]
+        except Exception as e:
+            print(f"Error in sanity checks: {str(e)}")
+            raise
 
-            self.genotype_matrix: h5py.Dataset = genotype_matrix
-            self.individual: np.ndarray = individual[...].astype(int)
-            self.biological_sex: np.ndarray = biological_sex[...].astype(str)
-            self.ancestry: np.ndarray = ancestry[...].astype(str)
+        # Load the data matrix and index information as numpy arrays
 
-            self.genotype_variant_id: np.ndarray = genotype_variant_id[...].astype(str)
-            self.nomaly_variant_id: np.ndarray = nomaly_variant_id[...].astype(str)
-            self.plink_variant_id: np.ndarray = plink_variant_id[...].astype(str)
+        # self.genotype_matrix: h5py.Dataset = genotype_matrix  # NOTE: SEE BELOW!
+        self.individual: np.ndarray = individual[...].astype(int)
+        self.individual_sex: np.ndarray = individual_sex[...].astype(str)
+        self.ancestry: np.ndarray = ancestry[...].astype(str)
 
-            # self.genotype_counts: np.ndarray = genotype_counts[...].astype(int)
+        self.plink_variant_id: np.ndarray = plink_variant_id[...].astype(str)
+        self.nomaly_variant_id: np.ndarray = nomaly_variant_id[...].astype(str)
+        self.rsid: np.ndarray = rsid[...].astype(str)
 
-            # TODO: Convert genotype matrix to np.memmap here? (Currently we
-            # assume that the corresponding .npy file already exists.)
-            genotype_matrix_np_path = f"{self.f.file.filename}.npy"
-
-            # Load as memmap
-            self.genotype_matrix_mm = np.load(
-                genotype_matrix_np_path,
-                mmap_mode="r",
-            )
-
-            # Sanity checks (TODO: Move these to integration tests)
-            try:
-                assert self.genotype_matrix_mm.shape == self.genotype_matrix.shape
-                assert self.genotype_matrix_mm.dtype == self.genotype_matrix.dtype
-
-                # A bit random, but hey...
-                assert np.all(
-                    self.genotype_matrix[0:10, :] == self.genotype_matrix_mm[0:10, :]
-                )
-                assert np.all(
-                    self.genotype_matrix[:, 0:10] == self.genotype_matrix_mm[:, 0:10]
-                )
-            except Exception as e:
-                print(
-                    f"Error in sanity checks, HDF5 genotype_matrix != memmap: {str(e)}"
-                )
-                raise
-
-            # Switch to mm (for testing)
-            self.genotype_matrix_h5 = self.genotype_matrix
-            self.genotype_matrix = self.genotype_matrix_mm
-
-            # Precompute sorted indices for faster lookups
-            self._individual_argsort = np.argsort(self.individual)
-            self._individual_sorted = self.individual[self._individual_argsort]
-
-            self._nomaly_variant_argsort = np.argsort(self.nomaly_variant_id)
-            self._nomaly_variant_sorted = self.nomaly_variant_id[
-                self._nomaly_variant_argsort
-            ]
-
-            self._genotype_variant_argsort = np.argsort(self.genotype_variant_id)
-            self._genotype_variant_sorted = self.genotype_variant_id[
-                self._genotype_variant_argsort
-            ]
-
-        # Hopefully we never need to use this...
-        self.allele_flipped_in_genotype_file_relative_to_nomaly_variant_id = (
-            self._calculate_allele_flips(
-                self.nomaly_variant_id, self.genotype_variant_id
-            )
+        # NOTE:Load genotype_matrix as memmap!
+        # Load NPY file # TODO: What is mode?
+        npy_file = hdf5_file.with_suffix(".npy")
+        self.genotype_matrix = np.memmap(
+            npy_file, dtype=np.int8, mode="r", shape=genotype_matrix.shape
         )
 
-    @staticmethod
-    def _calculate_allele_flips(
-        nomaly_variant_id: np.ndarray,
-        genotype_variant_id: np.ndarray,
-    ) -> np.ndarray:
-        """
-        Returns an array indicating whether the alleles are flipped in the
-        genotype file relative to the nominal variant ID.
+        print(f"SORTING STUFF IN {self.f.filename}")
 
-        True = alleles are flipped, e.g.
-          - 3:122257322:A:G (genotype file)            or 3:122257322:A/G (plink
-            file) vs.
-          - 3_122257322_G/A (Nomaly variant ID... ish) or 3_122257322_G_A
-            (Nomaly variant ID).
+        # Precompute sorted indices for faster row / column lookups
 
-            Isn't it fun to be alive?
+        self._individual_argsort = np.argsort(self.individual)
+        self._individual_sorted = self.individual[self._individual_argsort]
 
-        False = alleles are not flipped.
+        self._plink_variant_argsort = np.argsort(self.plink_variant_id)
+        self._plink_variant_sorted = self.plink_variant_id[self._plink_variant_argsort]
 
-        None = There is no Nomaly variant ID for this particular variant in the
-        genotype file.
+        # TODO: Could we use a mapping here instead?
+        self._nomaly_variant_argsort = np.argsort(self.nomaly_variant_id)
+        self._nomaly_variant_sorted = self.nomaly_variant_id[
+            self._nomaly_variant_argsort
+        ]
 
-        """
-
-        result = np.full(len(nomaly_variant_id), None)
-
-        for i in range(len(nomaly_variant_id)):
-            if nomaly_variant_id[i] == "Missing":
-                continue
-
-            ref_match = nomaly_variant_id[i][-3] == genotype_variant_id[i][-3]
-            alt_match = nomaly_variant_id[i][-1] == genotype_variant_id[i][-1]
-
-            if ref_match and alt_match:
-                result[i] = False  # alleles are not flipped
-            elif not ref_match and not alt_match:
-                result[i] = True  # alleles are flipped
-            else:
-                # Fuck knows!
-                raise ValueError(
-                    f"Variant {nomaly_variant_id[i]} has different alleles in the genotype file and the nominal variant ID"
-                )
-
-        return result
-
-    # Example class property method:
-    @property
-    def num_variants(self) -> int:
-        """
-        Returns the number of variants in the genotype matrix.
-
-        Returns:
-            int: The number of variants
-        """
-        return self.genotype_matrix.shape[0]
+        print(f"INITIALIZED {self.f.filename}")
 
     def get_genotypes(
         self,
-        eids: Optional[np.ndarray] = None,
-        vids: Optional[np.ndarray] = None,
+        eids: np.ndarray | None = None,
+        vids: np.ndarray | None = None,
         nomaly_ids: bool = False,
     ) -> np.ndarray:
         """
         Get genotypes for a list of eids and variant IDs.
 
+        NOTE:
+            We don't filter by ancestry here. Use a list of EIDs, or fetch the
+            ancestry separately if you want to do that.
+
         Args:
-            eids: List of eids to get genotypes for
-            vids: List of variant IDs to get genotypes for.
-            genotype_ids:
-                If True, the variant IDs will be 'Genotype Format' variant IDs.
-                If False, the variant IDs will be 'Nomaly Format' variant IDs.
+            eids:
+                An optional list of eids to get genotypes for
+            vids:
+                An optional list of variant IDs to get genotypes for
+            nomaly_ids:
+                If True, the variant IDs will be 'Nomaly Format' variant IDs. If
+                False, the variant IDs will be 'Genotype Format' variant IDs.
 
         Returns:
-            np.ndarray: Array of genotypes with shape (n_variants, n_eids) in the order of the
+            np.ndarray: Array of genotypes with shape (n_variants, n_eids) in
+            the order of the
                 provided eids and variant IDs.
+
+            Genotype values are encoded as:
+                - 0 = homozygous ref
+                - 1 = heterozygous
+                - 2 = homozygous alt
+                - -1 = missing
         """
 
         if eids is None and vids is None:
-            return (
-                self.genotype_matrix
-            )  # This linting error will be fixed when we switch to memmap
+            return self.genotype_matrix
 
         if eids is not None:
             # Vectorized index lookup using precomputed sorted arrays
             eid_pos = np.searchsorted(self._individual_sorted, eids)
+            if np.any(eid_pos == len(self._individual_sorted)):
+                raise IndexError(
+                    f"Individual {eids} not found in genotype file. Please check your individual IDs."
+                )
             eid_idx = self._individual_argsort[eid_pos]
 
         if vids is not None:
             if nomaly_ids:
                 vid_pos = np.searchsorted(self._nomaly_variant_sorted, vids)
+                if np.any(vid_pos == len(self._nomaly_variant_sorted)):
+                    raise IndexError(
+                        f"Variant {vids} not found in genotype file. Please check your (nomaly) variant IDs."
+                    )
                 vid_idx = self._nomaly_variant_argsort[vid_pos]
             else:
-                vid_pos = np.searchsorted(self._genotype_variant_sorted, vids)
-                vid_idx = self._genotype_variant_argsort[vid_pos]
+                vid_pos = np.searchsorted(self._plink_variant_sorted, vids)
+                if np.any(vid_pos == len(self._plink_variant_sorted)):
+                    raise IndexError(
+                        f"Variant {vids} not found in genotype file. Please check your (plink) variant IDs."
+                    )
+                vid_idx = self._plink_variant_argsort[vid_pos]
+
+        # It was looking so clean until here...
+
+        if eids is not None:
+            eid_bad = self.individual[eid_idx] != eids
+            if np.any(eid_bad):
+                raise IndexError(
+                    f"Individual {eids} not found in genotype file. Please check your individual IDs."
+                )
+
+            # NOTE: One option would be to return a matrix with -9s for the
+            # missing values (corresponding to non-existant eids)...
+            # matrix = self.genotype_matrix[vid_idx, :].copy()
+            # matrix[:, eid_bad] = -9
+            # return matrix
+
+        if vids is not None:
+            if nomaly_ids:
+                vid_bad = self.nomaly_variant_id[vid_idx] != vids
+            else:
+                vid_bad = self.plink_variant_id[vid_idx] != vids
+
+            if np.any(vid_bad):
+                raise IndexError(
+                    f"Variant {vids} not found in genotype file. Please check your variant IDs."
+                )
+            # NOTE: One option would be to return a matrix with -9s for the
+            # missing values (corresponding to non-existant vids)...
+            # matrix = self.genotype_matrix[vid_idx, :].copy()
+            # matrix[vid_bad, :] = -9
+            # return matrix
 
         if eids is None:
             return self.genotype_matrix[vid_idx, :]
@@ -259,226 +274,96 @@ class GenotypesHDF5:
 
         return self.genotype_matrix[vid_idx, :][:, eid_idx]
 
-    @deprecated("This method will be removed in a future version.")
-    def _flip_alleles(self, variant: str) -> str:
+    def get_genotype_counts_and_freqs(
+        self,
+        eids: np.ndarray | None = None,
+        vids: np.ndarray | None = None,
+        nomaly_ids: bool = False,
+        ancestry: str = "EUR",
+    ) -> pd.DataFrame:
+        """Get counts of genotypes for a specific NOMALY variant.
+
+        NOTE: The ancestry param is a bit of a hack...
         """
-        Flip the ref and alt alleles in a variant ID.
 
-        Args:
-            variant (str): Variant ID in format "CHR:POS:REF:ALT" or "CHR_POS_REF/ALT"
+        # This is rather annoying...
+        if eids is None:
+            ancestry_mask = self.ancestry == ancestry
+        else:
+            ancestry_mask = np.ones(eids.shape, dtype=bool)
 
-        Returns:
-            str: Flipped variant ID in same format as input
-        """
-        chrom, pos, ref, alt = variant.split(":")
-        return f"{chrom}:{pos}:{alt}:{ref}"
+        genotypes = self.get_genotypes(eids=eids, vids=vids, nomaly_ids=nomaly_ids)
 
-    @deprecated("This method will be removed in a future version.")
-    def _standardize_variant_format(self, variant: str) -> str:
-        """
-        Convert any variant format to CHR:POS:REF:ALT format.
+        # Get the individual genotype masks
+        het_genotype_mask = genotypes == 1
+        ref_genotype_mask = genotypes == 0
+        alt_genotype_mask = genotypes == 2
+        mis_genotype_mask = genotypes == -9
 
-        Handles formats:
-        - CHR_POS_REF/ALT (e.g., "8_6870776_C/T")
-        - CHR_POS_REF_ALT (e.g., "8_6870776_C_T")
-        - CHR:POS:REF:ALT (e.g., "8:6870776:C:T")
+        # Get the counts
+        het_count = np.sum(het_genotype_mask & ancestry_mask)
+        ref_count = np.sum(ref_genotype_mask & ancestry_mask)
+        alt_count = np.sum(alt_genotype_mask & ancestry_mask)
+        mis_count = np.sum(mis_genotype_mask & ancestry_mask)
 
-        Args:
-            variant (str): Variant in any supported format
+        # Get the frequencies
+        total = het_count + ref_count + alt_count + mis_count
+        het_freq = het_count / total
+        ref_freq = ref_count / total
+        alt_freq = alt_count / total
+        mis_freq = mis_count / total
 
-        Returns:
-            str|None: Standardized variant string or None if invalid format
-        """
-        try:
-            chrom, pos, ref, alt = re.split(r"[_/:]", variant)
-            # Validate components
-            if not chrom or not pos or not ref or not alt:
-                raise ValueError(f"Missing component in variant: {variant}")
+        # Return the counts and frequencies as a dataframe
+        return pd.DataFrame(
+            {
+                "variant_id": vids,
+                "het_count": het_count,
+                "ref_count": ref_count,
+                "alt_count": alt_count,
+                "mis_count": mis_count,
+                "het_freq": het_freq,
+                "ref_freq": ref_freq,
+                "alt_freq": alt_freq,
+                "mis_freq": mis_freq,
+            }
+        )
 
-            if not pos.isdigit():
-                raise ValueError(f"Position must be numeric: {pos}")
-
-            # Clean chromosome format (e.g., 'chr8' -> '8')
-            chrom = chr_str.sub("", chrom)
-
-            # Standardize to colon format for genotype lookup (why?)
-            return f"{chrom}:{pos}:{ref}:{alt}"
-
-        except Exception as e:
-            raise ValueError(f"Error standardizing variant format {variant}: {str(e)}")
-
-    @deprecated("This method will be removed in a future version.")
+    @deprecated(
+        "Use get_genotype_counts instead. This will be removed in a future version."
+    )
     def get_variant_counts(
         self,
         nomaly_variant_id: str,
-        sex: Optional[str] = None,
-        ancestry: Optional[str] = None,
+        ancestry: str = "EUR",
     ) -> dict[str, int]:
         """Get counts of genotypes for a specific NOMALY variant
 
-        Optionally filtered by sex and/or ancestry.
-
         Args:
             nomaly_variant_id: The NOMALY format variant ID to get counts for
-            sex: Optional sex to filter by ('M' or 'F')
-            ancestry: Optional ancestry to filter by (must match values in ancestry dataset)
+            ancestry: Ancestry to filter by (must match values in ancestry dataset)
 
         Returns:
             Dictionary with counts for each genotype category: {
-                'homozygous_ref': int,  # Count of 0s 'heterozygous': int,    #
-                Count of 1s 'homozygous_alt': int,  # Count of 2s 'missing': int
-                # Count of -1s
+                'total': int,
+                'homozygous_ref': int,  # Count of 0s
+                'heterozygous': int,    # Count of 1s
+                'homozygous_alt': int,  # Count of 2s
+                'missing': int,         # Count of -1s
             }
         """
 
-        # Get variant index
-        variant_idx = np.where(self.nomaly_variant_id == nomaly_variant_id)
-
-        if len(variant_idx[0]) == 0:
-            raise ValueError(f"Variant {nomaly_variant_id} not found")
-
-        if len(variant_idx[0]) != 1:
-            raise ValueError(
-                f"Expected exactly one variant index for {nomaly_variant_id}, got {len(variant_idx[0])}"
-            )
-
-        # Get genotypes for this variant
-        genotypes = self.genotype_matrix[variant_idx[0], :][0]
-
-        # Create sample mask starting with all True
-        sample_mask = np.ones(len(self.individual), dtype=bool)
-
-        # Apply sex filter if specified
-        if sex is not None:
-            sex_mask = self.biological_sex == sex
-            sample_mask &= sex_mask
-
-        # Apply ancestry filter if specified
-        if ancestry is not None:
-            ancestry_data = self.ancestry
-            sample_mask &= ancestry_data == ancestry
-
-        # Apply sample mask to genotypes
-        filtered_genotypes = genotypes[sample_mask]
+        counts = self.get_genotype_counts_and_freqs(
+            vids=np.array([nomaly_variant_id]),
+            nomaly_ids=True,
+            ancestry=ancestry,
+        )
+        counts = counts.iloc[0]
 
         # Count occurrences of each genotype value
         return {
-            "total": len(filtered_genotypes),
-            "homozygous_ref": int(np.sum(filtered_genotypes == 0)),
-            "heterozygous": int(np.sum(filtered_genotypes == 1)),
-            "homozygous_alt": int(np.sum(filtered_genotypes == 2)),
-            "missing": int(np.sum(filtered_genotypes == -1)),
+            "total": counts.sum(),
+            "homozygous_ref": counts[0],
+            "heterozygous": counts[1],
+            "homozygous_alt": counts[2],
+            "missing": counts[3],
         }
-
-    @deprecated("This method will be removed in a future version.")
-    def query_variants(self, variant: str) -> np.ndarray:
-        """
-        Query genotypes for a variant, trying flipped alleles if original not found.
-
-        Args:
-            variant (str): Variant ID in any supported format
-
-        Returns:
-            np.ndarray|None: Array of genotypes or None if error/not found
-        """
-        try:
-            std_variant = self._standardize_variant_format(variant)
-
-            # Try original variant
-            genotypes = self._query_variants_internal(std_variant)
-            if genotypes is not None:
-                logger.debug(f"Found variant {variant} in original orientation")
-                return genotypes
-
-            # Try flipped alleles
-            flipped = self._flip_alleles(std_variant)
-            genotypes = self._query_variants_internal(flipped)
-            if genotypes is not None:
-                logger.debug(f"Found variant {variant} in flipped orientation")
-                # Because we flipped the alleles, we need to flip the genotypes...
-                genotypes[genotypes != -1] = 2 - genotypes[genotypes != -1]
-                return genotypes
-
-            logger.warning(f"Variant not found in either orientation: {variant}")
-            return np.array([])
-
-        except Exception as e:
-            logger.error(f"Error in query_variants: {str(e)}")
-            return np.array([])
-
-    def _query_variants_internal(self, variant: str) -> np.ndarray | None:
-        """Internal method to query a single variant."""
-        try:
-            variant_mask = self._single_variant_mask(variant)
-            if variant_mask is None:
-                return None
-
-            # Find matching variant
-            selected_variant_indices = np.where(variant_mask)[0]
-            if len(selected_variant_indices) == 0:
-                return None
-
-            # Query the submatrix
-            try:
-                submatrix = self.genotype_matrix_mm[selected_variant_indices, :]
-                if submatrix.size == 0:
-                    return None
-                return submatrix
-            except Exception as e:
-                logger.error(f"Error accessing genotype matrix: {str(e)}")
-                return None
-
-        except Exception as e:
-            logger.error(f"Error in _query_variants_internal: {str(e)}")
-            return None
-
-    def _single_variant_mask(self, varsel: str) -> np.ndarray | None:
-        """Create mask for single variant."""
-        try:
-            mask = self.genotype_variant_id == varsel
-            if mask.sum() == 0:
-                return None
-            return mask
-        except Exception as e:
-            logger.error(f"Error in _single_variant_mask: {str(e)}")
-            raise
-
-    @deprecated("This method will be removed in a future version.")
-    def query_variantID_genotypes(
-        self, variant: str
-    ) -> tuple[np.ndarray, np.ndarray] | None:
-        """
-        Get genotype data for a variant.
-
-        Args:
-            variant (str): Variant ID in format "CHR:POS:REF:ALT"
-
-        Returns:
-            tuple: (sorted_eids, sorted_genotypes) or None if error
-        """
-        try:
-            # Get genotype data
-            genotype_eids = self.individual
-            genotypes = self.query_variants(variant)
-            if genotypes is None or len(genotypes) == 0:
-                logger.warning(f"No genotype data found for variant {variant}")
-                return None
-
-            # Get first row of genotypes (for single variant)
-            genotypes = genotypes[0]
-            if len(genotypes) != len(genotype_eids):
-                logger.warning(
-                    f"Mismatch between genotypes ({len(genotypes)}) and IDs ({len(genotype_eids)})"
-                )
-                return None
-
-            # Sort the data
-            sorted_indices = np.argsort(genotype_eids)
-            sorted_genotype_eids = genotype_eids[sorted_indices]
-            sorted_genotypes = genotypes[sorted_indices]
-
-            return sorted_genotype_eids, sorted_genotypes
-
-        except Exception as e:
-            logger.error(f"Error in get_genotype_data for variant {variant}: {str(e)}")
-            return None

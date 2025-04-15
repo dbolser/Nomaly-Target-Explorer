@@ -1,50 +1,77 @@
 import logging
-import traceback
-from typing import Optional
 
 import pandas as pd
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request, session
 
 from blueprints.gwas import format_gwas_results, run_gwas
+
+# TODO: MAKE A DATA SERVICE FOR THIS!!!!
 from blueprints.nomaly import pharos, pp
-from blueprints.phecode_term_helper import load_cached_results, save_results
+from blueprints.phecode import get_phecode_data
+from blueprints.phecode_term_helper import (
+    CacheMiss,
+    load_cache_results,
+    save_cache_results,
+)
+from data_services import (
+    GenotypeService,
+    PhenotypeService,
+    ServiceRegistry,
+    NomalyDataService,
+)
 from db import (
-    get_phecode_info,
     get_term_domains,
     get_term_genes,
     get_term_names,
     get_term_variants,
+    get_phecode_info,
 )
-from errors import DataNotFoundError
 
-# Create a 'dummy' profile decorator if we don't have line_profiler installed
-try:
-    from line_profiler import profile
-except ImportError:
+# # Create a 'dummy' profile decorator if we don't have line_profiler installed
+# try:
+#     from line_profiler import profile  # type: ignore
+# except ImportError:
 
-    def profile(func):
-        return func
+#     def profile(func):
+#         return func
 
-
-# Create the blueprint
-phecode_term_bp = Blueprint("phecode_term", __name__, template_folder="../templates")
 
 logger = logging.getLogger(__name__)
+phecode_term_bp = Blueprint("phecode_term", __name__, template_folder="../templates")
 
 
 @phecode_term_bp.route(
     "/phecode/<string:phecode>/term/<string:term>", methods=["POST", "GET"]
 )
 def show_phecode_term(phecode, term):
+    # Get ancestry from session
+    ancestry = session.get("ancestry", "EUR")
+
     try:
-        data = get_phecode_info(phecode)
+        # Get services while we're in 'app context'
+        services: ServiceRegistry = current_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
+
+        # NOTE: We inject the appropriate services into 'backend' functions
+        # (dependency injection)
+
+        phecode_term_data = get_phecode_info(phecode)
+
+        case_counts = phenotype_service.get_case_counts_for_phecode(phecode, ancestry)
+
+        phecode_term_data["population"] = ancestry
+        phecode_term_data["affected"] = case_counts["affected"]
+        phecode_term_data["excluded"] = case_counts["excluded"]
+        phecode_term_data["control"] = case_counts["control"]
+
+        phecode_term_data = get_phecode_data(phecode, services.phenotype, ancestry)
 
         term_name = get_term_names([term])[term]
         term_domains = get_term_domains([term])[term]
         term_gene_df = get_term_genes([term])
 
         # Update data dictionary
-        data.update(
+        phecode_term_data.update(
             {
                 "term": term,
                 "termname": term_name,
@@ -55,17 +82,14 @@ def show_phecode_term(phecode, term):
         )
 
         return render_template(
-            "phecode_term.html", phecode=phecode, term=term, data=data
+            "phecode_term.html", phecode=phecode, term=term, data=phecode_term_data
         )
-
-    except DataNotFoundError as e:
-        logger.warning(f"Data not found: {str(e)}")
-        return render_template("error.html", error=str(e)), 404
     except Exception as e:
-        logger.error(f"Error in show_phecode_term: {str(e)}", exc_info=True)
-        return render_template("error.html", error="An unexpected error occurred"), 500
+        logger.error(f"Failed to get Phecode Term data for {phecode} / {term}: {e}")
+        return jsonify({"error": "Failed to get Phecode / Term data"}), 500
 
 
+# Called by phecode_term.html
 @phecode_term_bp.route(
     "/phecode/<string:phecode>/term/<string:term>/tableVariantDetail",
     methods=["GET", "POST"],
@@ -73,19 +97,25 @@ def show_phecode_term(phecode, term):
 def show_phecode_term_variant_detail(
     phecode: str,
     term: str,
-    sex: Optional[str] = None,
-    ancestry: Optional[str] = None,
-    flush: bool = False,
 ):
-    flush = request.args.get("flush", "false").lower() == "true"  # Handle URL parameter
-    if request.is_json:
-        flush = request.get_json().get(
-            "flush", flush
-        )  # POST body overrides URL parameter if present
+    flush = request.args.get("flush", False) == "True"
+    logger.info(f"Flush: {flush}")
+
+    # Get ancestry from session
+    ancestry = session.get("ancestry", "EUR")
+
+    # Get services while we're in 'app context'
+    services: ServiceRegistry = current_app.extensions["nomaly_services"]
 
     try:
         result = calculate_phecode_term_variant_detail(
-            phecode, term, sex, ancestry, flush
+            phecode,
+            term,
+            services.genotype,
+            services.phenotype,
+            services.nomaly_data,
+            ancestry,
+            flush,
         )
     except Exception as e:
         logger.error(f"Error in show_phecode_term_variant_detail: {str(e)}")
@@ -98,18 +128,16 @@ def show_phecode_term_variant_detail(
 def calculate_phecode_term_variant_detail(
     phecode: str,
     term: str,
-    sex: Optional[str] = None,
-    ancestry: Optional[str] = None,
-    flush: bool = False,
+    genotype_service: GenotypeService,
+    phenotype_service: PhenotypeService,
+    nomaly_data_service: NomalyDataService,
+    ancestry: str = "EUR",
+    no_cache: bool = False,
 ) -> dict:
-    services = current_app.extensions["nomaly_services"]
-    genotype_service = services.genotype
-    assert genotype_service is not None
 
     logger.info(
-        f"Starting variant detail processing for phecode {phecode}, term {term}"
+        f"Getting variant details for phecode/term/ancestry: {phecode}/{term}/{ancestry} (flush: {no_cache})"
     )
-    logger.debug(f"Flush parameter: {flush}")
 
     # Define the columns
     columns = [
@@ -131,7 +159,6 @@ def calculate_phecode_term_variant_detail(
         "GWAS_OR",
         "GWAS_RSID",
     ]
-    logger.debug(f"Defined {len(columns)} columns")
 
     default_columns = [
         "Variant",
@@ -150,37 +177,40 @@ def calculate_phecode_term_variant_detail(
     numeric_columns = ["HMM_Score", "vs00", "vs01", "vs11", "GWAS_P", "GWAS_OR"]
 
     try:
-        logger.info(f"Flush parameter received: {flush}")
+        if not no_cache:
+            try:
+                cached_data = load_cache_results(phecode, term, ancestry)
+                return {
+                    "data": cached_data["data"],
+                    "columns": columns,
+                    "defaultColumns": default_columns,
+                    "numColumns": numeric_columns,
+                }
 
-        # Check cache
-        cached_data = load_cached_results(phecode, term, flush)
-
-        if cached_data is not None and "data" in cached_data:
-            logger.info(f"Using cached data for phecode {phecode}, term {term}")
-            return {
-                "data": cached_data["data"],
-                "columns": columns,
-                "defaultColumns": default_columns,
-                "numColumns": numeric_columns,
-            }
-
-        logger.warning(
-            f"Cache miss or flush requested for phecode {phecode}, term {term}"
-        )
+            except CacheMiss:
+                logger.warning(
+                    f"Cache miss for phecode {phecode}, term {term}, ancestry {ancestry}"
+                )
+                # continue...
 
         # Get variants from DB
-        print(f"Fetching variants for term: {term}")
+        logger.info(f"Fetching variants for term: {term}")
+        # NOTE: We're calling a function to get term -> variant mappings from
+        # the Nomaly DB. Naturally, the IDs we get back are nomaly_variant_ids!
         term_df = get_term_variants(term)
-        print(f"Initial term_df shape: {term_df.shape}")
+        logger.debug(f"Initial term_df shape: {term_df.shape}")
 
         # Fill NA values and merge with pharos and pp data
         term_df = term_df.fillna("None")
         term_df = term_df.merge(pharos, on="gene", how="left").fillna("None")
         term_df = term_df.merge(pp, on="gene", how="left").fillna("None")
-        print(f"After merges shape: {term_df.shape}")
+        logger.debug(f"After merges shape: {term_df.shape}")
 
         # Load GWAS data
-        gwas_data = run_gwas(phecode)
+
+        gwas_data = run_gwas(
+            phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=no_cache
+        )
         formatted_gwas = pd.DataFrame(
             format_gwas_results(gwas_data, significance_threshold=0.1)
         )
@@ -191,12 +221,17 @@ def calculate_phecode_term_variant_detail(
         data_records = []
         for _, row in term_df.iterrows():
             nomaly_variant_id = str(row["variant_id"])
-            logger.info(f"\nProcessing variant: {nomaly_variant_id}")
+            logger.debug(f"\nProcessing variant: {nomaly_variant_id}")
 
             try:
                 # Calculate genotype frequencies
-                counts = genotype_service._hdf.get_variant_counts(
-                    nomaly_variant_id=nomaly_variant_id
+
+                # TODO: USE THE NEW PHEWAS FUNCTION TO DO THIS IN ONE GO???
+                # Actually, I think we can use the genotype_counts function in the
+                # genotype service to do this in one go...
+                counts = genotype_service.get_variant_counts(
+                    nomaly_variant_id=nomaly_variant_id,
+                    ancestry=ancestry,
                 )
                 total = counts["total"]
                 f00 = float(counts["homozygous_ref"]) / total
@@ -262,7 +297,8 @@ def calculate_phecode_term_variant_detail(
                 continue
 
         # Cache and return results
-        save_results(phecode, term, data_records)
+        # TODO: ANCESTRY
+        save_cache_results(phecode, term, ancestry, data_records)
         logger.info(f"\nFinal number of records: {len(data_records)}")
 
         result = {
@@ -277,35 +313,81 @@ def calculate_phecode_term_variant_detail(
     except Exception as e:
         error_msg = f"Error processing phecode {phecode}, term {term}: {str(e)}"
         logger.error(error_msg)
-        logger.error(traceback.format_exc())
         raise e
 
 
 def main():
+    """Main function for testing."""
+
+    from config import Config
+
+    services = ServiceRegistry.from_config(Config)
+
     # phecode = "561"
     # phecode = "564.1"
     # phecode = "338"
-    phecode = "332"
+    # phecode = "332"
+    phecode = "722.7"
 
     # term = "MP:0004957"
     # term = "HP:0000789"
     # term = "KW:0544"
     # term = "MP:0000948"
-    term = "MP:0004986"
+    # term = "MP:0004986"
+    term = "GO:0045244"
 
-    from app import create_app
+    # gwas_data = run_gwas(
+    #     phecode, "EUR", services.phenotype, services.nomaly_data, no_cache=True
+    # )
+    # print(gwas_data)
 
-    app = create_app("development")
+    term_data = get_term_variants(term)
+    print(term_data)
 
-    with app.app_context():
-        gwas_data = run_gwas(phecode, no_cache=True)
-        print(gwas_data)
+    result = calculate_phecode_term_variant_detail(
+        phecode,
+        term,
+        services.genotype,
+        services.phenotype,
+        services.nomaly_data,
+        ancestry="EUR",
+        # no_cache=True,
+    )
+    print(result)
 
-        term_data = get_term_variants(term)
-        print(term_data)
+    import numpy as np
 
-        result = calculate_phecode_term_variant_detail(phecode, term, flush=True)
-        print(result)
+    # Run some random GWAS for fun...
+    ancestries = np.array(["AFR", "EAS", "EUR", "SAS"])
+    phecodes = services.phenotype.phecodes
+
+    done = set()
+    for _ in range(10000):
+        phecode = np.random.choice(phecodes)
+        ancestry = np.random.choice(ancestries)
+
+        terms = services.stats_registry.get("Run-v1", ancestry)._hdf.terms
+        term = np.random.choice(terms)
+
+        if (phecode, ancestry, term) in done:
+            continue
+        done.add((phecode, ancestry, term))
+
+        print(f"Running VP for {phecode} / {term} ({ancestry})")
+        try:
+            calculate_phecode_term_variant_detail(
+                phecode,
+                term,
+                services.genotype,
+                services.phenotype,
+                services.nomaly_data,
+                ancestry,
+                no_cache=True,
+            )
+            print(f"Successfully ran VP for {phecode} / {term} ({ancestry})")
+        except Exception as e:
+            print(f"Error running VP for {phecode} / {term} ({ancestry}): {e}")
+            continue
 
 
 if __name__ == "__main__":

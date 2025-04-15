@@ -1,75 +1,55 @@
-from config import Config
-
-from data_services.genotype import GenotypesHDF5
-
 import pandas as pd
-import numpy as np
+
+from config import Config
+from data_services.genotype import GenotypeService
 
 
 def main():
-    genotypes = GenotypesHDF5(Config.GENOTYPES_H5)
-    genotypes.allele_flipped_in_genotype_file_relative_to_nomaly_variant_id
+    gs = GenotypeService(hdf5_file=Config.GENOTYPES_HDF)
 
-    print(genotypes.genotype_matrix.shape)  # (83011, 487950)
-
-    print(genotypes.genotype_counts.shape)  # (83011, 3)
-
-    # Somehow we just know that
-    #  - col 0 = genotype 0 (REF/REF or 00)
-    #  - col 1 = genotype 1 (REF/ALT or 01)
-    #  - col 2 = genotype 2 (ALT/ALT or 11)
+    print(gs.get_genotypes().shape)  # (83011, 487950)
 
     # NOTE: REF/ALT is defined relative to the order given in the
-    # 'genotype_variant_id'. Check the conveniently named
-    # 'allele_flipped_in_genotype_file_relative_to_nomaly_variant_id' array to
-    # see if the alleles are flipped in the genotype file relative to the
-    # nominal variant ID. What you do with that information is apparently so
-    # obvious only an idiot would consider it.
+    # 'plink_variant_id'. Check the corresponding 'nomaly_variant_id' to see if
+    # the alleles are flipped in the genotype file relative to the nominal
+    # variant ID. What you do with that information is apparently so obvious
+    # only an idiot would consider it.
 
-    # Lets always present things in the order determined by the NOMALY VARIANT
-    # ID. It at least has the advantage of history, and using the reference
-    # genome would be too easy.
+    nomaly_variant_id = gs.nomaly_variant_ids
+    plink_variant_id = gs.plink_variant_ids
 
-    genotype_variant_id = genotypes.genotype_variant_id
-    nomaly_variant_id = genotypes.nomaly_variant_id
-    plink_variant_id = genotypes.plink_variant_id
-    genotype_counts = genotypes.genotype_counts
+    flip_me = nomaly_variant_id != plink_variant_id
 
-    htrz = genotype_counts[:, 1]
-    ref_hmoz = genotype_counts[:, 0]
-    alt_hmoz = genotype_counts[:, 2]
-    total = genotype_counts.sum(axis=1)
+    genotype_counts = gs.get_genotype_counts_and_freqs()
 
-    ref_allele_count = (2 * ref_hmoz) + htrz
-    alt_allele_count = (2 * alt_hmoz) + htrz
+    het_count = genotype_counts["het_count"]
+    ref_count = genotype_counts["ref_count"]
+    alt_count = genotype_counts["alt_count"]
 
-    # NOTE: We ignore missing alleles when calculating frequencies
-    freq_01 = htrz / total
-    freq_00 = ref_hmoz / total
-    freq_11 = alt_hmoz / total
+    ref_allele_count = (2 * ref_count) + het_count
+    alt_allele_count = (2 * alt_count) + het_count
 
-    assert np.allclose(freq_01 + freq_00 + freq_11, 1)
+    freq_01 = genotype_counts["het_freq"]
+    freq_00 = genotype_counts["ref_freq"]
+    freq_11 = genotype_counts["alt_freq"]
 
     # Create a dataframe
     df = pd.DataFrame(
         {
-            "genotype_variant_id": genotype_variant_id,
+            "genotype_variant_id": plink_variant_id,
             "nomaly_variant_id": nomaly_variant_id,
             "plink_variant_id": plink_variant_id,
-            "htrz": htrz,
-            "ref_hmoz": ref_hmoz,
-            "alt_hmoz": alt_hmoz,
+            "htrz": het_count,
+            "ref_hmoz": ref_count,
+            "alt_hmoz": alt_count,
             "ref_allele_count": ref_allele_count,
             "alt_allele_count": alt_allele_count,
             "freq_01": freq_01,
             "freq_00": freq_00,
             "freq_11": freq_11,
-            "flip_me": genotypes.allele_flipped_in_genotype_file_relative_to_nomaly_variant_id,
+            "flip_me": flip_me,
         }
     )
-
-    # Convert None to \N in flip_me column for MySQL compatibility
-    df["flip_me"] = df["flip_me"].replace({None: r"\N", True: 1, False: 0})
 
     df.to_csv("genotype_counts.tsv", sep="\t", index=False)
 

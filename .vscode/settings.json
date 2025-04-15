@@ -20,5 +20,5 @@
     "editor.formatOnSave": true,
     "search.exclude": {
         "**/.venv": true
-    },
+    }
 }

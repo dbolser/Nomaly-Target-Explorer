@@ -1,5 +1,6 @@
 import os
 
+from dotenv import load_dotenv
 from flask import (
     Flask,
     Response,
@@ -32,16 +33,17 @@ from blueprints.prioritisation_by_nomaly_scores import prioritisation_bp
 
 # Import blueprints after creating the app
 from blueprints.search import search_bp
+from blueprints.user import user_bp
 from blueprints.variant import variant_bp
 from config import config
 from db import get_db_connection
 from errors import DatabaseConnectionError, DataNotFoundError
-from flask_session import Session
-from dotenv import load_dotenv
+from flask_session import Session  # Server-side session extension
+from logging_config import setup_logging
 
 # Initialize extensions
 mysql = MySQL()
-session = Session()
+flask_session = Session()  # Renamed to avoid conflict with Flask's session
 login_manager = LoginManager()
 cors = CORS()
 
@@ -58,16 +60,21 @@ def create_app(config_name=None):
     if config_name is None:
         config_name = os.getenv("FLASK_ENV", "development")
 
-    app.config.from_object(config[config_name])
-
-    # Optionally load environment-specific .env file
+    # Load environment-specific .env file FIRST
     env_file = f".env.{config_name}"
     if os.path.exists(env_file):
+        print(f"Loading environment file: {env_file}")
         load_dotenv(env_file)
+
+    # THEN load the config so it can use those environment variables
+    print(f"Loading config: {config_name}")
+    app.config.from_object(config[config_name])
+
+    setup_logging(app)
 
     # Initialize extensions
     mysql.init_app(app)
-    session.init_app(app)
+    flask_session.init_app(app)  # Use the renamed variable
     login_manager.init_app(app)
     cors.init_app(app)
 
@@ -94,6 +101,11 @@ def register_blueprints(app):
     app.register_blueprint(variant_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(prioritisation_bp)
+    app.register_blueprint(user_bp)
+
+    from api import stats_bp
+
+    app.register_blueprint(stats_bp)
 
 
 def register_routes(app):
@@ -117,7 +129,7 @@ def register_routes(app):
             """
             SELECT
                 u.username,
-                IF(up.allowed_paths='*', 1, 0) AS is_admin,
+                u.is_admin,
                 up.allowed_paths
             FROM users2 u
             LEFT JOIN user_permissions up ON u.id = up.user_id 
@@ -143,8 +155,12 @@ def register_routes(app):
     def require_permissions():
         """Check if user has permission to access the page."""
         if not check_page_permission(current_user, request.path):
+            # If user is not logged in, redirect to login with the requested URL as 'next' parameter
+            if not current_user.is_authenticated:
+                return redirect(url_for("login", next=request.url))
+            # If user is logged in but has insufficient permissions, go back to previous page
             flash("Access denied: Insufficient permissions")
-            return redirect(url_for("index"))
+            return redirect(request.referrer or url_for("index"))
         return None
 
     @app.route("/login", methods=["GET", "POST"])
@@ -155,7 +171,11 @@ def register_routes(app):
 
             if not username or not password:
                 flash("Please enter both username and password")
-                return redirect(url_for("login"))
+                # Preserve the 'next' parameter during form submission
+                next_url = request.args.get("next")
+                return redirect(
+                    url_for("login", next=next_url) if next_url else url_for("login")
+                )
 
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -173,13 +193,31 @@ def register_routes(app):
                     login_user(user_obj)
                     current_app.logger.info(f"User {user_obj.username} logged in.")
                     flash("Logged in successfully.")
+
+                    # Get the next URL from the query parameters
                     next_page = request.args.get("next")
-                    if not next_page or not next_page.startswith("/"):
+
+                    if next_page:
+                        # Handle full URLs by extracting just the path
+                        from urllib.parse import urlparse
+
+                        parsed_url = urlparse(next_page)
+                        # Use the path component if it's a complete URL
+                        if parsed_url.netloc:
+                            next_page = parsed_url.path
+
+                        # Check if user has permission for the target page
+                        if not check_page_permission(current_user, next_page):
+                            flash("Access denied: Insufficient permissions")
+                            return redirect(url_for("index"))
+                    else:
                         next_page = url_for("index")
                     return redirect(next_page)
             flash("Invalid username or password.")
 
-        return render_template("login.html")
+        # Pass next parameter to template
+        next_url = request.args.get("next")
+        return render_template("login.html", next=next_url)
 
     @app.route("/logout")
     def logout():
@@ -233,6 +271,7 @@ def register_error_handlers(app):
     def handle_db_error(e):
         app.logger.error(f"Database error: {str(e)}")
         return render_template("error.html", error="Database connection error"), 503
+
 
 
 # Only create app if running directly

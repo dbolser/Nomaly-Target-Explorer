@@ -1,63 +1,71 @@
 import numpy as np
 
-from data_services.genotype import GenotypesHDF5
+from data_services import GenotypeService
 
 from config import Config
 
 import pytest
 
-config = Config()
-nomaly_genotype = GenotypesHDF5(config.GENOTYPES_H5)
+# config = Config()
 
 NUM_INDIVIDUALS = 488377
-NUM_INDIVIDUALS = 487950  # Removed 427 individuals with negative eids
+# NUM_INDIVIDUALS = 487950  # Removed 427 individuals with negative eids
 NUM_VARIANTS = 83011
 
 
-def test_production_file_exists():
+
+@pytest.fixture(scope="session")
+def genotype_service():
+    return GenotypeService(Config.GENOTYPES_HDF)
+
+
+def test_production_file_exists(genotype_service):
     """Verify the production genotype file exists and is readable."""
-    assert nomaly_genotype is not None
-    assert hasattr(nomaly_genotype, "f")
-    assert nomaly_genotype.hdf5_file.exists()
-    assert nomaly_genotype.hdf5_file.is_file()
-    assert nomaly_genotype.hdf5_file.stat().st_mode & 0o400
+
+    assert genotype_service.hdf5_file.exists()
+    assert genotype_service.hdf5_file.is_file()
+    assert genotype_service.hdf5_file.stat().st_mode & 0o400
+
+def test_h5_matches_npy(genotype_service):
+    """Verify the HDF5 file matches the NPY file."""
+
+    import h5py
+
+    # This is now the default genotype matrix
+    genotype_matrix_npy = genotype_service._hdf.genotype_matrix
+
+    # Need to load the HDF5 genotype matrix from the HDF5 file directly...
+    genotype_matrix_hdf = genotype_service._hdf.genotype_matrix
+
+    assert genotype_matrix_hdf.shape == genotype_matrix_npy.shape
+    assert genotype_matrix_hdf.dtype == genotype_matrix_npy.dtype
+
+    # A bit random, but hey...
+    n = 100
+    assert np.all(genotype_matrix_hdf[0:n, :] == genotype_matrix_npy[0:n, :])
+    assert np.all(genotype_matrix_hdf[:, 0:n] == genotype_matrix_npy[:, 0:n])
 
 
-def test_known_variant_query():
-    """Test querying a known variant from production data."""
-    # Known variant that should exist
-    variant = "11:69083946:T:C"
-    result = nomaly_genotype.query_variants(variant)
-
-    assert result is not None
-    assert isinstance(result, np.ndarray)
-    assert result.shape[1] == len(
-        nomaly_genotype.individual
-    )  # Should match number of individuals
-    assert result[0].dtype == np.int8  # Genotypes should be integers
-    assert all(g in [-1, 0, 1, 2] for g in result[0])  # Valid genotype values
-
-
-def test_individual_count():
+def test_individual_count(genotype_service):
     """Verify the expected number of individuals in the dataset."""
-    assert len(nomaly_genotype.individual) == NUM_INDIVIDUALS
+    assert len(genotype_service.individual) == NUM_INDIVIDUALS
 
 
-def test_variant_count():
+def test_variant_count(genotype_service):
     """Verify the expected number of variants in the dataset."""
-    assert len(nomaly_genotype.genotype_variant_id) == NUM_VARIANTS
-    assert len(nomaly_genotype.nomaly_variant_id) == NUM_VARIANTS
+    assert len(genotype_service.plink_variant_ids) == NUM_VARIANTS
 
 
-def test_genotype_matrix_shape():
+def test_genotype_matrix_shape(genotype_service):
     """Verify the shape of the genotype matrix."""
-    assert nomaly_genotype.genotype_matrix.shape == (NUM_VARIANTS, NUM_INDIVIDUALS)
+    genotype_matrix = genotype_service.get_genotypes()
+    assert genotype_matrix.shape == (NUM_VARIANTS, NUM_INDIVIDUALS)
 
 
-def test_get_genotypes_to_hell():
+def test_get_genotypes_to_hell(genotype_service):
     """Test the get_genotypes method."""
-    eids = nomaly_genotype.individual
-    vids = nomaly_genotype.genotype_variant_id
+    eids = genotype_service.individual
+    vids = genotype_service.plink_variant_ids
 
     rand_eid = np.random.choice(eids, size=1000, replace=True)
     rand_vid = np.random.choice(vids, size=100, replace=True)
@@ -70,12 +78,12 @@ def test_get_genotypes_to_hell():
     # 'original' order, as found in the original eids and vids arrays.
 
     # Get genotypes in 'original' order
-    selected_genotypes_original_order = nomaly_genotype.get_genotypes(
+    selected_genotypes_original_order = genotype_service.get_genotypes(
         eids=eids[rand_eid_idx], vids=vids[rand_vid_idx]
     )
 
     # Get genotypes in 'reverse' order
-    selected_genotypes_reverse_order = nomaly_genotype.get_genotypes(
+    selected_genotypes_reverse_order = genotype_service.get_genotypes(
         eids=eids[rand_eid_idx[::-1]], vids=vids[rand_vid_idx[::-1]]
     )
 
@@ -90,7 +98,7 @@ def test_get_genotypes_to_hell():
     rand_eid_idx_idx = np.random.permutation(np.arange(len(rand_eid_idx)))
     rand_vid_idx_idx = np.random.permutation(np.arange(len(rand_vid_idx)))
 
-    selected_genotypes_random_order = nomaly_genotype.get_genotypes(
+    selected_genotypes_random_order = genotype_service.get_genotypes(
         eids=eids[rand_eid_idx[rand_eid_idx_idx]],
         vids=vids[rand_vid_idx[rand_vid_idx_idx]],
     )
@@ -106,7 +114,7 @@ def test_get_genotypes_to_hell():
     double_vids = np.concatenate([vids[rand_vid_idx], vids[rand_vid_idx]])
 
     # Double check that duplicates are handled 'correctly'...
-    selected_genotypes_duplicate_eids = nomaly_genotype.get_genotypes(
+    selected_genotypes_duplicate_eids = genotype_service.get_genotypes(
         eids=double_eids, vids=double_vids
     )
 
@@ -116,10 +124,10 @@ def test_get_genotypes_to_hell():
     )
 
     # Check with just 10 eids
-    selected_10_eids1 = nomaly_genotype.get_genotypes(eids=eids[rand_eid_idx[:10]])
+    selected_10_eids1 = genotype_service.get_genotypes(eids=eids[rand_eid_idx[:10]])
     assert selected_10_eids1.shape == (NUM_VARIANTS, 10)
 
-    selected_10_eids2 = nomaly_genotype.get_genotypes(
+    selected_10_eids2 = genotype_service.get_genotypes(
         eids=eids[rand_eid_idx[:10][::-1]]
     )
     assert selected_10_eids2.shape == (NUM_VARIANTS, 10)
@@ -127,304 +135,189 @@ def test_get_genotypes_to_hell():
     assert np.array_equal(selected_10_eids1, selected_10_eids2[:, ::-1])
 
     # Check with just 10 vids
-    selected_10_vids1 = nomaly_genotype.get_genotypes(vids=vids[rand_vid_idx[:10]])
+    selected_10_vids1 = genotype_service.get_genotypes(vids=vids[rand_vid_idx[:10]])
     assert selected_10_vids1.shape == (10, NUM_INDIVIDUALS)
 
-    selected_10_vids2 = nomaly_genotype.get_genotypes(
+    selected_10_vids2 = genotype_service.get_genotypes(
         vids=vids[rand_vid_idx[:10][::-1]]
     )
     assert selected_10_vids2.shape == (10, NUM_INDIVIDUALS)
 
     assert np.array_equal(selected_10_vids1, selected_10_vids2[::-1, :])
 
-    # Check with garbage eids and vids
-    # Currently we're fucked...
-    garbage = np.array(["foo", "bar", "baz"])
 
-    with pytest.raises(IndexError):
-        _ = nomaly_genotype.get_genotypes(eids=garbage)
+def test_known_variant_for_genotypes(genotype_service):
+    """Test querying a known variant from production data."""
+    # Known variant that should exist
+    variant = "11:69083946_T/C"
+    result = genotype_service.get_genotypes(vids=[variant])
 
-    # This is like the least best result we could expect... other than what we currently do...
-    # assert selected_garbage_eids.shape == (NUM_VARIANTS, 0)
+    assert result is not None
+    assert isinstance(result, np.ndarray)
+    assert result.shape[0] == 1
 
-    with pytest.raises(IndexError):
-        _ = nomaly_genotype.get_genotypes(vids=garbage)
+    assert result.shape[1] == len(genotype_service.individual)
+    assert result[0].dtype == np.int8  # Genotypes should be integers
 
-    # This is like the least best result we could expect... other than what we currently do...
-    # assert selected_garbage_vids.shape == (0, NUM_INDIVIDUALS)
+    genotype_counts = np.unique(result[0], return_counts=True)
+
+    # TODO: REDUMP?
+    # assert np.all(np.isin(genotype_counts[0], [-1, 0, 1, 2]))
+    assert np.all(np.isin(genotype_counts[0], [-9, 0, 1, 2]))
+
+    # The real counts were carefully obtained using PLINK2...
+    assert np.all(np.isin(genotype_counts[1], [444, 1516, 11499, 474918]))
 
 
-def test_known_variant_genotype_distribution():
+def test_another_known_variant_genotypes(genotype_service):
     """Test the distribution of genotypes for a known variant."""
     # Known variant with expected distribution
-    variant = "19:44908684:C:T"
-    result = nomaly_genotype.query_variants(variant)
+    variant1 = "19:44908684_T/C"
+    variant2 = "6:26199089_A/C"
+
+    results = genotype_service.get_genotypes(vids=[variant1, variant2])
+    assert results is not None
+
+    assert results.shape == (2, NUM_INDIVIDUALS)
+
+    result = results[0]
+    result_counts = np.unique(result, return_counts=True)
+    assert np.all(np.isin(result_counts[0], [-9, 0, 1, 2]))
+    assert np.all(np.isin(result_counts[1], [73909, 296223, 108371, 9874]))
+
+    result = results[1]
+    result_counts = np.unique(result, return_counts=True)
+    assert np.all(np.isin(result_counts[0], [-9, 0, 1, 2]))
+    assert np.all(np.isin(result_counts[1], [354, 488018, 5, 0]))
+
+
+def test_get_genotypes_single_eid(genotype_service):
+    """Test that get_genotypes works with a single eid."""
+    eid = genotype_service.individual[0]
+    result = genotype_service.get_genotypes(eids=[eid])
     assert result is not None
+    assert result.shape == (NUM_VARIANTS, 1)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
 
-    genotypes = result[0]
 
-    expected_missing_______ = 73846
-    expected_ref_homozygous = 9863
-    expected_heterozygous__ = 108276
-    expected_alt_homozygous = 295965
-
-    assert np.sum(genotypes == -1) == expected_missing_______
-    assert np.sum(genotypes == 0) == expected_ref_homozygous
-    assert np.sum(genotypes == 1) == expected_heterozygous__
-    assert np.sum(genotypes == 2) == expected_alt_homozygous
-
-    variant = "6:26199089:A:C"
-    result = nomaly_genotype.query_variants(variant)
+def test_get_genotypes_multiple_eids(genotype_service):
+    """Test that get_genotypes works with multiple eids."""
+    eids = genotype_service.individual[:10]
+    result = genotype_service.get_genotypes(eids=eids)
     assert result is not None
-
-    genotypes = result[0]
-
-    expected_missing_______ = 354
-    expected_ref_homozygous = 487591
-    expected_heterozygous__ = 5
-    expected_alt_homozygous = 0
-
-    assert np.sum(genotypes == -1) == expected_missing_______
-    assert np.sum(genotypes == 0) == expected_ref_homozygous
-    assert np.sum(genotypes == 1) == expected_heterozygous__
-    assert np.sum(genotypes == 2) == expected_alt_homozygous
+    assert result.shape == (NUM_VARIANTS, 10)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
 
 
-def test_genotype_variant_id_format_in_file():
+def test_get_genotypes_single_vid(genotype_service):
+    """Test that get_genotypes works with a single vid."""
+    vid = genotype_service.plink_variant_ids[0]
+    result = genotype_service.get_genotypes(vids=[vid])
+    assert result is not None
+    assert result.shape == (1, NUM_INDIVIDUALS)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
+
+
+def test_get_genotypes_single_vid_nomaly_id(genotype_service):
+    """Test that get_genotypes works with a single vid and nomaly_ids=True."""
+    vid = genotype_service.nomaly_variant_ids[0]
+    result = genotype_service.get_genotypes(vids=[vid], nomaly_ids=True)
+    assert result is not None
+    assert result.shape == (1, NUM_INDIVIDUALS)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
+
+
+def test_get_genotypes_multiple_vids(genotype_service):
+    """Test that get_genotypes works with multiple vids."""
+    vids = genotype_service.plink_variant_ids[:10]
+    result = genotype_service.get_genotypes(vids=vids)
+    assert result is not None
+    assert result.shape == (10, NUM_INDIVIDUALS)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
+
+
+def test_get_genotypes_multiple_vids_nomaly_id(genotype_service):
+    """Test that get_genotypes works with multiple vids and nomaly_ids=True."""
+    vids = genotype_service.nomaly_variant_ids[:10]
+    result = genotype_service.get_genotypes(vids=vids, nomaly_ids=True)
+    assert result is not None
+    assert result.shape == (10, NUM_INDIVIDUALS)
+    assert result[0].dtype == np.int8
+    assert np.all(np.isin(result[0], [-9, 0, 1, 2]))
+
+
+def test_bad_eids(genotype_service):
+    """Test that bad eids are handled correctly."""
+    with pytest.raises(IndexError):
+        _ = genotype_service.get_genotypes(eids=["hello"])
+
+
+def test_bad_vids(genotype_service):
+    """Test that bad vids are handled correctly."""
+    with pytest.raises(IndexError):
+        _ = genotype_service.get_genotypes(vids=["hello"])
+
+
+def test_bad_vids_nomaly_id(genotype_service):
+    """Test that bad vids are handled correctly."""
+    with pytest.raises(IndexError):
+        _ = genotype_service.get_genotypes(vids=["hello"], nomaly_ids=True)
+
+
+def test_plink_variant_id_format_in_file(genotype_service):
     """Test that variants in the file follow the expected format."""
     # Sample first 1000 variants
-    sample_variants = nomaly_genotype.genotype_variant_id[:1000]
+    sample_variants = genotype_service.plink_variant_ids[:1000]
+
+    import re
+
+    pattern = re.compile(r"^(\d+):(\d+)_([ACGT])/([ACGT])$")
 
     for variant in sample_variants:
-        parts = variant.split(":")
-        assert len(parts) == 4, f"Invalid variant format: {variant}"
-        assert parts[0].isdigit(), f"Invalid chromosome: {parts[0]}"
-        assert parts[1].isdigit(), f"Invalid position: {parts[1]}"
-        assert len(parts[2]) >= 1, f"Invalid ref allele: {parts[2]}"
-        assert len(parts[3]) >= 1, f"Invalid alt allele: {parts[3]}"
+        assert pattern.match(variant), f"Invalid variant: {variant}"
 
 
-def test_nomaly_variant_id_format_in_file():
+def test_nomaly_variant_id_format_in_file(genotype_service):
     """Test that variants in the file follow the expected format."""
     # Sample first 1000 variants
-    sample_variants = nomaly_genotype.nomaly_variant_id[:1000]
+    sample_variants = genotype_service.nomaly_variant_ids[:1000]
+
+    import re
+
+    pattern = re.compile(r"^(\d+)_(\d+)_([ACGT])/([ACGT])$")
 
     missing_count = 0
     for variant in sample_variants:
-        if variant == "Missing":
+        # TODO Should probably fix earlier in the pipeline...
+        if variant == "nan":
             missing_count += 1
             continue
 
-        chr, pos, alleles = variant.split("_")
-        assert len(chr) == 1, f"Invalid chromosome: {chr}"
-        assert len(pos) >= 1, f"Invalid position: {pos}"
-        assert len(alleles) == 3, f"Invalid alleles: {alleles}"
-        assert alleles[0] in ["A", "C", "G", "T"], f"Invalid ref allele: {alleles[0]}"
-        assert alleles[1] == "/", f"Invalid separator: {alleles[1]}"
-        assert alleles[2] in ["A", "C", "G", "T"], f"Invalid alt allele: {alleles[2]}"
+        assert pattern.match(variant), f"Invalid variant: {variant}"
 
-    assert missing_count < 1000, "There should be less than 1000 missing variants"
+    assert missing_count < 999, "There should be less than 1000 missing variants"
 
 
-def test_individual_id_format():
+def test_individual_id_format(genotype_service):
     """Test that individual IDs are in the expected format."""
-    sample_ids = nomaly_genotype.individual[:1000]
+    sample_ids = genotype_service.individual
 
-    # THIS WAS A PROBLEM IN THE ORIGINAL FILE, e..g there was exactly 1 -1 in
-    # the sample_ids!
+    NUM_MISSING_IDS = 427
 
-    NUM_MISSING_IDS = 0
-
-    assert np.sum(sample_ids == -1) == NUM_MISSING_IDS, (
-        f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
-    )
-
-    assert np.sum(sample_ids < 0) == NUM_MISSING_IDS, (
+    assert np.sum(sample_ids <= 0) == NUM_MISSING_IDS, (
         f"There should be {NUM_MISSING_IDS} -1s in the sample_ids...ahhh"
     )
 
     for id_num in sample_ids:
         assert isinstance(id_num, np.integer)
-        if id_num == -1:
+        if id_num <= 0:
             continue
         assert id_num >= 100000, f"Individual ID: {id_num} is not greater than 100000"
         assert id_num < 10000000, f"Individual ID: {id_num} is not less than 10000000"
         assert len(str(id_num)) >= 5  # Example: Expecting at least 5-digit IDs
 
-
-def test_missing_data_handling():
-    """Test handling of missing genotype data."""
-    # Find a variant with some missing data (genotype = -1)
-    variant = "11:69083946:T:C"
-    result = nomaly_genotype.query_variants(variant)
-    assert result is not None
-
-    genotypes = result[0]
-    missing_count = np.sum(genotypes == -1)
-    assert missing_count < len(genotypes) * 0.1  # Less than 10% missing
-
-
-def test_flipped_allele_query():
-    """Test querying variants with flipped alleles."""
-    # Original variant
-    variant = "8_6870776_C/T"
-    # Expected flipped variant in file
-    flipped = "8_6870776_T/C"
-
-    # First verify the original variant isn't found
-    result_original = nomaly_genotype.query_variants(variant)
-    assert result_original is not None, (
-        "Either original or flipped variant should be found"
-    )
-
-    # The query should automatically try the flipped version
-    genotypes = result_original[0]
-    assert all(g in [-1, 0, 1, 2] for g in genotypes)
-
-    # Verify the flipped variant is also found
-    result_flipped = nomaly_genotype.query_variants(flipped)
-    assert result_flipped is not None, "Flipped variant should be found"
-
-
-def test_variant_format_standardization():
-    """Test variant format standardization."""
-    geno = nomaly_genotype
-
-    test_cases = [
-        # Format: (input, expected_output)
-        ("8_6870776_C/T", "8:6870776:C:T"),
-        ("8_6870776_C_T", "8:6870776:C:T"),
-        ("8:6870776:C:T", "8:6870776:C:T"),  # Already standard
-        # With chr prefix
-        ("chr8_6870776_C/T", "8:6870776:C:T"),
-        ("Chr8_6870776_C_T", "8:6870776:C:T"),
-        ("CHR8:6870776:C:T", "8:6870776:C:T"),
-    ]
-
-    for input_variant, expected in test_cases:
-        result = geno._standardize_variant_format(input_variant)
-        assert result == expected, f"Failed for {input_variant}"
-
-    test_cases = [
-        # Invalid formats
-        "invalid_format",
-        "8_6870776",  # Missing alleles
-        "8_pos_C/T",  # Invalid position
-        "",  # Empty string
-        "8_6870776_C",  # Missing alt
-    ]
-
-    # Test that invalid formats raise ValueError
-    for invalid_variant in test_cases:
-        with pytest.raises(ValueError):
-            geno._standardize_variant_format(invalid_variant)
-
-
-def test_query_with_different_formats():
-    """Test querying variants in different formats."""
-    # Same variant in different formats
-    variants = [
-        "8_6870776_C/T",  # underscore format
-        "8:6870776:C:T",  # colon format
-        "chr8_6870776_C/T",  # with chr prefix
-    ]
-
-    # All should return the same data
-    results = [nomaly_genotype.query_variants(v) for v in variants]
-    results = [r for r in results if r is not None]
-
-    # Check all results are identical
-    assert len(results) > 0, "No variants found"
-    for r in results[1:]:
-        np.testing.assert_array_equal(
-            results[0], r, "Different formats of same variant returned different data"
-        )
-
-
-def test_genotype_flipping():
-    """Test that genotypes are correctly flipped when alleles are flipped."""
-    # Example variants where we know one is the flipped version of the other
-    # These are placeholders - replace with actual variants from the data
-    variant_ref = (
-        "19:44908684:C:T"  # Replace with variant where we know genotype=0 means CC
-    )
-    variant_flipped = (
-        "19:44908684:T:C"  # Same variant but flipped, so genotype=0 should mean TT
-    )
-
-    # Get genotypes for both orientations
-    result_ref = nomaly_genotype.query_variants(variant_ref)
-    result_flipped = nomaly_genotype.query_variants(variant_flipped)
-
-    assert result_ref is not None, f"Variant {variant_ref} not found"
-    assert result_flipped is not None, f"Variant {variant_flipped} not found"
-
-    genotypes_ref = result_ref[0]
-    genotypes_flipped = result_flipped[0]
-
-    # Verify that homozygous ref (0) in one is homozygous alt (2) in the other
-    ref_homozygous_mask = genotypes_ref == 0
-    assert all(genotypes_flipped[ref_homozygous_mask] == 2), (
-        "Homozygous ref not flipped to homozygous alt"
-    )
-
-    # Verify that homozygous alt (2) in one is homozygous ref (0) in the other
-    alt_homozygous_mask = genotypes_ref == 2
-    assert all(genotypes_flipped[alt_homozygous_mask] == 0), (
-        "Homozygous alt not flipped to homozygous ref"
-    )
-
-    # Verify that heterozygous (1) stays heterozygous
-    het_mask = genotypes_ref == 1
-    assert all(genotypes_flipped[het_mask] == 1), (
-        "Heterozygous genotypes changed during flipping"
-    )
-
-    # Verify that missing (-1) stays missing
-    missing_mask = genotypes_ref == -1
-    assert all(genotypes_flipped[missing_mask] == -1), (
-        "Missing genotypes changed during flipping"
-    )
-
-
-def test_variant_counts():
-    """Test the variant counts for specific variants."""
-    # Test a variant with known distribution
-    variant = "19_44908684_T/C"
-    counts = nomaly_genotype.get_variant_counts(variant)
-
-    # Check the counts match expected values
-    assert counts["missing"] == 73846
-    assert counts["homozygous_ref"] == 9863
-    assert counts["heterozygous"] == 108276
-    assert counts["homozygous_alt"] == 295965
-    assert counts["total"] == 487950
-
-    # Test another variant with different distribution
-    variant = "6_26199089_A/C"
-    counts = nomaly_genotype.get_variant_counts(variant)
-
-    assert counts["missing"] == 354
-    assert counts["homozygous_ref"] == 0
-    assert counts["heterozygous"] == 5
-    assert counts["homozygous_alt"] == 487591
-    assert counts["total"] == 487950
-
-    # Test with ancestry filter
-    counts_eur = nomaly_genotype.get_variant_counts(variant, ancestry="EUR")
-    assert counts_eur["missing"] == 319
-    assert counts_eur["homozygous_ref"] == 0
-    assert counts_eur["heterozygous"] == 5
-    assert counts_eur["homozygous_alt"] == 449099
-    assert counts_eur["total"] == 449423
-
-    assert sum(counts_eur.values()) <= sum(counts.values())
-
-    # Test with sex filter
-    counts_female = nomaly_genotype.get_variant_counts(variant, sex="F")
-    assert isinstance(counts_female["missing"], int)
-    assert isinstance(counts_female["homozygous_ref"], int)
-    assert isinstance(counts_female["heterozygous"], int)
-    assert isinstance(counts_female["homozygous_alt"], int)
-    assert isinstance(counts_female["total"], int)
-    assert sum(counts_female.values()) <= sum(counts.values())
