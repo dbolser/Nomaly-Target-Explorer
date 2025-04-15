@@ -1,6 +1,6 @@
 import logging
 
-import pandas as pd
+import numpy as np
 from flask import Blueprint, current_app, jsonify, render_template, request, session
 
 from blueprints.gwas import format_gwas_results, run_gwas
@@ -15,16 +15,16 @@ from blueprints.phecode_term_helper import (
 )
 from data_services import (
     GenotypeService,
+    NomalyDataService,
     PhenotypeService,
     ServiceRegistry,
-    NomalyDataService,
 )
 from db import (
+    get_phecode_info,
     get_term_domains,
     get_term_genes,
     get_term_names,
     get_term_variants,
-    get_phecode_info,
 )
 
 # # Create a 'dummy' profile decorator if we don't have line_profiler installed
