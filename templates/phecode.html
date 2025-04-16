@@ -39,6 +39,7 @@
 </div>
 
 <!-- Centered spinner -->
+
 <div id="nomalySpinner" class="d-flex justify-content-center align-items-center my-5">
     <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
@@ -46,10 +47,6 @@
 </div>
 
 <!-- Nomaly result display -->
-
-<!--
-<button id="nomalyButton" class="btn btn-success mb-3"> Nomaly Prioritised Terms </button>
--->
 
 <div id="NomalyResultContainer" style="display: none;">
     <div id="nomalyResult" class="mt-3"></div>
@@ -72,8 +69,14 @@
 <p></p>
 
 <!-- Button to run the background task -->
-<!-- {% if data.show_gwas %} -->
-<button id="runTaskButton" class="btn btn-primary">GWAS Task</button>
+<button id="runTaskButton" class="btn btn-primary">Run GWAS</button>
+
+<!-- Spinner for GWAS task -->
+<div id="gwasSpinner" class="justify-content-center align-items-center my-5 d-none" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
 
 <!-- Result display area -->
 <div id="taskResult" class="mt-3"></div>
@@ -96,7 +99,7 @@
         <tbody></tbody>
     </table>
 </div>
-<!-- {% endif %} -->
+
 {% endblock %}
 
 {% block extra_js %}
@@ -473,7 +476,15 @@
         if (runTaskButton) {
             runTaskButton.addEventListener('click', function () {
                 const resultDiv = document.getElementById('taskResult');
+                const spinner = document.getElementById('gwasSpinner');
                 console.log('GWAS Task button clicked');
+
+                // Show spinner and hide results
+                spinner.classList.remove('d-none');
+                spinner.classList.add('d-flex');
+                spinner.style.display = 'flex'; // Keep this for good measure
+                resultDiv.innerHTML = '';
+                $('#GWASTableContainer').hide();
 
                 const endpoint = "{{ url_for('phecode.run_task', phecode=data.phecode, flush=data.flush) }}";
                 fetch(endpoint, {
@@ -484,7 +495,11 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    // console.log('Received response:', data);
+                    // Hide spinner when response is received
+                    spinner.classList.add('d-none');
+                    spinner.classList.remove('d-flex');
+                    spinner.style.display = 'none'; // Keep this for good measure
+                    
                     if (data.status === "completed") {
                         resultDiv.innerHTML = `Result: ${data.result}`;
                         if (data.associations && data.associations.length > 0) {
@@ -501,6 +516,10 @@
                 .catch(error => {
                     console.error('Error:', error);
                     document.getElementById('taskResult').innerHTML = `Error: ${error.message}`;
+                    // Hide spinner on error
+                    spinner.classList.add('d-none');
+                    spinner.classList.remove('d-flex');
+                    spinner.style.display = 'none'; // Keep this for good measure
                 });
             });
         }

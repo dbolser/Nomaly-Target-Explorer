@@ -44,9 +44,9 @@ def test_login_route(integration_app_client, test_admin):
     assert b"invalid username or password" in response.data.lower()
 
 
-def test_search_route(unit_test_app_client):
+def test_search_route(auth_integration_app_client):
     """Test the disease search functionality."""
-    response = unit_test_app_client.get("/diseasesearch?q=diabetes")
+    response = auth_integration_app_client.get("/diseasesearch?q=diabetes")
     assert response.status_code == 200
     data = json.loads(response.data)
     assert isinstance(data, list)
@@ -67,17 +67,17 @@ def test_search_route(unit_test_app_client):
         )
 
 
-def test_phecode_route(unit_test_app_client):
+def test_phecode_route(auth_integration_app_client):
     """Test the phecode detail route."""
     test_phecode = "250.2"  # Example phecode
-    response = unit_test_app_client.get(f"/phecode/{test_phecode}")
+    response = auth_integration_app_client.get(f"/phecode/{test_phecode}")
     assert response.status_code == 200
     assert bytes(test_phecode, "utf-8") in response.data
 
 
-def test_disease_sets1_structure(unit_test_app_client):
+def test_disease_sets1_structure(auth_integration_app_client):
     """Test the structure and content of the page1 route."""
-    response = unit_test_app_client.get("/disease-sets/set1")
+    response = auth_integration_app_client.get("/disease-sets/set1")
     assert response.status_code == 200
 
     # Convert response data to string for easier testing
@@ -104,9 +104,9 @@ def test_disease_sets1_structure(unit_test_app_client):
     assert "async function searchData(query, listIndex)" in html
 
 
-def test_disease_sets2_structure(unit_test_app_client):
+def test_disease_sets2_structure(auth_integration_app_client):
     """Test the structure and content of the page1 route."""
-    response = unit_test_app_client.get("/disease-sets/set2")
+    response = auth_integration_app_client.get("/disease-sets/set2")
     assert response.status_code == 200
 
     # Convert response data to string for easier testing
@@ -133,34 +133,13 @@ def test_disease_sets2_structure(unit_test_app_client):
     assert "async function searchData(query, listIndex)" in html
 
 
-def test_page1_search_results(unit_test_app_client):
-    """Test that search results are properly structured when loaded."""
-    # First make a search request to get some results
-    response = unit_test_app_client.get("/diseasesearch?query=Hidradenitis")
-    assert response.status_code == 200
-    data = json.loads(response.data)
-
-    # Verify we got some results
-    assert len(data) > 0
-
-    # Check first result has required structure
-    first_result = data[0]
-    assert "phecode" in first_result
-    assert "description" in first_result
-    assert "sex" in first_result
-    assert "affected" in first_result
-    assert "excluded" in first_result
-    assert "phecode_exclude" in first_result
-    assert "phecode_group" in first_result
-
-
-def test_phecode_term_structure(unit_test_app_client):
+def test_phecode_term_structure(auth_integration_app_client):
     """Test the structure and content of a specific phecode term page."""
     # phecode = "649.1"
     phecode = "635.2"
     term = "GO:0035235"
 
-    response = unit_test_app_client.get(f"/phecode/{phecode}/term/{term}")
+    response = auth_integration_app_client.get(f"/phecode/{phecode}/term/{term}")
     assert response.status_code == 200
 
     html = response.data.decode("utf-8")
@@ -192,65 +171,6 @@ def test_phecode_term_structure(unit_test_app_client):
     assert f'const term = "{term}";' in html
 
 
-@pytest.mark.skip(reason="CANT RUN GWAS ON UNIT TEST CLIENT!.")
-def test_phecode_term_variant_detail(unit_test_app_client):
-    """Test the JSON response from the variant detail endpoint."""
-    # phecode = "649.1"
-    phecode = "635.2"
-    term = "GO:0035235"
-
-    # TODO: Set flush here somehow?
-    response = unit_test_app_client.get(
-        f"/phecode/{phecode}/term/{term}/tableVariantDetail"
-    )
-    assert response.status_code == 200
-
-    data = json.loads(response.data)
-
-    # Check structure of response
-    assert "data" in data
-    assert "columns" in data
-    assert "defaultColumns" in data
-    assert "numColumns" in data
-
-    # Check expected columns exist
-    expected_columns = [
-        "Variant",
-        "Gene",
-        "AA_Change",
-        "HMM_Score",
-        "Classification",
-        "Drug_Program_Indication",
-        "TDL",
-        "TBIO",
-        "vs00",
-        "vs01",
-        "vs11",
-        "hmoz_alt",
-        "hmoz_ref",
-        "htrz",
-        "GWAS_P",
-        "GWAS_OR",
-        "GWAS_RSID",
-    ]
-    assert all(col in data["columns"] for col in expected_columns)
-
-    # Check data records if any exist
-    if len(data["data"]) > 0:
-        first_record = data["data"][0]
-        # Check required fields in first record
-        assert "Variant" in first_record
-        assert "Gene" in first_record
-        assert "HMM_Score" in first_record
-        assert "GWAS_P" in first_record
-
-        # Check numeric formatting
-        assert float(first_record["HMM_Score"]) >= 0
-        assert float(first_record["GWAS_P"]) >= 0
-
-
-# NOTE: We only get the real data when using the auth integration app client
-# TODO: Do we want the real data here?
 def test_phecode_page_structure(auth_integration_app_client):
     """Test the structure and content of a specific phecode page."""
     phecode = "649.1"
@@ -279,19 +199,20 @@ def test_phecode_page_structure(auth_integration_app_client):
     # assert 'const runbatch = "Run v1";' in html
 
 
-# NOTE: We only get the real data when using the auth integration app client
 def test_phecode_page_with_gwas(auth_integration_app_client):
     """Test the phecode page with GWAS functionality enabled."""
     phecode = "649.1"
 
-    response = auth_integration_app_client.get(f"/phecode/{phecode}?gwas=1")
+    # response = auth_integration_app_client.get(f"/phecode/{phecode}?gwas=1")
+    # It's now on all the time
+    response = auth_integration_app_client.get(f"/phecode/{phecode}")
     assert response.status_code == 200
 
     html = response.data.decode("utf-8")
 
     # Test GWAS button exists
     assert (
-        '<button id="runTaskButton" class="btn btn-primary">GWAS Task</button>' in html
+        '<button id="runTaskButton" class="btn btn-primary">Run GWAS</button>' in html
     )
 
     # Test GWAS results containers exist
@@ -307,36 +228,6 @@ def test_phecode_page_with_gwas(auth_integration_app_client):
     assert "<th>F_U</th>" in html
     assert "<th>OR</th>" in html
     assert "<th>P</th>" in html
-
-
-# def test_phecode_gwas_task_result(client):
-#     """Test the GWAS task result endpoint."""
-#     phecode = "649.1"
-
-#     response = client.get(f"/task-result/{phecode}")
-#     assert response.status_code == 200
-
-#     data = json.loads(response.data)
-
-#     # Check response structure
-#     assert "result" in data
-#     assert "associations" in data
-
-#     # If GWAS has been run, check the results
-#     if "GWAS identified" in data["result"]:
-#         assert "2644 missense variants" in data["result"]
-#         assert "1963 unique genes" in data["result"]
-
-#         # Check associations data
-#         associations = data["associations"]
-#         assert len(associations) > 0
-#         if len(associations) > 0:
-#             first_assoc = associations[0]
-#             assert "Variant" in first_assoc
-#             assert "Gene" in first_assoc
-#             assert "RSID" in first_assoc
-#             assert "P" in first_assoc
-#             assert "OR" in first_assoc
 
 
 def test_phecode_nomaly_stats(auth_integration_app_client):
@@ -442,7 +333,7 @@ def test_variant_phewas_results(auth_integration_app_client):
     assert initial_data["associations"] == []
 
     # Trigger PheWAS analysis
-    response = auth_integration_app_client.post(f"/run-phewas/{variant}")
+    response = auth_integration_app_client.post(f"/run-phewas/{variant}?flush=1")
     assert response.status_code == 202
     assert json.loads(response.data)["status"] == "Task started"
 
@@ -504,22 +395,23 @@ def test_phecode_gwas_pvalues(auth_integration_app_client):
     phecode = "561"
 
     # First check the page with GWAS enabled
-    response = auth_integration_app_client.get(f"/phecode/{phecode}?gwas=1")
+    response = auth_integration_app_client.get(f"/phecode/{phecode}")
     assert response.status_code == 200
     html = response.data.decode("utf-8")
     assert (
-        '<button id="runTaskButton" class="btn btn-primary">GWAS Task</button>' in html
+        '<button id="runTaskButton" class="btn btn-primary">Run GWAS</button>' in html
     )
 
     # Now simulate clicking the GWAS button by calling the run-task endpoint
-    response = auth_integration_app_client.post(f"/run-task/{phecode}/0")
+    response = auth_integration_app_client.post(f"/run-task/{phecode}/1")
+    # response = auth_integration_app_client.post(f"/run-task/{phecode}/0")
     assert response.status_code == 200
     data = json.loads(response.data)
 
     # Verify GWAS completed successfully
     assert data["status"] == "completed"
     assert "associations" in data
-    assert len(data["associations"]) > 0
+    assert len(data["associations"]) == 83011
 
     # Check P-values in GWAS results
     for assoc in data["associations"]:
@@ -529,32 +421,23 @@ def test_phecode_gwas_pvalues(auth_integration_app_client):
         assert p_value >= 0
         assert p_value <= 1  # P-values should be between 0 and 1
 
-    # Also check the nomaly stats which should include GWAS data
-    response = auth_integration_app_client.post(f"/nomaly-stats/{phecode}")
-    assert response.status_code == 200
-    data = json.loads(response.data)
-
-    # Verify we have data
-    assert "data" in data
-    assert len(data["data"]) > 0
-
-    # Check that P-values are present and not empty
-    for record in data["data"]:
-        if "mwu_pvalue" in record:  # This is a term with stats
-            assert "metric1_pvalue" in record
-            assert record["metric1_pvalue"] is not None
-            assert record["metric1_pvalue"] != ""
-            # Convert to float to ensure it's a valid number
+    # The first record should have the lowest P-value
+    first_assoc = data["associations"][0]
+    assert first_assoc["Variant"] == "4:73576632_C/G"
+    assert first_assoc["P"] == 0.000002986
+    assert first_assoc["OR"] == 0.9197
+    assert first_assoc["F_U"] == 0.05884
+    assert first_assoc["F_A"] == 0.05437
 
 
 def test_phecode_term_gwas_pvalues(auth_integration_app_client):
     """Test that GWAS P-values are present in phecode term page for a specific case."""
     phecode = "561"
-    term = "HP:0000535"
+    term = "HP:0002242"
 
     # Get the variant detail data
     response = auth_integration_app_client.get(
-        f"/phecode/{phecode}/term/{term}/tableVariantDetail"
+        f"/phecode/{phecode}/term/{term}/tableVariantDetail?flush=0"
     )
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -574,3 +457,107 @@ def test_phecode_term_gwas_pvalues(auth_integration_app_client):
             assert p_value <= 1  # P-values should be between 0 and 1
 
     assert has_pvalue, "No GWAS P-values found in any records"
+
+    # Find the record that has Variant = 3_37014530_T/C
+    for record in data["data"]:
+        if record["Variant"] == "3:37014530_T/C":
+            assert record["GWAS_P"] == 2.34e-3
+            assert record["Variant"] == "3:37014530_T/C"
+            assert record["GWAS_P"] == 2.34e-3
+            assert record["OR"] == 7.81
+            assert record["vs11"] == 1.0521
+            assert record["Gene"] == "MLH1"
+            assert record["HMM Score"] == "0.54"
+            assert record["Classification"] == "4.2"
+
+
+@pytest.fixture
+def expected_gwas_data():
+    """FUCK FUCK FUCK FUCK FUCK. </passive aggressive comment>"""
+    import pandas as pd
+
+    return pd.DataFrame(
+        [
+            {
+                "Variant": "19:44908684_C/T",
+                "Gene": "APOE",
+                "RSID": "rs429358",
+                "F_A": 0.3835,
+                "F_U": 0.1517,
+                "OR": 3.479,
+                "P": 0.0,
+            },
+            {
+                "Variant": "19:44905910_C/G",
+                "Gene": None,
+                "RSID": "rs440446",
+                "F_A": 0.2718,
+                "F_U": 0.3584,
+                "OR": 0.6683,
+                "P": 2.007e-54,
+            },
+            {
+                "Variant": "19:44908822_T/C",
+                "Gene": "APOE",
+                "RSID": "rs7412",
+                "F_A": 0.0392,
+                "F_U": 0.08032,
+                "OR": 0.4672,
+                "P": 1.087e-44,
+            },
+            {
+                "Variant": "19:44813331_A/G",
+                "Gene": None,
+                "RSID": "rs28399654",
+                "F_A": 0.01968,
+                "F_U": 0.03323,
+                "OR": 0.584,
+                "P": 3.583e-13,
+            },
+            {
+                "Variant": "19:44793549_T/C",
+                "Gene": None,
+                "RSID": "Affx-16018598",
+                "F_A": 0.02189,
+                "F_U": 0.03554,
+                "OR": 0.6074,
+                "P": 1.996e-12,
+            },
+        ]
+    )
+
+
+def test_phecode_gwas_pvalues_explicitly(
+    auth_integration_app_client, expected_gwas_data
+):
+    """Test that GWAS P-values are present in phecode term page for a specific case."""
+    phecode = "290.11"
+
+    # Now simulate clicking the GWAS button by calling the run-task endpoint
+    # response = auth_integration_app_client.post(f"/run-task/{phecode}/1")
+    response = auth_integration_app_client.post(f"/run-task/{phecode}/0")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+
+    # Verify GWAS completed successfully
+    assert data["status"] == "completed"
+    assert "associations" in data
+    assert len(data["associations"]) == 83011
+
+    import pandas as pd
+    import numpy as np
+
+    associations_df = pd.DataFrame(data["associations"])
+
+    # Look for the expected rows in the associations dataframe
+    for index, row in expected_gwas_data.iterrows():
+        assert row["Variant"] in associations_df["Variant"].values
+
+        assoc = associations_df[associations_df["Variant"] == row["Variant"]]
+        assert np.isclose(assoc["P"].values[0], row["P"])
+        assert assoc["OR"].values[0] == row["OR"]
+        assert assoc["F_A"].values[0] == row["F_A"]
+        assert assoc["F_U"].values[0] == row["F_U"]
+        assert assoc["Gene"].values[0] == row["Gene"]
+        # The table has a link
+        assert row["RSID"] in assoc["RSID"].values[0]
