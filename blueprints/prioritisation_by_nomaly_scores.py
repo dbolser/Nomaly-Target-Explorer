@@ -235,9 +235,10 @@ def process_individual_variants_vectorized(
     ranks = np.argsort(sorted_indices_desc, axis=1) + 1
 
     # 4. Filter based on score > 1 or rank <= 5
-    is_top_variant_mask = (individual_scores > 1) | (
-        ranks <= 5
-    )  # Shape: (num_individuals, num_variants)
+    is_top_variant_mask = (individual_scores > 1) 
+    # | (
+    #     ranks <= 5
+    # )  # Shape: (num_individuals, num_variants)
 
     # 5. Aggregate results across individuals for each variant
     # Count how many individuals have this variant as "top"
