@@ -1,6 +1,6 @@
 """
-Prioritisation of individual variants by Nomaly prediction scores and disease status.
-per disease and term.
+Prioritisation of individual variants by Nomaly prediction scores and disease
+status. per disease and term.
 
 Genes are prioritised by the sum of Nomaly scores of their variants.
 """
@@ -40,33 +40,11 @@ from db import get_term_domains, get_term_genes, get_term_names, get_term_varian
 logger = logging.getLogger(__name__)
 
 
-from config import Config
+# Define a global thread pool for variant processing
 
-# # Create a 'dummy' profile decorator if we don't have line_profiler installed
-# try:
-#     from line_profiler import profile  # type: ignore
-# except ImportError:
-
-#     def profile(func):
-#         return func
-
-
-# TODO: Move to a new variant scores (or 'nomaly_data') data service?
-
-variant_scores = pd.read_csv(
-    Config.NOMALY_VARIANT_SCORES_PATH,
-    sep="\t",
-    index_col="nomaly_variant_id",
-)
-
-variant2gene = pd.read_csv(
-    Config.NOMALY_VARIANT2GENE_PATH, sep="\t", header=None, index_col=0
-)
-
-# Global thread pool for variant processing
-# Limit concurrent processing to avoid overwhelming the server
 MAX_WORKERS = 20  # Adjust based on server capacity
-variant_processor = ThreadPoolExecutor(
+
+VARIANT_PROCESSOR_POOL = ThreadPoolExecutor(
     max_workers=MAX_WORKERS, thread_name_prefix="variant_processor"
 )
 
@@ -107,31 +85,59 @@ class StreamLogger:
 
 # @profile
 def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
-    """Return numpy array of variant scores for the selected variants."""
+    """Return numpy array of variant scores for the selected variants.
+
+    NOTE: This function is now obsolete as it is vectorized in the
+    process_individual_variants_vectorized function.
+    """
     variants = term_variant_scores["variant_id"].values
     sel_vs = term_variant_scores[["vs00", "vs01", "vs11"]].to_numpy()
 
-    geno_matrix = np.zeros((len(row), 3))
+    geno_matrix = np.zeros((len(row), 3))  # Shape is (num_variants, 3)
+
+    # Create a 'one hot encoding' of the individuals genotypes, e.g.
+    # If genotype (val) is 0, geno_matrix[i] becomes [1, 0, 0].
+    # If genotype (val) is 1, geno_matrix[i] becomes [0, 1, 0].
+    # If genotype (val) is 2, geno_matrix[i] becomes [0, 0, 1].
+    # If genotype (val) is 9, geno_matrix[i] becomes [0, 0, 0].
+
     for i, val in enumerate(row):
         if val != -9:
             geno_matrix[i, int(val)] = 1
 
-    scores = np.dot(geno_matrix, sel_vs.T)
+    # So, the dot product effectively selects the correct score from vs00_i,
+    # vs01_i, vs11_i based on the individual's genotype for variant i. For
+    # example, if the genotype for variant i is 1, geno_matrix[i] is [0, 1, 0],
+    # and the dot product is 0*vs00_i + 1*vs01_i + 0*vs11_i = vs01_i.
+    scores = np.dot(geno_matrix, sel_vs.T)  # Matrix multiplication
+
+    # Therefore, diagonal_scores is a vector where each element i is the
+    # specific score for variant i given this individual's genotype for that
+    # variant.
     diagonal_scores = np.diagonal(scores)
 
+    # Sort the scores and variants in descending order of score
     sorted_indices = np.argsort(diagonal_scores)[::-1]
     sorted_scores = diagonal_scores[sorted_indices]
     sorted_variants = variants[sorted_indices]
 
+    # Create a DataFrame with the sorted variants and scores
     top_variants = pd.DataFrame({"variant_id": sorted_variants, "vs": sorted_scores})
+
+    # Add a rank column to the DataFrame
     top_variants = top_variants.assign(rank=range(1, len(top_variants) + 1))
+
+    # Filter to only include variants with a score greater than 1 or a rank less
+    # than or equal to 5
     top_variants = top_variants[(top_variants["vs"] > 1) | (top_variants["rank"] <= 5)]
 
     return top_variants
 
 
 # @profile
-def process_individual_variants(genotypes, term_variant_scores):
+def process_individual_variants(
+    genotypes: np.ndarray, term_variant_scores: pd.DataFrame
+) -> pd.DataFrame:
     """Process variants for all individuals more efficiently...
 
     More efficiently than what?
@@ -151,13 +157,112 @@ def process_individual_variants(genotypes, term_variant_scores):
             ind_top_variants[variant] += 1
             ind_top_variants_scores[variant] += vs
 
-    return pd.DataFrame(
+    df = pd.DataFrame(
         {
             "variant_id": list(ind_top_variants.keys()),
             "num_individuals": list(ind_top_variants.values()),
             "vs": list(ind_top_variants_scores.values()),
         }
-    )
+    ).sort_values(by="vs", ascending=False)
+
+    return df
+
+
+# @profile
+def process_individual_variants_vectorized(
+    genotypes: np.ndarray, term_variant_scores: pd.DataFrame
+) -> pd.DataFrame:
+    """Vectorized version of process_individual_variants.
+
+    Calculates prioritized variants across all individuals using NumPy operations
+    to avoid explicit looping.
+    """
+    # 1. Prepare data
+    # Genotypes shape: (num_variants, num_individuals)
+    # term_variant_scores columns: variant_id, vs00, vs01, vs11
+    num_variants, num_individuals = genotypes.shape
+    variants = term_variant_scores["variant_id"].values
+    sel_vs = term_variant_scores[
+        ["vs00", "vs01", "vs11"]
+    ].to_numpy()  # Shape: (num_variants, 3)
+
+    # Transpose genotypes for easier individual-based operations
+    genotypes_T = genotypes.T  # Shape: (num_individuals, num_variants)
+
+    # 2. Calculate scores for each variant for each individual
+    # Create an array to hold scores: (num_individuals, num_variants)
+    individual_scores = np.zeros_like(genotypes_T, dtype=float)
+
+    # Select the appropriate score (vs00, vs01, vs11) based on genotype
+    # We need to align sel_vs with the genotypes_T structure
+    # np.take_along_axis requires indices to be the same shape as the array
+    # We can use broadcasting and indexing carefully...
+
+    # # Example:
+    # g = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    # i = np.array([[0], [1], [-9]])
+    # m = (i != -9)[:, 0]
+    # s = np.zeros(g.shape[0])
+    # s[m] = np.take_along_axis(g[m], i[m], axis=1)[:, 0]
+    # print(s)
+
+    # Alternative approach: Masking
+    mask_0 = genotypes_T == 0
+    mask_1 = genotypes_T == 1
+    mask_2 = genotypes_T == 2
+
+    # Apply scores based on masks
+    # Ensure broadcasting aligns correctly: sel_vs[:, 0] is (num_variants,)
+    # We need to apply variant-specific scores to the individual genotypes
+    individual_scores[mask_0] = sel_vs[np.where(mask_0)[1], 0]
+    individual_scores[mask_1] = sel_vs[np.where(mask_1)[1], 1]
+    individual_scores[mask_2] = sel_vs[np.where(mask_2)[1], 2]
+
+    # Missing genotypes (-9) will have a score of 0 by default initialization
+
+    # 3. Rank variants for each individual
+    # Sort scores in descending order and get ranks (1 is highest)
+    # Note: This is the most complex part to vectorize identically to the original
+    #       ranking within the filtered set. The original filters *then* ranks.
+    #       Here, we rank *then* filter, which might be slightly different if
+    #       scores below 1 affect the rank of scores above 1 within the top 5.
+    #       However, for performance, we'll rank all first.
+
+    # Get indices that would sort scores descendingly per individual
+    sorted_indices_desc = np.argsort(individual_scores, axis=1)[:, ::-1]
+
+    # Get ranks (1 = highest score)
+    ranks = np.argsort(sorted_indices_desc, axis=1) + 1
+
+    # 4. Filter based on score > 1 or rank <= 5
+    is_top_variant_mask = (individual_scores > 1) | (
+        ranks <= 5
+    )  # Shape: (num_individuals, num_variants)
+
+    # 5. Aggregate results across individuals for each variant
+    # Count how many individuals have this variant as "top"
+    num_individuals_per_variant = np.sum(
+        is_top_variant_mask, axis=0
+    )  # Shape: (num_variants,)
+
+    # Sum the scores for this variant only across individuals where it's "top"
+    sum_scores_per_variant = np.sum(
+        individual_scores * is_top_variant_mask, axis=0
+    )  # Shape: (num_variants,)
+
+    # 6. Create the final DataFrame
+    # Filter out variants that were not "top" for any individual
+    final_mask = num_individuals_per_variant > 0
+
+    result_df = pd.DataFrame(
+        {
+            "variant_id": variants[final_mask],
+            "num_individuals": num_individuals_per_variant[final_mask],
+            "vs": sum_scores_per_variant[final_mask],
+        }
+    ).sort_values(by="vs", ascending=False)
+
+    return result_df
 
 
 # @profile
@@ -176,26 +281,6 @@ def term_variant_prioritisation(
     Nomaly Score for the given eids).
     """
 
-    # TODO: All this term_variant dataframe hacking can be done back in
-    # 'get_top_variants' outside the 'for each stat in stats' loop.
-
-    # Remove the duplicate aa column but keep the largest hmm_score
-    term_variants = (
-        term_variants.drop(columns=["aa"])
-        .sort_values(by="hmm_score", ascending=False)
-        .drop_duplicates(subset=["variant_id", "gene"], keep="first")
-        .reset_index(drop=True)
-    )
-
-    # Group by variant_id, colapse duplicate genes into a list and select the largest hmm_score
-    term_variants_genes = (
-        term_variants.groupby("variant_id")["gene"].apply(list).reset_index()
-    )
-    term_variants_hmmsc = (
-        term_variants.groupby("variant_id")["hmm_score"].max().reset_index()
-    )
-    term_variants = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
-
     stream_logger.log(
         f"Reading genotypes for {len(term_variants)} variants across {len(case_eids_above_threshold)} individuals",
     )
@@ -206,46 +291,11 @@ def term_variant_prioritisation(
         eids=case_eids_above_threshold, vids=vids_array, nomaly_ids=True
     )
 
-    genotype_counts = genotype_service.get_genotype_counts_and_freqs(
-        eids=case_eids_above_threshold,
-        vids=vids_array,
-        nomaly_ids=True,
+    # The vectorized version is about 3000x faster than the non-vectorized version
+    # ind_top_variants_df = process_individual_variants(genotypes, term_variants)
+    ind_top_variants_df = process_individual_variants_vectorized(
+        genotypes, term_variants
     )
-
-    # This step just serves to align the variant_id columns
-    genotype_counts_and_hmm_scores = genotype_counts.merge(
-        term_variants_hmmsc, on="variant_id"
-    )
-
-    f00 = genotype_counts_and_hmm_scores["ref_freq"]
-    f11 = genotype_counts_and_hmm_scores["alt_freq"]
-    f01 = genotype_counts_and_hmm_scores["het_freq"]
-
-    hmm2 = genotype_counts_and_hmm_scores["hmm_score"] ** 2
-
-    vs00 = hmm2 * f01 + hmm2 * 4 * f11
-    vs11 = hmm2 * f01 + hmm2 * 4 * f00
-    vs01 = hmm2 * (f00 + f11)
-
-    # Create term_variant_scores DataFrame with variant_id as a column, not index
-    term_variant_scores = pd.DataFrame(
-        {
-            "variant_id": genotype_counts_and_hmm_scores["variant_id"],
-            "vs00": vs00,
-            "vs01": vs01,
-            "vs11": vs11,
-        }
-    )
-
-    # Process individual variants with the calculated scores
-    sel_genotypes = {
-        "row_eids": case_eids_above_threshold,
-        "col_variants": vids_array,
-        "data": genotypes.T,
-        "error_variants": [],
-    }
-
-    ind_top_variants_df = process_individual_variants(genotypes, term_variant_scores)
 
     stream_logger.log(
         f"Found {len(ind_top_variants_df)} top variants for {len(case_eids_above_threshold)} individuals",
@@ -255,8 +305,6 @@ def term_variant_prioritisation(
     top_variants = term_variants.merge(
         ind_top_variants_df, on="variant_id", how="right"
     )
-    # Join term_variant_scores as well, but using merge since it now has variant_id as a column
-    top_variants = top_variants.merge(term_variant_scores, on="variant_id", how="left")
 
     stream_logger.log(
         f"Term variants: {len(term_variants)}"
@@ -387,7 +435,8 @@ def get_top_variants(
     )
 
     try:
-        # NOTE: The stats service is specific to run_version and ancestry
+        # NOTE: The stats service is already specific to a given run_version and
+        # ancestry when it's passed in.
         stats = stats_service.get_term_stats(term=term, phecode=phecode)
     except Exception as e:
         logger.error(f"Error getting stats for {term} and {phecode}: {e}")
@@ -426,11 +475,24 @@ def get_top_variants(
             I THINK THIS IS TODO WITH EXCLUDED SEX-MATCHED CONTROLS!"""
         )
 
-    term_variants = get_term_variants(term)
+    term_variants = get_and_clean_term_variants(term)
+    term_variant_scores = get_term_variant_scores(
+        term_variants["variant_id"].to_numpy(),
+        term_variants["hmm_score"].to_numpy(),
+        phenotypes["eid"].to_numpy(),
+        genotype_service,
+    )
+
+    assert len(term_variants) == len(term_variant_scores)
+    term_variants = term_variants.merge(term_variant_scores, on="variant_id")
+    assert len(term_variants) == len(term_variant_scores)
 
     stream_logger.log(f"Got {len(term_variants)} variants for term {term}")
 
     # Fill in the 'missing' values for metric1
+
+    # TODO: Go back to the stats script and handle metric1 like the other ROC
+    # statistics.
 
     stats["metric1_threshold"] = 0.022
 
@@ -544,6 +606,80 @@ def get_top_variants(
     save_results_to_cache(phecode, term, stats, run_version, ancestry)
 
     return stats
+
+
+def get_and_clean_term_variants(term: str) -> pd.DataFrame:
+    """Get and clean the term variants."""
+
+    term_variants = get_term_variants(term)
+
+    # Remove the duplicate aa column but keep the largest hmm_score
+    term_variants = (
+        term_variants.drop(columns=["aa"])
+        .sort_values(by="hmm_score", ascending=False)
+        .drop_duplicates(subset=["variant_id", "gene"], keep="first")
+        .reset_index(drop=True)
+    )
+
+    # Group by variant_id, colapse duplicate genes into a list and select the largest hmm_score
+    term_variants_genes = (
+        term_variants.groupby("variant_id")["gene"].apply(list).reset_index()
+    )
+    term_variants_hmmsc = (
+        term_variants.groupby("variant_id")["hmm_score"].max().reset_index()
+    )
+    term_variants = term_variants_genes.merge(term_variants_hmmsc, on="variant_id")
+
+    return term_variants
+
+
+def get_term_variant_scores(
+    vids: np.ndarray,
+    hmm_scores: np.ndarray,
+    eids: np.ndarray,
+    genotype_service: GenotypeService,
+) -> pd.DataFrame:
+    """Get the term variant scores for a given set of variants.
+
+    The term variant score for each variant is calculated over a given set of
+    individuals, but in practice, this should always be every individual in a
+    specific ancestry group. NOTE: That's how we call it here.
+
+    TODO:
+        We should really pre-compute this for all variants and save it to disk
+        so we don't have to compute it for each term...
+    """
+
+    genotype_counts = genotype_service.get_genotype_counts_and_freqs(
+        eids=eids,
+        vids=vids,
+        nomaly_ids=True,
+    )
+
+    # This step just serves to align the variant_id columns
+    assert np.all(genotype_counts["variant_id"] == vids)
+
+    f00 = genotype_counts["ref_freq"]
+    f11 = genotype_counts["alt_freq"]
+    f01 = genotype_counts["het_freq"]
+
+    hmm2 = hmm_scores**2
+
+    vs00 = hmm2 * f01 + hmm2 * 4 * f11
+    vs11 = hmm2 * f01 + hmm2 * 4 * f00
+    vs01 = hmm2 * (f00 + f11)
+
+    # Create term_variant_scores DataFrame with variant_id as a column, not index
+    term_variant_scores = pd.DataFrame(
+        {
+            "variant_id": vids,
+            "vs00": vs00,
+            "vs01": vs01,
+            "vs11": vs11,
+        }
+    )
+
+    return term_variant_scores
 
 
 prioritisation_bp = Blueprint("prioritisation", __name__)
@@ -780,7 +916,7 @@ def stream_progress(disease_code: str, term: str, ancestry: str = "EUR"):
         try:
             # Submit to thread pool with the service
             print("Submitting to thread pool...")
-            _ = variant_processor.submit(
+            _ = VARIANT_PROCESSOR_POOL.submit(
                 process_variants,
                 disease_code,
                 term,
