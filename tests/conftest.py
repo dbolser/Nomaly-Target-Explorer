@@ -65,14 +65,30 @@ def mock_genotype_hdf5_file():
     """Create a test HDF5 file with merged test data."""
     with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as f:
         with h5py.File(f.name, "w") as hdf:
-            # Add test individuals (using all 4 to cover both cases)
-            eids = np.array([1001, 1002, 1003, 1004])
+            # Use consistent EIDs 1001-1010
+            eids = np.arange(1001, 1011)
             hdf.create_dataset("eid", data=eids)
 
-            individual_sex = np.array(["M", "F", "M", "F"], dtype=np.bytes_)
+            # Use explicit byte strings (b'...') to ensure correct dtype ('S') for h5py
+            individual_sex = np.array(
+                [b"M", b"F", b"M", b"F", b"M", b"F", b"M", b"F", b"M", b"F"]
+            )
             hdf.create_dataset("sex", data=individual_sex)
 
-            ancestry = np.array(["EUR", "EUR", "EUR", "SAS"], dtype=np.bytes_)
+            ancestry = np.array(
+                [
+                    b"EUR",
+                    b"EUR",
+                    b"EUR",
+                    b"SAS",
+                    b"AFR",
+                    b"EAS",
+                    b"EUR",
+                    b"SAS",
+                    b"AFR",
+                    b"EAS",
+                ]
+            )
             hdf.create_dataset("ancestry", data=ancestry)
 
             ref = np.array(
@@ -131,15 +147,36 @@ def mock_genotype_hdf5_file():
             )
             hdf.create_dataset("rsID", data=rsIDs)
 
-            # Add test genotypes (4 individuals x 5 variants)
-            # Combining both matrices and ensuring consistent patterns
+            # Add test genotypes (5 variants x 10 individuals), use -9 for missing
             genotypes = np.array(
                 [
-                    [0, 1, 1, 2],  # Variant 1
-                    [1, 0, 0, 1],  # Variant 2
-                    [2, 2, 2, 0],  # Variant 3
-                    [-1, -1, 2, 1],  # Variant 4
-                    [0, 1, 0, 2],  # Variant 5
+                    [
+                        0,
+                        1,
+                        1,
+                        2,
+                        0,
+                        1,
+                        2,
+                        0,
+                        1,
+                        2,
+                    ],  # Variant 1 genotypes for Ind 1001-1010
+                    [1, 0, 0, 1, 1, 0, 1, 2, 0, 1],  # Variant 2
+                    [2, 2, 2, 0, 0, 1, 0, 1, 0, 1],  # Variant 3
+                    [
+                        -9,
+                        -9,
+                        2,
+                        1,
+                        1,
+                        0,
+                        -9,
+                        2,
+                        1,
+                        0,
+                    ],  # Variant 4 (using -9 for missing)
+                    [0, 1, 0, 2, 2, 1, 0, 1, 2, 0],  # Variant 5
                 ]
             )
             hdf.create_dataset("genotypes", data=genotypes)
@@ -166,45 +203,62 @@ def mock_phenotype_hdf5_file():
     """Create a temporary mock HDF5 file with test phenotype data."""
     with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
         with h5py.File(Path(tmp.name), "w") as f:
-            # Create required datasets
+            # Use consistent EIDs 1001-1010
+            eids = np.arange(1001, 1011)
+            f.create_dataset("eids", data=eids)
 
-            # Phenotype matrix: columns are eids rows are phecodes,
-            # 1 = case, 0 = control, -1 = excluded
-            f.create_dataset(
-                "phenotype_data",
-                data=np.array(
-                    [
-                        [9, 1, 0, 1, 9],  # M
-                        [0, 0, 1, 0, 1],  # F
-                        [1, 9, 0, 1, 9],  # M
-                        [0, 1, 0, 0, 1],  # F
-                    ],
-                    dtype=np.int8,
-                ),
+            # Phenotype matrix: rows are eids, columns are phecodes
+            # 1 = case, 0 = control, 9 = excluded
+            phenotype_data = np.array(
+                [
+                    [9, 1, 0, 1, 9],  # 1001 M EUR
+                    [0, 0, 1, 0, 1],  # 1002 F EUR
+                    [1, 9, 0, 1, 9],  # 1003 M EUR
+                    [0, 1, 0, 0, 1],  # 1004 F SAS
+                    [1, 0, 1, 0, 1],  # 1005 M AFR
+                    [0, 1, 0, 1, 0],  # 1006 F EAS
+                    [0, 0, 0, 0, 0],  # 1007 M EUR
+                    [1, 1, 1, 1, 1],  # 1008 F SAS
+                    [9, 9, 9, 9, 9],  # 1009 M AFR (Excluded for all)
+                    [0, 1, 0, 1, 0],  # 1010 F EAS
+                ],
+                dtype=np.int8,
             )
+            f.create_dataset("phenotype_data", data=phenotype_data)
 
-            # Individual IDs
-            f.create_dataset("eids", data=np.array([101001, 101002, 101003, 101004]))
+            # Individual IDs (already defined above)
+            # f.create_dataset("eids", data=eids) # Redundant
 
-            # Biological sex labels
-            f.create_dataset("affected_sex", data=np.array([b"M", b"F", b"M", b"F"]))
-
-            # Population labels
-            f.create_dataset(
-                "populations", data=np.array([b"EUR", b"EUR", b"EUR", b"SAS"])
+            # Use explicit byte strings (b'...') to ensure correct dtype ('S') for h5py
+            affected_sex = np.array(
+                [b"M", b"F", b"M", b"F", b"M", b"F", b"M", b"F", b"M", b"F"]
             )
+            f.create_dataset("affected_sex", data=affected_sex)
 
-            # Phecode labels
-            f.create_dataset(
-                "phecodes",
-                # Diabetes, Hypertension, Female-specific, Male-specific
-                data=np.array([b"250.2", b"401.1", b"635.2", b"601.1", b"571.5"]),
+            # Use explicit byte strings (b'...')
+            populations = np.array(
+                [
+                    b"EUR",
+                    b"EUR",
+                    b"EUR",
+                    b"SAS",
+                    b"AFR",
+                    b"EAS",
+                    b"EUR",
+                    b"SAS",
+                    b"AFR",
+                    b"EAS",
+                ]
             )
+            f.create_dataset("populations", data=populations)
 
-            # Affected sex labels
-            f.create_dataset(
-                "phecode_sex", data=np.array([b"B", b"B", b"F", b"M", b"B"])
-            )
+            # These already use b'...', which is correct
+            phecodes = np.array([b"250.2", b"401.1", b"635.2", b"601.1", b"571.5"])
+            f.create_dataset("phecodes", data=phecodes)
+
+            # Affected sex labels for phecodes (remain the same) - ALL must be bytes!
+            phecode_sex = np.array([b"B", b"B", b"F", b"M", b"B"])
+            f.create_dataset("phecode_sex", data=phecode_sex)
 
         yield Path(tmp.name)
 
@@ -401,39 +455,6 @@ def mock_stats_hdf5_file():
         yield tmp.name
 
 
-# TODO: Move these to conftest.py and put it into the service registry
-@pytest.fixture
-def mock_stats_data():
-    """Create mock stats data for testing."""
-    # Create a simple DataFrame that mimics the structure we expect
-    diseasestats = pd.DataFrame(
-        {
-            "num_rp": [100.0],
-            "num_rn": [1000.0],
-            "mwu_pvalue": [0.001],
-            "mcc_pvalue": [0.002],
-            "yjs_pvalue": [0.003],
-            "lrp_pvalue": [0.004],
-            "metric1_pvalue": [0.005],
-            "lrn_protective_pvalue": [0.006],
-        }
-    )
-
-    plot_df = pd.DataFrame(
-        {
-            "term": ["CC:TERM:123"],
-            "mwu_pvalue": [0.001],
-            "mcc_pvalue": [0.002],
-            "yjs_pvalue": [0.003],
-            "lrp_pvalue": [0.004],
-            "metric1_pvalue": [0.005],
-            "lrn_protective_pvalue": [0.006],
-        }
-    )
-
-    return diseasestats, plot_df
-
-
 @pytest.fixture
 def stats_registry(mock_stats_hdf5_file):
     """Mock stats registry using real StatsRegistry with mock file."""
@@ -468,30 +489,28 @@ def mock_nomaly_scores_hdf5_file():
         with h5py.File(Path(tmp.name), "w") as f:
             # Create required datasets
 
-            # Individual IDs - should match those used in other fixtures
-            test_eids = np.array(
-                [1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010]
-            )
+            # Individual IDs - ensure these match the standardized set
+            test_eids = np.arange(1001, 1011)  # Standardized EIDs
             f.create_dataset("eid", data=test_eids)
 
-            # Define some terms
+            # Define some terms (remain the same)
             terms = np.array([b"GO:0030800", b"MP:0005179", b"GO:0006915", b"TEST:001"])
             f.create_dataset("term", data=terms)
 
-            # Create score matrix (eids x terms)
-            # Define scores that align with our test cases/controls
+            # Create score matrix (10 eids x 4 terms)
+            # Scores already defined for 10 eids, seems okay.
             scores = np.array(
                 [
-                    [0.030, 0.020, 0.010, 0.001],  # 1001 (case)
-                    [0.025, 0.015, 0.020, 0.002],  # 1002 (case)
-                    [0.010, 0.030, 0.015, 0.003],  # 1003 (case)
-                    [0.005, 0.010, 0.020, 0.004],  # 1004 (control)
-                    [0.015, 0.005, 0.010, 0.005],  # 1005 (control)
-                    [0.030, 0.015, 0.008, 0.006],  # 1006 (control)
-                    [0.010, 0.005, 0.002, 0.007],  # 1007 (control)
-                    [0.005, 0.010, 0.005, 0.008],  # 1008 (control)
-                    [0.000, 0.000, 0.000, 0.009],  # 1009 (excluded)
-                    [0.000, 0.000, 0.000, 0.010],  # 1010 (excluded)
+                    [0.030, 0.020, 0.010, 0.001],  # 1001
+                    [0.025, 0.015, 0.020, 0.002],  # 1002
+                    [0.010, 0.030, 0.015, 0.003],  # 1003
+                    [0.005, 0.010, 0.020, 0.004],  # 1004
+                    [0.015, 0.005, 0.010, 0.005],  # 1005
+                    [0.030, 0.015, 0.008, 0.006],  # 1006
+                    [0.010, 0.005, 0.002, 0.007],  # 1007
+                    [0.005, 0.010, 0.005, 0.008],  # 1008
+                    [0.000, 0.000, 0.000, 0.009],  # 1009 (excluded in pheno)
+                    [0.000, 0.000, 0.000, 0.010],  # 1010
                 ]
             )
             f.create_dataset("scores", data=scores)

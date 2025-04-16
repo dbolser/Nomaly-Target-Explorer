@@ -2,10 +2,36 @@
 
 import json
 from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
+
+import pandas as pd
 
 
-def test_stream_isolation(unit_test_app_client_with_cache):
+@patch("blueprints.prioritisation_by_nomaly_scores.get_term_variants")
+def test_stream_isolation(mock_get_term_variants, unit_test_app_client_with_cache):
     """Test that concurrent requests maintain proper data isolation."""
+    # Configure the mock to return a sample DataFrame
+    # This DataFrame should mimic the output of the actual db.get_term_variants
+    sample_variants_df = pd.DataFrame(
+        {
+            "variant_id": [
+                "1_100_A/T",
+                "2_200_C/G",
+                "1_186977737_A/G",
+                "1_186977780_G/A",
+            ],
+            "gene": ["GENEA", "GENEB", "GENEA", "GENEC"],
+            "aa": [
+                "A",
+                "C",
+                "A",
+                "G",
+            ],  # This column gets dropped, but include for realism
+            "hmm_score": [0.8, 0.9, 0.7, 0.85],
+        }
+    )
+    mock_get_term_variants.return_value = sample_variants_df
+
     # Just test two requests to keep it simple
     test_pairs = [
         ("250.2", "GO:0030800"),  # This user has access to 250.2
@@ -33,6 +59,8 @@ def test_stream_isolation(unit_test_app_client_with_cache):
 
     # Run requests sequentially first to verify basic functionality
     results = [make_request(code, term) for code, term in test_pairs]
+
+    assert len(results) == 1
 
     for disease_code, term, messages in results:
         assert any(m["type"] == "progress" for m in messages), (

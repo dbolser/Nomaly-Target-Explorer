@@ -207,6 +207,12 @@ class GenotypesHDF5:
                 - -1 = missing
         """
 
+        # TODO: Check for 'missing' eids and vids here, so we don't have to
+        #       handle them below?
+
+        # TODO: Should we always return a matrix, even if we only have one
+        #       variant or individual?
+
         if eids is None and vids is None:
             return self.genotype_matrix
 

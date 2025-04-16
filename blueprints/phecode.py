@@ -4,6 +4,7 @@ import logging
 import numpy as np
 from flask import (
     Blueprint,
+    abort,
     current_app,
     jsonify,
     redirect,
@@ -26,6 +27,7 @@ from db import (
     get_phecode_info,
     get_term_genes,
     get_term_names,
+    DataNotFoundError,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,26 +42,28 @@ def show_phecode(phecode):
     run_version = session.get("run_version", "Run-v1")
     ancestry = session.get("ancestry", "EUR")
 
-    try:
-        # Get services while we're in 'app context'
-        services: ServiceRegistry = current_app.extensions["nomaly_services"]
+    # Get services while we're in 'app context'
+    services: ServiceRegistry = current_app.extensions["nomaly_services"]
 
-        # NOTE: We inject the appropriate services into 'backend' functions
-        # (dependency injection)
+    try:
+        # Try to get data, this might raise DataNotFoundError if phecode is invalid
         phecode_data = get_phecode_data(phecode, services.phenotype, ancestry)
 
-        # Add runbatch and ancestry to the data for display AFTER getting phecode data
+        # If successful, continue processing and rendering:
         phecode_data["runbatch"] = run_version
         phecode_data["ancestry"] = ancestry
-
-        # Cobble together a half functional systsem..
         phecode_data["show_gwas"] = request.args.get("gwas", default=False)
         phecode_data["flush"] = request.args.get("flush", default=False)
-
-        # And finally shove the whole thing into the template
         return render_template("phecode.html", data=phecode_data)
 
+    except DataNotFoundError as dnfe:
+        # If DataNotFoundError occurs (likely from get_phecode_info or maybe phenotype service),
+        # it means the phecode was not found.
+        logger.warning(f"Phecode not found: {phecode}. Details: {dnfe}")
+        abort(404)  # Raise NotFound exception
+
     except Exception as e:
+        # Catch any *other* unexpected errors during data fetching or processing
         logger.error(f"Failed to get Phecode data for {phecode}: {e}")
         return jsonify({"error": "Failed to get Phecode data"}), 500
 
