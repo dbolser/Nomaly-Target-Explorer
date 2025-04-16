@@ -262,10 +262,28 @@ def register_error_handlers(app):
             return jsonify(response), status_code
         return render_template("error.html", error=response["message"]), status_code
 
+    @app.errorhandler(500)
+    def internal_error(error):
+        import traceback
+
+        # Log the error details
+        app.logger.error(f"Server Error: {error}\n{traceback.format_exc()}")
+        return render_template("errors/500.html"), 500
+
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(error):
+        # Handle all other HTTP errors
+        return render_template("errors/error.html", error=error), error.code
+
     @app.errorhandler(DataNotFoundError)
     def handle_not_found(e):
         app.logger.warning(f"Data not found: {str(e)}")
         return render_template("error.html", error=str(e)), 404
+
+    # @app.errorhandler(DatabaseError)
+    # def handle_database_error(error):
+    #     app.logger.error(f"Database Error: {error}\n{traceback.format_exc()}")
+    #     return render_template("errors/db_error.html", error=error), 500
 
     @app.errorhandler(DatabaseConnectionError)
     def handle_db_error(e):
