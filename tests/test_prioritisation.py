@@ -2,9 +2,13 @@ import pytest
 import numpy as np
 import pandas as pd
 from queue import Queue
+from pandas.testing import assert_frame_equal
 
 from blueprints.prioritisation_by_nomaly_scores import (
     StreamLogger,
+    process_individual_variants,
+    process_individual_variants_vectorized,
+    individual_variant_prioritisation,
 )
 
 
@@ -73,3 +77,53 @@ def test_stream_logger():
     message = queue.get()
     assert message["type"] == "progress"
     assert message["data"] == test_message
+
+
+def test_process_individual_variants_equivalence():
+    """Verify that vectorized and non-vectorized functions produce identical results."""
+    # 1. Create sample data
+    variants = [f"v{i}" for i in range(1, 6)]  # v1, v2, v3, v4, v5
+    term_variant_scores = pd.DataFrame(
+        {
+            "variant_id": variants,
+            "vs00": [0.1, 0.2, 0.0, 0.5, 0.1],
+            "vs01": [1.1, 1.5, 0.5, 2.0, 0.6],
+            "vs11": [2.5, 3.0, 1.2, 4.0, 1.3],
+        }
+    )
+
+    # Genotypes: (num_variants, num_individuals)
+    # Individuals: Ind1, Ind2, Ind3, Ind4
+    genotypes = np.array(
+        [
+            [0, 1, 2, 0],  # v1 genotypes for Ind1, Ind2, Ind3, Ind4
+            [1, 1, 0, 2],  # v2
+            [2, 0, -9, 1],  # v3 (-9 is missing)
+            [0, 1, 1, 0],  # v4
+            [1, 2, 0, 1],  # v5
+        ]
+    )
+
+    # 2. Run both functions
+    expected_df = process_individual_variants(
+        genotypes.copy(), term_variant_scores.copy()
+    )
+    actual_df = process_individual_variants_vectorized(
+        genotypes.copy(), term_variant_scores.copy()
+    )
+
+    # 3. Compare results
+    # Both functions now sort internally by 'vs' descending.
+    # Reset index for consistent comparison as order might be the only difference otherwise.
+    expected_df = expected_df.reset_index(drop=True)
+    actual_df = actual_df.reset_index(drop=True)
+
+    # Use pandas testing function for robust comparison
+    assert_frame_equal(actual_df, expected_df, check_dtype=True)
+
+
+# You might want to add more tests covering edge cases:
+# - No individuals
+# - No variants
+# - All genotypes missing
+# - Scores are all zero or negative
