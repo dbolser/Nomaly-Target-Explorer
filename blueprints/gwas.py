@@ -155,32 +155,51 @@ def create_fam_file(
 
     # Get phenotype data
     phenotype_df = phenotype_service.get_cases_for_phecode(phecode, ancestry)
+    phenotype_df = phenotype_df[["eid", "phenotype"]]
 
+    # Map the phenotype to the correct values for PLINK
     # 0=control, 1=case, 9=missing
-    phenotype_df["phenotype_PLINK"] = phenotype_df["phenotype"].map({0: 1, 1: 2, 9: -9})
-
-    phenotype_df = phenotype_df[["eid", "phenotype_PLINK"]]
+    phenotype_df["phenotype"] = phenotype_df["phenotype"].map({0: 1, 1: 2, 9: -9})
 
     # Read the original FAM file to get the correct order of the samples
     genotypes_fam = Config.GENOTYPES_FAM
     ancestry_fam = (
         genotypes_fam.parent / f"{genotypes_fam.stem}-{ancestry}{genotypes_fam.suffix}"
     )
-    fam_df = pd.read_csv(ancestry_fam, sep=r"\s+", header=None)
-    fam_df.columns = ["FID", "IID", "Father", "Mother", "sex", "phenotype_random"]
+    logger.info(f"Reading FAM file for ({ancestry}) from {ancestry_fam}")
 
-    # TODO: I just need to order, but this is the simplest way to do it
+    # NOTE: None of these columns 'conflict' prior to merging
+    fam_file_columns = ["FID", "IID", "Father", "Mother", "sex", "phenotype"]
+    fam_df = pd.read_csv(
+        ancestry_fam,
+        sep=r"\s+",
+        header=None,
+        names=fam_file_columns,
+        # Drop the original 'random' phenotype column
+        usecols=["FID", "IID", "Father", "Mother", "sex"],
+    )
+
+    # Merge in the phecode specific phenotype
     merged_df = fam_df.merge(phenotype_df, left_on="IID", right_on="eid", how="left")
 
+    assert len(merged_df) == len(fam_df)
     assert np.all(merged_df["IID"] == fam_df["IID"])
 
-    # Create FAM file
+    if np.any(merged_df.phenotype.isna()):
+        logger.warning(
+            f"Some samples in {ancestry_fam} are not returned from the phenotype service"
+            f"{len(merged_df[merged_df.phenotype.isna()])} samples of {len(fam_df)} are missing"
+        )
+        merged_df = merged_df[merged_df.phenotype.notna()]
+        merged_df["phenotype"] = merged_df["phenotype"].astype(int)
+
+    # Write the merged FAM file
     merged_df.to_csv(
         fam_file,
         sep=" ",
         header=False,
         index=False,
-        columns=["FID", "IID", "Father", "Mother", "sex", "phenotype_PLINK"],
+        columns=fam_file_columns,
     )
 
 
