@@ -63,6 +63,7 @@ def run_gwas(
         --require-pheno \
         --out {fam_file.with_suffix("")}-plink2
     """
+    logger.info(f"We could be running PLINK2: {cmd2}")
 
     try:
         run_subprocess(cmd)
@@ -150,32 +151,36 @@ def create_fam_file(
 ) -> None:
     """Create FAM file for GWAS."""
 
-    # Get phenotype data
-    phenotype_data = phenotype_service.get_cases_for_phecode(phecode, ancestry)
-
-    # Load case information
     logger.info(f"Creating FAM file for {phecode} ({ancestry}) at {fam_file}")
 
-    # Reformat sex and phenotype columns for PLINK...
-
-    # 1=Male, 2=Female
-    phenotype_data["sex"] = phenotype_data["sex"].map({"M": 1, "F": 2})
+    # Get phenotype data
+    phenotype_df = phenotype_service.get_cases_for_phecode(phecode, ancestry)
 
     # 0=control, 1=case, 9=missing
-    phenotype_data["phenotype"] = phenotype_data["phenotype"].map({0: 1, 1: 2, 9: -9})
+    phenotype_df["phenotype_PLINK"] = phenotype_df["phenotype"].map({0: 1, 1: 2, 9: -9})
 
-    # Add FID, Father, Mother columns
-    phenotype_data["FID"] = phenotype_data["eid"]
-    phenotype_data["Father"] = 0
-    phenotype_data["Mother"] = 0
+    phenotype_df = phenotype_df[["eid", "phenotype_PLINK"]]
+
+    # Read the original FAM file to get the correct order of the samples
+    genotypes_fam = Config.GENOTYPES_FAM
+    ancestry_fam = (
+        genotypes_fam.parent / f"{genotypes_fam.stem}-{ancestry}{genotypes_fam.suffix}"
+    )
+    fam_df = pd.read_csv(ancestry_fam, sep=r"\s+", header=None)
+    fam_df.columns = ["FID", "IID", "Father", "Mother", "sex", "phenotype_random"]
+
+    # TODO: I just need to order, but this is the simplest way to do it
+    merged_df = fam_df.merge(phenotype_df, left_on="IID", right_on="eid", how="left")
+
+    assert np.all(merged_df["IID"] == fam_df["IID"])
 
     # Create FAM file
-    phenotype_data.to_csv(
+    merged_df.to_csv(
         fam_file,
         sep=" ",
         header=False,
         index=False,
-        columns=["eid", "FID", "Father", "Mother", "sex", "phenotype"],
+        columns=["FID", "IID", "Father", "Mother", "sex", "phenotype_PLINK"],
     )
 
 
@@ -220,14 +225,14 @@ def main():
     # phecode = sys.argv[1]
     # ancestry = sys.argv[2]
 
-    # phecode = "627.4"
-    # ancestry = "EUR"
+    phecode = "290.11"
+    ancestry = "EUR"
 
-    # print(f"Running GWAS for {phecode} ({ancestry})")
+    print(f"Running GWAS for {phecode} ({ancestry})")
 
-    # run_gwas(phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=True)
+    run_gwas(phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=True)
 
-    # exit(0)
+    exit(0)
 
     # Run some random GWAS for fun...
     ancestries = np.array(["AFR", "EAS", "EUR", "SAS"])

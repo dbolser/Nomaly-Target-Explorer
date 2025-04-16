@@ -49,6 +49,9 @@ class Config:
     UKBB_GENOTYPES_DIR = DATA_ROOT / "Genotypes/GRCh38"
 
     GENOTYPES_BED = UKBB_GENOTYPES_DIR / "genotypes-ukbb.bed"
+    GENOTYPES_BIM = UKBB_GENOTYPES_DIR / "genotypes-ukbb.bim"
+    GENOTYPES_FAM = UKBB_GENOTYPES_DIR / "genotypes-ukbb.fam"
+
     GENOTYPES_HDF = UKBB_GENOTYPES_DIR / "genotypes-ukbb.h5"
     GENOTYPES_NPY = UKBB_GENOTYPES_DIR / "genotypes-ukbb.npy"
 
