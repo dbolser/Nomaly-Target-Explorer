@@ -129,7 +129,7 @@ def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
 
     # Filter to only include variants with a score greater than 1 or a rank less
     # than or equal to 5
-    top_variants = top_variants[(top_variants["vs"] > 1) | (top_variants["rank"] <= 5)]
+    top_variants = top_variants[(top_variants["vs"] > 1)]
 
     return top_variants
 
