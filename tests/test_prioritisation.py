@@ -8,7 +8,6 @@ from blueprints.prioritisation_by_nomaly_scores import (
     StreamLogger,
     process_individual_variants,
     process_individual_variants_vectorized,
-    individual_variant_prioritisation,
 )
 
 

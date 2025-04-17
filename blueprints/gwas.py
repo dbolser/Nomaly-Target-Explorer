@@ -163,6 +163,8 @@ def create_fam_file(
 
     # Read the original FAM file to get the correct order of the samples
     genotypes_fam = Config.GENOTYPES_FAM
+
+    # NOTE: The ancestry specficific FAM files were created 'manually' using plink
     ancestry_fam = (
         genotypes_fam.parent / f"{genotypes_fam.stem}-{ancestry}{genotypes_fam.suffix}"
     )
@@ -234,6 +236,7 @@ def format_gwas_results(
     assoc_df["Gene"] = assoc_df["Gene"].replace(np.nan, None)
 
     return assoc_df
+
 
 def main():
     phenotype_service = PhenotypeService(Config.PHENOTYPES_HDF)

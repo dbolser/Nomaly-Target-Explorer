@@ -83,7 +83,7 @@ class StreamLogger:
             getattr(logger, level)(message)
 
 
-# @profile
+# TODO: DELETE THIS!
 def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
     """Return numpy array of variant scores for the selected variants.
 
@@ -134,7 +134,7 @@ def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
     return top_variants
 
 
-# @profile
+# TODO: DELETE THIS!
 def process_individual_variants(
     genotypes: np.ndarray, term_variant_scores: pd.DataFrame
 ) -> pd.DataFrame:
