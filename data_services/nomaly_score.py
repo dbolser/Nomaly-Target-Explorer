@@ -104,20 +104,42 @@ class NomalyScoreHDF5:
             terms: Array of terms to get scores for.
         """
         if terms is not None:
-            # Convert bool to positions
+            # Convert bool to positions for the requested terms. Using `np.where` ensures we
+            # always have an *array* of indices which can safely be passed to ``np.ix_``.
             term_rows = np.where(np.isin(self.terms, terms))[0]
         else:
-            term_rows = slice(None)  # Select all columns
+            # Select all columns
+            term_rows = slice(None)
 
-        # Sanity check for the method to work...
-        assert len(eids) == len(np.intersect1d(eids, self.eids))
+        # Sanity check – all requested eids must be present in the file.
+        intersected = np.intersect1d(eids, self.eids)
+        assert len(eids) == len(intersected)
 
-        # Find where each requested eid would fit in the sorted array of
-        # 'score_eids'...
+        # Find the row indices of the requested eids, taking advantage of the
+        # pre‑computed sorted array for speed.
         idx = np.searchsorted(self.sorted_eids, eids)
-
-        # Use the original sorting indices to map back to the original unsorted
-        # positions
         eid_rows = self.sorting_idx[idx]
 
-        return self.data_matrix[eid_rows, term_rows]
+        # ---------------------------------------------------------------------
+        # Fancy indexing – we want the result to *always* be 2‑dimensional so
+        # that downstream code doesn't have to worry about corner cases such as
+        # a single eid or a single term being requested (these would normally
+        # lead NumPy to squeeze the corresponding dimension).
+        # ---------------------------------------------------------------------
+        if isinstance(term_rows, slice):
+            # Selecting *all* columns or with a slice already preserves the 2D
+            # shape when we pass an integer/array for the rows first.
+            result: np.ndarray = self.data_matrix[eid_rows, term_rows]
+        else:
+            # When both rows and columns are arrays we need ``np.ix_`` to keep
+            # the outer (Cartesian) product which guarantees a 2‑D result even
+            # if either array has length 1 or 0.
+            result = self.data_matrix[np.ix_(eid_rows, term_rows)]
+
+        # If NumPy still managed to squeeze the array into 1‑D (this can happen
+        # when one of the dimensions is length 0 and the other is length >0),
+        # reshape it explicitly so that callers always get (n_eids, n_terms).
+        if result.ndim == 1:
+            result = result.reshape(len(eid_rows), -1)
+
+        return result
