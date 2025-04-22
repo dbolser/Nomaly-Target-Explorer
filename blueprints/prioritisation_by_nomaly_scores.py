@@ -8,7 +8,6 @@ Genes are prioritised by the sum of Nomaly scores of their variants.
 import json
 import logging
 import traceback
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
@@ -79,93 +78,8 @@ class StreamLogger:
         if self.message_queue:
             self.message_queue.put({"type": "progress", "data": message})
         else:
-            # Not sure how we could end up on this path...
+            # Not sure how we could end up on this path!
             getattr(logger, level)(message)
-
-
-# TODO: DELETE THIS!
-def individual_variant_prioritisation(row, term_variant_scores) -> pd.DataFrame:
-    """Return numpy array of variant scores for the selected variants.
-
-    NOTE: This function is now obsolete as it is vectorized in the
-    process_individual_variants_vectorized function.
-    """
-    variants = term_variant_scores["variant_id"].values
-    sel_vs = term_variant_scores[["vs00", "vs01", "vs11"]].to_numpy()
-
-    geno_matrix = np.zeros((len(row), 3))  # Shape is (num_variants, 3)
-
-    # Create a 'one hot encoding' of the individuals genotypes, e.g.
-    # If genotype (val) is 0, geno_matrix[i] becomes [1, 0, 0].
-    # If genotype (val) is 1, geno_matrix[i] becomes [0, 1, 0].
-    # If genotype (val) is 2, geno_matrix[i] becomes [0, 0, 1].
-    # If genotype (val) is 9, geno_matrix[i] becomes [0, 0, 0].
-
-    for i, val in enumerate(row):
-        if val != -9:
-            geno_matrix[i, int(val)] = 1
-
-    # So, the dot product effectively selects the correct score from vs00_i,
-    # vs01_i, vs11_i based on the individual's genotype for variant i. For
-    # example, if the genotype for variant i is 1, geno_matrix[i] is [0, 1, 0],
-    # and the dot product is 0*vs00_i + 1*vs01_i + 0*vs11_i = vs01_i.
-    scores = np.dot(geno_matrix, sel_vs.T)  # Matrix multiplication
-
-    # Therefore, diagonal_scores is a vector where each element i is the
-    # specific score for variant i given this individual's genotype for that
-    # variant.
-    diagonal_scores = np.diagonal(scores)
-
-    # Sort the scores and variants in descending order of score
-    sorted_indices = np.argsort(diagonal_scores)[::-1]
-    sorted_scores = diagonal_scores[sorted_indices]
-    sorted_variants = variants[sorted_indices]
-
-    # Create a DataFrame with the sorted variants and scores
-    top_variants = pd.DataFrame({"variant_id": sorted_variants, "vs": sorted_scores})
-
-    # Add a rank column to the DataFrame
-    top_variants = top_variants.assign(rank=range(1, len(top_variants) + 1))
-
-    # Filter to only include variants with a score greater than 1 or a rank less
-    # than or equal to 5
-    top_variants = top_variants[(top_variants["vs"] > 1)]
-
-    return top_variants
-
-
-# TODO: DELETE THIS!
-def process_individual_variants(
-    genotypes: np.ndarray, term_variant_scores: pd.DataFrame
-) -> pd.DataFrame:
-    """Process variants for all individuals more efficiently...
-
-    More efficiently than what?
-    """
-    ind_top_variants = defaultdict(int)
-    ind_top_variants_scores = defaultdict(float)
-
-    genotype_data = genotypes.T
-
-    for individual in genotype_data:
-        top_variants = individual_variant_prioritisation(
-            individual, term_variant_scores
-        )
-        for _, row in top_variants.iterrows():
-            variant = row["variant_id"]
-            vs = row["vs"]
-            ind_top_variants[variant] += 1
-            ind_top_variants_scores[variant] += vs
-
-    df = pd.DataFrame(
-        {
-            "variant_id": list(ind_top_variants.keys()),
-            "num_individuals": list(ind_top_variants.values()),
-            "vs": list(ind_top_variants_scores.values()),
-        }
-    ).sort_values(by="vs", ascending=False)
-
-    return df
 
 
 # @profile
@@ -194,17 +108,6 @@ def process_individual_variants_vectorized(
     individual_scores = np.zeros_like(genotypes_T, dtype=float)
 
     # Select the appropriate score (vs00, vs01, vs11) based on genotype
-    # We need to align sel_vs with the genotypes_T structure
-    # np.take_along_axis requires indices to be the same shape as the array
-    # We can use broadcasting and indexing carefully...
-
-    # # Example:
-    # g = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-    # i = np.array([[0], [1], [-9]])
-    # m = (i != -9)[:, 0]
-    # s = np.zeros(g.shape[0])
-    # s[m] = np.take_along_axis(g[m], i[m], axis=1)[:, 0]
-    # print(s)
 
     # Alternative approach: Masking
     mask_0 = genotypes_T == 0
@@ -235,10 +138,7 @@ def process_individual_variants_vectorized(
     ranks = np.argsort(sorted_indices_desc, axis=1) + 1
 
     # 4. Filter based on score > 1 or rank <= 5
-    is_top_variant_mask = (individual_scores > 1) 
-    # | (
-    #     ranks <= 5
-    # )  # Shape: (num_individuals, num_variants)
+    is_top_variant_mask = (individual_scores > 1) | (ranks <= 5)
 
     # 5. Aggregate results across individuals for each variant
     # Count how many individuals have this variant as "top"
@@ -251,6 +151,20 @@ def process_individual_variants_vectorized(
         individual_scores * is_top_variant_mask, axis=0
     )  # Shape: (num_variants,)
 
+    # Calculate genotype counts for "top" individuals per variant
+    count_00 = np.sum((genotypes_T == 0) & is_top_variant_mask, axis=0)
+    count_01 = np.sum((genotypes_T == 1) & is_top_variant_mask, axis=0)
+    count_11 = np.sum((genotypes_T == 2) & is_top_variant_mask, axis=0)
+    # count_missing = np.sum((genotypes_T == -9) & is_top_variant_mask, axis=0) # Optionally count missing
+
+    # Format counts into strings as requested
+    genotype_count_strings = np.array(
+        [
+            f"{variants[i]}: 00={count_00[i]}, 01={count_01[i]}, 11={count_11[i]}"
+            for i in range(num_variants)
+        ]
+    )
+
     # 6. Create the final DataFrame
     # Filter out variants that were not "top" for any individual
     final_mask = num_individuals_per_variant > 0
@@ -260,6 +174,7 @@ def process_individual_variants_vectorized(
             "variant_id": variants[final_mask],
             "num_individuals": num_individuals_per_variant[final_mask],
             "vs": sum_scores_per_variant[final_mask],
+            "genotype_counts": genotype_count_strings[final_mask],
         }
     ).sort_values(by="vs", ascending=False)
 
@@ -396,7 +311,7 @@ def get_top_variants(
         f"Computing results (not found in cache, flush={no_cache}, protective={protective})",
     )
 
-    # Get phenotype data for the given phecode...
+    # Get phenotype data for the given phecode
     phenotypes = phenotype_service.get_cases_for_phecode(phecode, ancestry)
 
     stream_logger.log(
@@ -443,7 +358,7 @@ def get_top_variants(
         logger.error(f"Error getting stats for {term} and {phecode}: {e}")
         raise
 
-    # Quick cleanup of stats...
+    # Quick cleanup of stats
 
     # Just ignore these!
     if np.any(stats[stats.filter(like="_threshold").columns] == float("inf")):
@@ -460,7 +375,7 @@ def get_top_variants(
     if pd.isna(stats["metric1_pvalue"]):
         stats["metric1_pvalue"] = 1
 
-    # TODO: Something is wrong somewhere...
+    # TODO: Something is wrong somewhere!
     if len(case_eids) != stats["num_rp"]:
         logger.warning(
             f"""Phecode {phecode} has {len(case_eids)} cases
@@ -497,7 +412,7 @@ def get_top_variants(
 
     stats["metric1_threshold"] = 0.022
 
-    # It's hard being this dumb...
+    # It's hard being this dumb
 
     # True positives are cases above the threshold
     stats["metric1_tp"] = np.sum(case_scores >= stats["metric1_threshold"])
@@ -529,7 +444,9 @@ def get_top_variants(
             # I think this should have been set this way?
             stats[f"{stat}_threshold"] = 1e308
 
-        case_eids_above_threshold = case_eids[case_scores >= stats[f"{stat}_threshold"]]
+        case_eids_above_threshold = case_eids[
+            case_scores.ravel() >= stats[f"{stat}_threshold"]
+        ]
 
         if stat.endswith("protective"):
             case_eids_above_threshold = ctrl_eids[
@@ -648,7 +565,7 @@ def get_term_variant_scores(
 
     TODO:
         We should really pre-compute this for all variants and save it to disk
-        so we don't have to compute it for each term...
+        so we don't have to compute it for each term
     """
 
     genotype_counts = genotype_service.get_genotype_counts_and_freqs(
@@ -877,7 +794,7 @@ def stream_progress(disease_code: str, term: str, ancestry: str = "EUR"):
                 except KeyError as e:
                     logger.error(f"KeyError in protective message: {e}")
                     if not no_cache:
-                        # Try again but with no cache set to true...
+                        # Try again but with no cache set to true
                         process_variants(
                             disease_code,
                             term,
@@ -901,7 +818,7 @@ def stream_progress(disease_code: str, term: str, ancestry: str = "EUR"):
             logger.error(f"Error processing variants: {e}")
             message_queue.put({"type": "error", "data": str(e)})
         finally:
-            print("Sending done message...")
+            print("Sending done message")
             message_queue.put({"type": "done"})
             print("Done message sent")
 
@@ -916,7 +833,7 @@ def stream_progress(disease_code: str, term: str, ancestry: str = "EUR"):
 
         try:
             # Submit to thread pool with the service
-            print("Submitting to thread pool...")
+            print("Submitting to thread pool")
             _ = VARIANT_PROCESSOR_POOL.submit(
                 process_variants,
                 disease_code,
@@ -936,7 +853,7 @@ def stream_progress(disease_code: str, term: str, ancestry: str = "EUR"):
             # Stream messages as they arrive
             while True:
                 try:
-                    print("Waiting for message...")
+                    print("Waiting for message")
                     msg = message_queue.get(timeout=600)  # 10 minute timeout
                     print(f"Got message of type: {msg.get('type')}")
                     yield f"data: {json.dumps(msg)}\n\n"
@@ -1002,13 +919,8 @@ def main():
             2a) Gets the 'nomaly variant scores' for the term variants
 
             calls:
-            process_individual_variants
+            process_individual_variants_vectorised
                 (eids, variants, genotypes)
-
-
-                calls:
-                individual_variant_prioritisation
-                    (row, term_variant_scores)
 
     """
     run = "Run-v1"
@@ -1020,6 +932,10 @@ def main():
 
     phecode = "290.11"
     term = "MP:0005179"
+
+    ancestry = "SAS"
+    phecode = "334.2"
+    term = "GO:0004392"
 
     from data_services import StatsRegistry
 
