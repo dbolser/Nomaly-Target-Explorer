@@ -90,7 +90,7 @@ class Config:
         },
     }
 
-    PHAROS_DATA_DIR = Path("/data/general/Pharos")
+    PHAROS_DATA_DIR = Path("/data/public/Pharos")
 
     # Caching directories
     GWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/cache/by_pheno")
