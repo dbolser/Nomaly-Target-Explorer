@@ -160,7 +160,7 @@ def process_individual_variants_vectorized(
     # Format counts into strings as requested
     genotype_count_strings = np.array(
         [
-            f"{variants[i]}: 00={count_00[i]}, 01={count_01[i]}, 11={count_11[i]}"
+            f"00={count_00[i]}, 01={count_01[i]}, 11={count_11[i]}"
             for i in range(num_variants)
         ]
     )
@@ -328,6 +328,8 @@ def get_top_variants(
         f"Got {len(case_eids)} cases for {phecode} with ancestry {ancestry}",
     )
 
+    # TODO: Just get the scores once for cases and controls...
+
     # TODO: This should be conditioned on the run_version
     case_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
         case_eids, terms=np.array([term])
@@ -378,7 +380,7 @@ def get_top_variants(
     # TODO: Something is wrong somewhere!
     if len(case_eids) != stats["num_rp"]:
         logger.warning(
-            f"""Phecode {phecode} has {len(case_eids)} cases
+            f"""Phecode {phecode}/{term} has {len(case_eids)} cases
             from phenotype service but {stats["num_rp"]} cases
             from stats service!"""
         )
@@ -445,12 +447,13 @@ def get_top_variants(
             stats[f"{stat}_threshold"] = 1e308
 
         case_eids_above_threshold = case_eids[
-            case_scores.ravel() >= stats[f"{stat}_threshold"]
+            np.round(case_scores.ravel(), 4) >= stats[f"{stat}_threshold"]
         ]
 
         if stat.endswith("protective"):
             case_eids_above_threshold = ctrl_eids[
-                ctrl_scores >= stats[f"{stat}_threshold"]
+                np.round(ctrl_scores.ravel(), 4)
+                >= np.round(stats[f"{stat}_threshold"], 4)
             ]
 
         stream_logger.log(
@@ -458,12 +461,12 @@ def get_top_variants(
         )
 
         if len(case_eids_above_threshold) != stats[f"{stat}_tp"]:
-            # position_in_index = str(stats.get(f"{stat}_all_index", "Unknown"))
+            position_in_index = str(stats.get(f"{stat}_all_index", "Unknown"))
             logger.warning(
-                f"Phecode {phecode} has {len(case_eids_above_threshold)} True Positives for {stat} from "
+                f"Phecode {phecode}/{term} has {len(case_eids_above_threshold)} True Positives for {stat} from "
                 + f"nomaly scores but {stats[f'{stat}_tp']} True Positives from stats service!"
                 # TODO: The index looks wrong.
-                # + f"Note that the index is {position_in_index}."
+                + f"Note that the index is {position_in_index} for threshold = {stats[f'{stat}_threshold']}."
             )
 
         # Calculate True Positive Rate (Sensitivity (TP/(TP+FN) or TP/RP))
@@ -936,6 +939,10 @@ def main():
     ancestry = "SAS"
     phecode = "334.2"
     term = "GO:0004392"
+
+    ancestry = "EUR"
+    phecode = "333.3"
+    term = "GO:0004478"
 
     from data_services import StatsRegistry
 
