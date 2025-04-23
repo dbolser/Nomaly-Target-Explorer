@@ -23,11 +23,10 @@ from data_services import (
     StatsService,
 )
 from db import (
+    DataNotFoundError,
     get_all_phecodes,
     get_phecode_info,
-    get_term_genes,
     get_term_names,
-    DataNotFoundError,
 )
 
 logger = logging.getLogger(__name__)
@@ -306,9 +305,6 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
 
     # plot_df_filtered["domain"] = plot_df_filtered["term"].map(map_term_to_domain)
 
-    if addgene:
-        plot_df_filtered = add_gene_info_to_DataTable(plot_df_filtered, phecode)
-
     # Round all P-values to scientific notation
     pval_columns = [col for col in plot_df_filtered.columns if col.endswith("_pvalue")]
     for col in pval_columns:
@@ -317,39 +313,6 @@ def show_datatable_nomaly_stats(plot_df, phecode, addgene=False):
         )
 
     return plot_df_filtered.fillna("None")
-
-
-def add_gene_info_to_DataTable(plot_df, phecode):
-    term_gene_df = get_term_genes(plot_df["term"].tolist())
-
-    # Get GWAS results for gene filtering
-    # gwas_data = run_gwas(phecode, "EUR", "x")
-    # sig_variants = format_gwas_results(gwas_data)
-    # genefilter = set(v["Gene"] for v in sig_variants)
-
-    # Filter and format gene information
-    # term_gene_df_sig = term_gene_df[term_gene_df["gene"].isin(genefilter)].rename(
-    #    columns={"gene": "sig gene"}
-    # )
-
-    # Group genes by term
-    term_gene_df = (
-        term_gene_df.groupby("term")["gene"]
-        .apply(lambda x: ", ".join(x) if len(x) < 5 else f"{len(x)} genes")
-        .reset_index()
-    )
-
-    # term_gene_df_sig = (
-    #    term_gene_df_sig.groupby("term")["sig gene"]
-    #    .apply(lambda x: ", ".join(x) if len(x) < 50 else f"{len(x)} genes")
-    #    .reset_index()
-    # )
-
-    # Merge gene information with main dataframe
-    plot_df = plot_df.merge(term_gene_df, on="term", how="left")
-    # plot_df = plot_df.merge(term_gene_df_sig, on="term", how="left")
-
-    return plot_df
 
 
 def get_column_display_names():
@@ -475,8 +438,11 @@ def main():
             session["run_version"] = "Run-v1"
             session["ancestry"] = "SAS"
 
-            get_nomaly_stats("332")
-            get_nomaly_stats("333.3")
+            # get_nomaly_stats("332")
+            # get_nomaly_stats("333.3")
+
+            session["ancestry"] = "AFR"
+            get_nomaly_stats("704.8")
 
     from config import Config
 

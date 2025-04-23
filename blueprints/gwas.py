@@ -231,9 +231,8 @@ def format_gwas_results(
     # Replace NaN with 1 for OR
     assoc_df["OR"] = assoc_df["OR"].replace(np.nan, 1)
 
-    # Replace 'isna' with None for nomaly_variant and Gene
-    assoc_df["nomaly_variant"] = assoc_df["nomaly_variant"].replace(np.nan, None)
-    assoc_df["Gene"] = assoc_df["Gene"].replace(np.nan, None)
+    # Replace 'isna' with None everywhere
+    assoc_df = assoc_df.replace(np.nan, None)
 
     return assoc_df
 
@@ -250,10 +249,16 @@ def main():
     phecode = "290.11"
     ancestry = "EUR"
 
+    phecode = "704.8"
+    ancestry = "AFR"
+
     print(f"Running GWAS for {phecode} ({ancestry})")
 
-    run_gwas(phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=True)
-
+    results = run_gwas(
+        phecode, ancestry, phenotype_service, nomaly_data_service, no_cache=True
+    )
+    format = format_gwas_results(results)
+    print(format)
     exit(0)
 
     # Run some random GWAS for fun...

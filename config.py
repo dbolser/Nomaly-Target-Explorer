@@ -90,13 +90,13 @@ class Config:
         },
     }
 
-    PHAROS_DATA_DIR = Path("/data/general/Pharos")
+    PHAROS_DATA_DIR = Path("/data/public/Pharos")
 
     # Caching directories
-    GWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/cache/by_pheno")
-    PHEWAS_PHENO_DIR = Path("/data/personal/danbolser/ukbb/cache/by_variant")
-    PHECODE_TERM_DIR = Path("/data/personal/danbolser/ukbb/cache/by_phecode_term")
-    VARIANT_SCORES_DIR = Path("/data/personal/danbolser/ukbb/cache/variant_scores")
+    GWAS_PHENO_DIR = Path("/data/danbolser/ukbb/cache/by_pheno")
+    PHEWAS_PHENO_DIR = Path("/data/danbolser/ukbb/cache/by_variant")
+    PHECODE_TERM_DIR = Path("/data/danbolser/ukbb/cache/by_phecode_term")
+    VARIANT_SCORES_DIR = Path("/data/danbolser/ukbb/cache/variant_scores")
 
 
 class DevelopmentConfig(Config):
