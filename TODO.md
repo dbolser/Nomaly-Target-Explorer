@@ -1,9 +1,8 @@
-
 # Things TODO
 
 ## DAN'S SPRINT
 
-- [] Sex matched stats for All.
+- [x] Sex matched stats for All.
 - [] Bonferoni correction (and friends).
 
 
@@ -82,18 +81,18 @@ Below is an analysis of the current version of blueprints/prioritisation_by_noma
   – nomaly_scores_service.get_scores_by_eids_unsorted(...) to obtain Nomaly scores  
   – stats_service.get_stats_by_term_phecode(...) to fetch statistics  
   – genotype_service.get_genotypes (wrapped in read_nomaly_filtered_genotypes_new) to load genotype data  
-   These calls adhere to the “data service” interface pattern.
+   These calls adhere to the "data service" interface pattern.
 
 2. Areas Bypassing the Data Service Interface  
    • Variant scores and variant–gene mapping are loaded directly via pandas from hard-coded file paths. Near the top of the file the code does:  
   variant_scores = pd.read_csv("/data/clu/ukbb/genotype_counts_with_vs.tsv", …)  
   and  
   variant2gene = pd.read_csv("/data/clu/ukbb/variant2gene.tsv", …)  
-   This is not using a dedicated data service interface (as hinted by the TODO comment “Move to a new variant scores (or 'nomaly_data') data service?”).
+   This is not using a dedicated data service interface (as hinted by the TODO comment "Move to a new variant scores (or 'nomaly_data') data service?").
 
    • The term variants are retrieved by calling get_term_variants(term) which is imported directly from the db module. This direct database call means that the variant lookup bypasses any wrapper service interface.
 
-   • There is also a function read_cases_for_disease_code (which reads a pickle file from a configured directory using Config.UKBB_PHENO_DIR) and a TODO noting “Switch to the phenotype service here!” Although get_top_variants uses phenotype_service.get_cases_for_phecode instead, the existence of read_cases_for_disease_code shows an instance where data is fetched directly from the filesystem.
+   • There is also a function read_cases_for_disease_code (which reads a pickle file from a configured directory using Config.UKBB_PHENO_DIR) and a TODO noting "Switch to the phenotype service here!" Although get_top_variants uses phenotype_service.get_cases_for_phecode instead, the existence of read_cases_for_disease_code shows an instance where data is fetched directly from the filesystem.
 
    • The caching functions (get_cache_path, load_cached_results, and save_results_to_cache) interact directly with the filesystem (reading and writing JSON files) instead of through a dedicated data service.
 
@@ -106,8 +105,6 @@ This mixed approach indicates that although many core data queries use the servi
 
 
 ### More on Task Services...
-
-
 
 No, the PrioritizationService is actually crucial! I should have shown its role more clearly. Here's how it all fits together:
 
@@ -159,8 +156,6 @@ Without the service layer, you'd end up with business logic in your tasks, makin
 
 ## Celery Cache vs. Task Cache
 
-
-
 Celery's result backend (caching) operates at the task level, which is a different layer than our business logic caching. Here's how they can work together:
 
 ```python
@@ -207,7 +202,6 @@ The two caching layers serve different purposes:
 - Celery cache: Task state management and results
 
 
-
 ## About Celery
 
 Celery's result backend is about task management rather than data caching. It helps with:
@@ -251,7 +245,8 @@ Your actual data caching (Redis/Memcached) remains in the service layer where it
 
 ## The Flask 'factory pattern' for configuration
 
-The Flask Factory Pattern is about creating the application object dynamically rather than globally. Here's how it works:
+The Flask Factory Pattern is about creating the application object dynamically
+rather than globally. Here's how it works:
 
 ```python
 # Without Factory (current approach)
@@ -326,4 +321,28 @@ Benefits:
 2. Easier testing
 3. Better dependency management
 4. More modular application structure
+
+
+## Route Refactoring and HTTP Method Convention
+
+- **Goal:** Make API structure more conventional and RESTful.
+
+- **Current State:**
+    - Mix of direct routes in `app.py` and blueprints.
+    - Blueprint URL prefixes not consistently defined in `app.py`.
+    - Some routes use POST for data retrieval (e.g., Nomaly stats).
+    - Route names within blueprints are sometimes inconsistent (e.g., `/phecode/<id>` vs `/nomaly-stats/<id>`).
+
+- **Proposed Actions:**
+    - [ ] Define explicit `url_prefix` (using plural nouns for resource collections, e.g., `/phecodes`) when registering blueprints in `app.py`.
+    - [ ] Move page-rendering routes (like `/search`) into their corresponding blueprints.
+    - [ ] Refactor routes within blueprints to follow RESTful patterns:
+        - `/phecodes/<phecode>` (GET): Show specific phecode details.
+        - `/phecodes/<phecode>/stats` (GET): Fetch Nomaly stats (change from POST).
+        - `/phecodes/<phecode>/gwas` (POST): Submit GWAS task (pass `flush` as query/body param).
+        - `/phecodes/<phecode>/settings` (POST): Update session settings related to the phecode.
+        - `/phecodes/random` (GET): Get a random phecode.
+    - [ ] Update corresponding `url_for` calls and JavaScript `fetch` requests in templates (e.g., `phecode.html`) to use the new routes and correct HTTP methods (use GET for fetching stats).
+    - [ ] Consider renaming blueprint route functions for clarity (e.g., `get_nomaly_stats` -> `show_phecode_stats`).
+    - [ ] Ensure clear separation between routes serving HTML and API endpoints (potentially using `/api` prefix).
 

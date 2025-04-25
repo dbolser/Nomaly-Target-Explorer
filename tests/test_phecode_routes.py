@@ -3,7 +3,6 @@ import pytest
 
 @pytest.mark.skip(reason="Skipping test as it was never written corretly to begin with")
 def test_phecode_plot_data(client):
-    # Assuming your API endpoint is something like /phecode/{id}/data
     response = client.get("/phecode/123.4/data")
     assert response.status_code == 200
 
