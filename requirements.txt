@@ -17,6 +17,12 @@ numpy==2.2.4
 h5py==3.13.0
 scipy==1.15.2
 
+# Network Analysis
+bnlearn==0.10.2
+pgmpy==0.1.26
+networkx==3.4.2
+scikit-learn==1.6.1
+
 # Fisher's Exact Test
 git+https://github.com/marco-mariotti/fishers_exact_test
 

@@ -97,6 +97,7 @@ class Config:
     PHEWAS_PHENO_DIR = Path("/data/danbolser/ukbb/cache/by_variant")
     PHECODE_TERM_DIR = Path("/data/danbolser/ukbb/cache/by_phecode_term")
     VARIANT_SCORES_DIR = Path("/data/danbolser/ukbb/cache/variant_scores")
+    NETWORK_ANALYSIS_DIR = Path("/data/danbolser/ukbb/network_analysis")
 
 
 class DevelopmentConfig(Config):

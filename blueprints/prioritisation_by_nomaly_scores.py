@@ -614,7 +614,7 @@ def show_variant_scores(
     """Show the variant scores page"""
     flush = bool(request.args.get("flush", False))
     protective = bool(request.args.get("protective", False))
-    print(f"Flush: {flush}, Protective: {protective}")
+    logger.info(f"Flush: {flush}, Protective: {protective}")
 
     services = current_app.extensions["nomaly_services"]
     phenotype_service = services.phenotype
