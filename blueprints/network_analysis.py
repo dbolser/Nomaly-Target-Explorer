@@ -1,24 +1,22 @@
 """Library for causal analysis of genes to disease."""
 
-import argparse
 import logging
 import re
 import sys
 from pathlib import Path
-from typing import Tuple, Any
+from typing import Any, Tuple
 
 import bnlearn as bn
 import networkx as nx
 import numpy as np
 import pandas as pd
 import scipy.stats
+from flask import Blueprint, Response, current_app, request, session
 from sklearn.impute import SimpleImputer
 
-from db import get_term_variants
-
 from config import Config
-from data_services import PhenotypeService, NomalyScoreService, GenotypeService
-from data_services.registry import ServiceRegistry
+from data_services import GenotypeService, NomalyScoreService, PhenotypeService
+from db import get_term_variants
 
 
 def read_files(
@@ -572,9 +570,6 @@ def fit_and_plot_bayesian_network(
 
     return model_stats, dot_graph
 
-
-from flask import request, current_app, session, Blueprint, Response
-from config import Config
 
 network_analysis_bp = Blueprint("network_analysis", __name__)
 
