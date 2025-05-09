@@ -1,0 +1,22 @@
+[project]
+name = "nomaly-disease-browser"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "bnlearn>=0.11.1",
+    "dotenv>=0.9.9",
+    "fisher",
+    "flask>=3.1.0",
+    "flask-cors>=5.0.1",
+    "flask-login>=0.6.3",
+    "flask-mysqldb>=2.0.0",
+    "flask-session>=0.8.0",
+    "h5py>=3.13.0",
+    "mysql-connector-python>=9.3.0",
+    "plotly>=6.0.1",
+]
+
+[tool.uv.sources]
+fisher = { git = "https://github.com/marco-mariotti/fishers_exact_test" }
