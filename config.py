@@ -37,7 +37,7 @@ class Config:
     NOMALY_VARIANT_SCORES_PATH = Path("/data/clu/ukbb/genotype_counts_with_vs.tsv")
     NOMALY_VARIANT2GENE_PATH = Path("/data/clu/ukbb/variant2gene.tsv")
 
-    DATA_ROOT = Path("/data/general/UKBB")
+    DATA_ROOT = Path("/data/analysis/UKBB")
 
     # Phenotype directories and files
     UKBB_PHENO_DIR = DATA_ROOT / "Phenotypes"
