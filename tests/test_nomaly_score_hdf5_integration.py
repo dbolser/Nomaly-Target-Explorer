@@ -8,7 +8,7 @@ from data_services.nomaly_score import NomalyScoreService
 
 # === Configuration & Constants ===
 # Path to the test HDF5 file - this should be properly configured
-TEST_HDF5_FILE = Path("/data/general/UKBB/Run-v1/DatabaseInputs/float32_scores.h5")
+TEST_HDF5_FILE = Path("/data/analysis/UKBB/Run-v1/DatabaseInputs/float32_scores.h5")
 
 # Test data constants
 TEST_EID = 2103010

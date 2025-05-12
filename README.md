@@ -103,14 +103,13 @@ flask run
 │   │   │           ├── EAS-sexmatch.h5
 │   │   │           └── ALL-sexmatch.h5
 │   │   └── Pharos/
-│   └── personal/
-│       └── danbolser/
-│           └── ukbb/
-│               └── cache/
-│                   ├── by_pheno/
-│                   ├── by_variant/
-│                   ├── by_phecode_term/
-│                   └── variant_scores/
+│   └── danbolser/
+│       └── ukbb/
+│           └── cache/
+│               ├── by_pheno/
+│               ├── by_variant/
+│               ├── by_phecode_term/
+│               └── variant_scores/
 ```
 
 ## Notes on the input data
