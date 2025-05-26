@@ -17,8 +17,9 @@ def get_db_connection() -> MySQLConnectionAbstract:
         conn = mysql.connector.connect(
             host=Config.MYSQL_HOST,
             port=Config.MYSQL_PORT,
-            user=Config.MYSQL_USER,
-            password=Config.MYSQL_PASSWORD,
+            # user=Config.MYSQL_USER,
+            # password=Config.MYSQL_PASSWORD,
+            unix_socket="/var/run/mysqld/mysqld.sock",
             database=Config.MYSQL_DB,
         )
         assert isinstance(conn, MySQLConnectionAbstract)
