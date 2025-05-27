@@ -13,11 +13,14 @@ logger = logging.getLogger(__name__)
 
 def get_db_connection() -> MySQLConnectionAbstract:
     """Get a database connection using config values."""
+    print(
+        f"DEBUG DB_PY: MYSQL_HOST={Config.MYSQL_HOST}, MYSQL_PORT={Config.MYSQL_PORT}, MYSQL_DB={Config.MYSQL_DB}, MYSQL_USER={Config.MYSQL_USER}"
+    )  # DEBUG LINE
     try:
         conn = mysql.connector.connect(
             host=Config.MYSQL_HOST,
             port=Config.MYSQL_PORT,
-            # user=Config.MYSQL_USER,
+            user=Config.MYSQL_USER,
             # password=Config.MYSQL_PASSWORD,
             unix_socket="/var/run/mysqld/mysqld.sock",
             database=Config.MYSQL_DB,
@@ -328,24 +331,24 @@ def get_term_variants(term: str) -> pd.DataFrame:
         with get_db_connection() as conn:
             with conn.cursor(dictionary=True) as cur:
                 query = """
-                SELECT
-                    term,
-                    variant_id,
-                    gene,
-                    GROUP_CONCAT(DISTINCT aa) AS aa,
-                    MAX(ABS(wild - mutant)) as hmm_score
-                FROM
-                    variants_consequences
-                INNER JOIN
-                    terms2snps
-                USING
-                    (variant_id)
-                WHERE
-                    term = %s
-                GROUP BY
-                    term,
-                    variant_id,
-                    gene
+                    SELECT
+                        term,
+                        variant_id,
+                        gene,
+                        GROUP_CONCAT(DISTINCT aa) AS aa,
+                        MAX(ABS(wild - mutant)) as hmm_score
+                    FROM
+                        variants_consequences
+                    INNER JOIN
+                        terms2snps
+                    USING
+                        (variant_id)
+                    WHERE
+                        term = %s
+                    GROUP BY
+                        term,
+                        variant_id,
+                        gene
                 """
                 logger.info(f"\nExecuting query for term: {term}")
                 logger.debug(f"Query: {query}")
@@ -356,7 +359,7 @@ def get_term_variants(term: str) -> pd.DataFrame:
 
                 if not results:
                     logger.warning(f"No data found for term: {term}")
-                    return pd.DataFrame()
+                    raise DataNotFoundError(f"No data found for term: {term}")
 
                 assert cur.description is not None
                 columns = [desc[0] for desc in cur.description]

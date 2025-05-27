@@ -2,13 +2,11 @@
 
 import json
 from concurrent.futures import ThreadPoolExecutor
-from unittest.mock import patch
 
 import pandas as pd
 
 
-@patch("blueprints.prioritisation_by_nomaly_scores.get_term_variants")
-def test_stream_isolation(mock_get_term_variants, unit_test_app_client_with_cache):
+def test_stream_isolation(unit_test_app_client_with_cache, monkeypatch):
     """Test that concurrent requests maintain proper data isolation."""
     # Configure the mock to return a sample DataFrame
     # This DataFrame should mimic the output of the actual db.get_term_variants
@@ -30,7 +28,10 @@ def test_stream_isolation(mock_get_term_variants, unit_test_app_client_with_cach
             "hmm_score": [0.8, 0.9, 0.7, 0.85],
         }
     )
-    mock_get_term_variants.return_value = sample_variants_df
+    monkeypatch.setattr(
+        "blueprints.prioritisation_by_nomaly_scores.get_term_variants",
+        lambda term: sample_variants_df,
+    )
 
     # Just test two requests to keep it simple
     test_pairs = [

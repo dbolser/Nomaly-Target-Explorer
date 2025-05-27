@@ -23,6 +23,7 @@ def test_db_connection():
         cur.execute("SELECT 1")
         result = cur.fetchone()
         assert result is not None
+        assert isinstance(result, tuple)
         assert result[0] == 1
 
 
@@ -145,15 +146,31 @@ def test_get_term_domain_genes():
     assert all(col in df.columns for col in ["gene"])
 
 
-def test_get_term_variants():
+@pytest.mark.parametrize(
+    "term,expected_exists",
+    [
+        ("GO:0005524", True),  # ATP binding - should exist
+        ("UP:UPA00428", True),  # lipdoid degradation - should exist
+        ("DOES_NOT_EXIST", False),  # Invalid term - should not exist
+    ],
+)
+def test_get_term_variants(term, expected_exists):
     """Test fetching term variants."""
-    term = "GO:0005524"  # ATP binding
-    df = get_term_variants(term)
+    if expected_exists:
+        df = get_term_variants(term)
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty, "Result should not be empty for known terms"
 
-    # Check dataframe structure
-    assert isinstance(df, pd.DataFrame)
-    assert not df.empty, "Result should not be empty for ATP binding term"
-    assert all(col in df.columns for col in ["term", "variant_id"])
+        assert all(
+            col in df.columns
+            for col in ["term", "variant_id", "gene", "aa", "hmm_score"]
+        )
+
+        assert df.groupby("term").size().shape[0] == 1, "There should be only one term"
+        assert df.shape[0] > 100
+    else:
+        with pytest.raises(DataNotFoundError):
+            get_term_variants(term)
 
 
 def test_get_all_variants():

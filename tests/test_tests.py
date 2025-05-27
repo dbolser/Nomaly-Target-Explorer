@@ -1,5 +1,4 @@
 from flask import current_app
-import os
 
 
 def test_test_app(test_app):
@@ -122,6 +121,7 @@ def test_nomaly_scores_service(nomaly_scores_service):
     assert np.array_equal(scores[0], np.array([0.030, 0.020, 0.010, 0.001]))
     assert np.array_equal(scores[1], np.array([0.025, 0.015, 0.020, 0.002]))
 
+
 def test_integration_app(integration_app):
     """Test that integration_app provides an app with real services."""
     with integration_app.app_context():
@@ -215,12 +215,6 @@ def test_integration_services_initialized(auth_integration_app_client):
         phecode_df = services.phenotype.get_cases_for_phecode("250.2")
         assert phecode_df is not None, "Could not get phenotype data"
         assert len(phecode_df) > 0, "Phenotype data is empty"
-
-
-def test_mock_config(mock_cache_dir_config):
-    """Test that mock_config provides a temporary directory."""
-    assert os.path.exists(mock_cache_dir_config.VARIANT_SCORES_DIR)
-    assert os.path.isdir(mock_cache_dir_config.VARIANT_SCORES_DIR)
 
 
 def test_debug_accessible_routes(auth_integration_app_client):

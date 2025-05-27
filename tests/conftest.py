@@ -1,11 +1,9 @@
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import h5py
 import numpy as np
-import pandas as pd
 import pytest
 from werkzeug.security import generate_password_hash
 
@@ -595,69 +593,55 @@ def integration_app_client(integration_app):
 
 @pytest.fixture
 def test_admin():
-    """Create a test admin user with full permissions."""
+    """Create a test admin user with full permissions, cleaning up before and after."""
     conn = get_db_connection()
     cursor = conn.cursor()
+    username = "test_admin"
 
-    # Hash the password
-    hashed_password = generate_password_hash("test_password")
-
-    # Create test admin user
+    # Pre-clean: Remove any existing test_admin user
     cursor.execute(
-        """
-        INSERT INTO users2 (username, password, email, is_active, is_admin)
-        VALUES ('test_admin', %s, 'test_admin@example.com', TRUE, TRUE)
-    """,
-        (hashed_password,),
+        "DELETE FROM user_permissions WHERE user_id IN (SELECT id FROM users2 WHERE username = %s)",
+        (username,),
     )
-    user_id = cursor.lastrowid
-
-    # Grant admin permissions
-    cursor.execute(
-        """
-        INSERT INTO user_permissions (user_id, allowed_paths)
-        VALUES (%s, '*')
-    """,
-        (user_id,),
-    )
-
+    cursor.execute("DELETE FROM users2 WHERE username = %s", (username,))
     conn.commit()
-    cursor.close()
-    conn.close()
 
-    yield {"id": user_id, "username": "test_admin", "password": "test_password"}
+    try:
+        # Hash the password
+        hashed_password = generate_password_hash("test_password")
 
-    # Cleanup
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM user_permissions WHERE user_id = %s", (user_id,))
-    cursor.execute("DELETE FROM users2 WHERE id = %s", (user_id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
+        # Create test admin user
+        cursor.execute(
+            """
+            INSERT INTO users2 (username, password, email, is_active, is_admin)
+            VALUES (%s, %s, %s, TRUE, TRUE)
+            """,
+            (username, hashed_password, "test_admin@example.com"),
+        )
+        user_id = cursor.lastrowid
 
+        # Grant admin permissions
+        cursor.execute(
+            """
+            INSERT INTO user_permissions (user_id, allowed_paths)
+            VALUES (%s, '*')
+            """,
+            (user_id,),
+        )
+        conn.commit()
 
-def cleanup_test_admin_after_test_timeout():
-    """Cleanup the test admin user."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        DELETE
-            user_permissions, users2
-        FROM
-            user_permissions 
-        INNER JOIN
-            users2
-        ON
-          user_permissions.user_id = users2.id
-        WHERE
-            username = "test_admin"
-        """
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
+        yield {"id": user_id, "username": username, "password": "test_password"}
+
+    finally:
+        # Cleanup: Remove the test admin user and permissions
+        cursor.execute(
+            "DELETE FROM user_permissions WHERE user_id IN (SELECT id FROM users2 WHERE username = %s)",
+            (username,),
+        )
+        cursor.execute("DELETE FROM users2 WHERE username = %s", (username,))
+        conn.commit()
+        cursor.close()
+        conn.close()
 
 
 @pytest.fixture
@@ -678,36 +662,17 @@ def auth_integration_app_client(integration_app_client, test_admin):
 
 
 @pytest.fixture
-def mock_cache_dir_config(tmp_path):
+def mock_cache_dir_config(tmp_path, monkeypatch):
     """Create a temporary directory for cache testing"""
-    with patch("config.Config") as mock_config:
-        mock_config.GWAS_PHENO_DIR = str(tmp_path)
-        mock_config.PHEWAS_PHENO_DIR = str(tmp_path)
-        mock_config.PHECODE_TERM_DIR = str(tmp_path)
-        mock_config.VARIANT_SCORES_DIR = str(tmp_path)
-
-        yield mock_config
+    monkeypatch.setattr("config.Config.GWAS_PHENO_DIR", str(tmp_path))
+    monkeypatch.setattr("config.Config.PHEWAS_PHENO_DIR", str(tmp_path))
+    monkeypatch.setattr("config.Config.PHECODE_TERM_DIR", str(tmp_path))
+    monkeypatch.setattr("config.Config.VARIANT_SCORES_DIR", str(tmp_path))
 
 
 @pytest.fixture
 def unit_test_app_client_with_cache(unit_test_app_client, mock_cache_dir_config):
     """Client for unit tests with mock cache directories configured."""
-    unit_test_app_client.application.config.update(
-        {
-            "GWAS_PHENO_DIR": mock_cache_dir_config.GWAS_PHENO_DIR,
-            "PHEWAS_PHENO_DIR": mock_cache_dir_config.PHEWAS_PHENO_DIR,
-            "PHECODE_TERM_DIR": mock_cache_dir_config.PHECODE_TERM_DIR,
-            "VARIANT_SCORES_DIR": mock_cache_dir_config.VARIANT_SCORES_DIR,
-        }
-    )
+    # No need to update application config, since monkeypatch already did it
     return unit_test_app_client
 
-
-def main():
-    # Disaster recovery...
-    cleanup_test_admin_after_test_timeout()
-    exit(0)
-
-
-if __name__ == "__main__":
-    main()
