@@ -27,6 +27,7 @@ from werkzeug.security import check_password_hash
 from auth import check_page_permission
 from blueprints.admin import admin_bp
 from blueprints.disease_sets import disease_sets_bp
+from blueprints.network_analysis import network_analysis_bp
 from blueprints.phecode import phecode_bp
 from blueprints.phecode_term import phecode_term_bp
 from blueprints.prioritisation_by_nomaly_scores import prioritisation_bp
@@ -102,6 +103,7 @@ def register_blueprints(app):
     app.register_blueprint(admin_bp)
     app.register_blueprint(prioritisation_bp)
     app.register_blueprint(user_bp)
+    app.register_blueprint(network_analysis_bp)
 
     # from api import stats_bp
     # app.register_blueprint(stats_bp)
