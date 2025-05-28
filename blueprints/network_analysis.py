@@ -958,13 +958,12 @@ def load_analysis_results(result_path: str) -> Dict:
     if stats_path.exists():
         stats_df = pd.read_csv(stats_path)
         # Convert to summary statistics
+        min_p_value = stats_df["p_value"].min() if len(stats_df) > 0 else None
         results["model_stats"] = {
             "total_tests": len(stats_df),
             "significant_p005": len(stats_df[stats_df["p_value"] < 0.05]),
             "significant_p001": len(stats_df[stats_df["p_value"] < 0.01]),
-            "min_p_value": float(stats_df["p_value"].min())
-            if len(stats_df) > 0
-            else None,
+            "min_p_value": float(min_p_value) if min_p_value is not None and not pd.isna(min_p_value) else None,
         }
 
     # Load contingency table
@@ -972,12 +971,14 @@ def load_analysis_results(result_path: str) -> Dict:
     if contingency_path.exists():
         contingency_df = pd.read_csv(contingency_path, sep="\t")
         if len(contingency_df) > 0:
+            # Replace NaN values with None and convert to JSON-safe format
+            contingency_df_clean = contingency_df.replace({np.nan: None})
             results["contingency_data"] = {
                 "columns": [
                     {"data": col, "title": col.replace("_", " ").title()}
-                    for col in contingency_df.columns
+                    for col in contingency_df_clean.columns
                 ],
-                "rows": contingency_df.to_dict("records"),
+                "rows": contingency_df_clean.to_dict("records"),
             }
 
     return results
