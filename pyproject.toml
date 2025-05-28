@@ -13,6 +13,7 @@ dependencies = [
     "flask-login>=0.6.3",
     "flask-mysqldb>=2.0.0",
     "flask-session>=0.8.0",
+    "flask-wtf>=1.2.2",
     "h5py>=3.13.0",
     "mysql-connector-python>=9.3.0",
     "plotly>=6.0.1",

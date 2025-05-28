@@ -1,17 +1,30 @@
 """Library for causal analysis of genes to disease."""
 
+import json
 import logging
 import re
 import sys
+import threading
+import time
+import uuid
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import bnlearn as bn
 import networkx as nx
 import numpy as np
 import pandas as pd
 import scipy.stats
-# from flask import Blueprint, Response, current_app, request, session
+from flask import (
+    Blueprint,
+    Response,
+    current_app,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+    session,
+)
 from sklearn.impute import SimpleImputer
 
 from config import Config
@@ -578,19 +591,396 @@ def fit_and_plot_bayesian_network(
     return model_stats, dot_graph
 
 
-# network_analysis_bp = Blueprint("network_analysis", __name__)
+network_analysis_bp = Blueprint(
+    "network_analysis", __name__, template_folder="../templates"
+)
 
 
 logger = logging.getLogger(__name__)
 
 
-# @network_analysis_bp.route("/network_analysis/<disease_code>/<term>")
-def do_a_thing(
-    services: ServiceRegistry,
-    disease_code: str,
+# Simple job management without Celery
+class JobManager:
+    def __init__(self):
+        self.jobs: Dict[str, Dict] = {}
+        self.lock = threading.Lock()
+
+    def create_job(self, phecode: str, term: str) -> str:
+        job_id = str(uuid.uuid4())
+        with self.lock:
+            self.jobs[job_id] = {
+                "id": job_id,
+                "phecode": phecode,
+                "term": term,
+                "status": "pending",
+                "progress": 0,
+                "message": "Job created",
+                "created_at": time.time(),
+                "started_at": None,
+                "completed_at": None,
+                "error": None,
+                "result_path": None,
+                "thread": None,
+            }
+        return job_id
+
+    def get_job(self, job_id: str) -> Optional[Dict]:
+        with self.lock:
+            return self.jobs.get(job_id)
+
+    def update_job(self, job_id: str, **kwargs):
+        with self.lock:
+            if job_id in self.jobs:
+                self.jobs[job_id].update(kwargs)
+
+    def cancel_job(self, job_id: str) -> bool:
+        with self.lock:
+            job = self.jobs.get(job_id)
+            if job and job["status"] in ["pending", "running"]:
+                job["status"] = "cancelled"
+                job["message"] = "Job cancelled by user"
+                return True
+        return False
+
+    def cleanup_old_jobs(self, max_age_hours: int = 24):
+        """Clean up jobs older than max_age_hours"""
+        cutoff = time.time() - (max_age_hours * 3600)
+        with self.lock:
+            to_remove = [
+                job_id
+                for job_id, job in self.jobs.items()
+                if job["created_at"] < cutoff
+            ]
+            for job_id in to_remove:
+                del self.jobs[job_id]
+
+
+# Global job manager instance
+job_manager = JobManager()
+
+
+@network_analysis_bp.route("/network_analysis/<phecode>/<term>")
+def show_network_analysis(phecode: str, term: str):
+    """Show the network analysis page."""
+    return render_template("network_analysis.html", phecode=phecode, term=term)
+
+
+@network_analysis_bp.route("/network_analysis/<phecode>/<term>/start", methods=["POST"])
+def start_network_analysis(phecode: str, term: str):
+    """Start a network analysis job."""
+    try:
+        # Create job
+        job_id = job_manager.create_job(phecode, term)
+
+        # Start background thread
+        thread = threading.Thread(
+            target=run_network_analysis_job, args=(job_id, phecode, term)
+        )
+        thread.daemon = True
+        thread.start()
+
+        # Update job with thread reference
+        job_manager.update_job(job_id, thread=thread, started_at=time.time())
+
+        return jsonify(
+            {"success": True, "job_id": job_id, "message": "Network analysis started"}
+        )
+
+    except Exception as e:
+        logger.error(f"Error starting network analysis: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@network_analysis_bp.route("/network_analysis/<phecode>/<term>/status/<job_id>")
+def get_job_status(phecode: str, term: str, job_id: str):
+    """Get the status of a network analysis job."""
+    job = job_manager.get_job(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+
+    return jsonify(
+        {
+            "job_id": job_id,
+            "status": job["status"],
+            "progress": job["progress"],
+            "message": job["message"],
+            "error": job["error"],
+            "created_at": job["created_at"],
+            "started_at": job["started_at"],
+            "completed_at": job["completed_at"],
+        }
+    )
+
+
+@network_analysis_bp.route(
+    "/network_analysis/<phecode>/<term>/cancel/<job_id>", methods=["POST"]
+)
+def cancel_job(phecode: str, term: str, job_id: str):
+    """Cancel a network analysis job."""
+    success = job_manager.cancel_job(job_id)
+    if success:
+        return jsonify({"success": True, "message": "Job cancelled"})
+    else:
+        return jsonify({"error": "Job not found or cannot be cancelled"}), 404
+
+
+@network_analysis_bp.route("/network_analysis/<phecode>/<term>/results/<job_id>")
+def get_job_results(phecode: str, term: str, job_id: str):
+    """Get the results of a completed network analysis job."""
+    job = job_manager.get_job(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+
+    if job["status"] != "completed":
+        return jsonify({"error": "Job not completed"}), 400
+
+    try:
+        # Load results from the output directory
+        results = load_analysis_results(job["result_path"])
+        return jsonify(results)
+
+    except Exception as e:
+        logger.error(f"Error loading results for job {job_id}: {e}")
+        return jsonify({"error": "Failed to load results"}), 500
+
+
+@network_analysis_bp.route(
+    "/network_analysis/<phecode>/<term>/download/<job_id>/<result_type>"
+)
+def download_result(phecode: str, term: str, job_id: str, result_type: str):
+    """Download specific result files."""
+    job = job_manager.get_job(job_id)
+    if not job or job["status"] != "completed":
+        return jsonify({"error": "Job not found or not completed"}), 404
+
+    result_path = Path(job["result_path"])
+
+    file_mapping = {
+        "svg": "bayesian_network_new.svg",
+        "model_stats": "model_stats.csv",
+        "contingency": "contingency_table.tsv",
+    }
+
+    filename = file_mapping.get(result_type)
+    if not filename:
+        return jsonify({"error": "Invalid result type"}), 400
+
+    file_path = result_path / filename
+    if not file_path.exists():
+        return jsonify({"error": "Result file not found"}), 404
+
+    return send_file(file_path, as_attachment=True)
+
+
+@network_analysis_bp.route("/network_analysis/<phecode>/<term>/check_cache")
+def check_cached_results(phecode: str, term: str):
+    """Check if there are cached results available."""
+    ancestry = session.get("ancestry", "EUR")
+
+    try:
+        output_dir = Config.NETWORK_ANALYSIS_DIR / f"{ancestry}-{phecode}-{term}"
+
+        if output_dir.exists() and (output_dir / "bayesian_network_new.svg").exists():
+            results = load_analysis_results(str(output_dir))
+            return jsonify({"has_results": True, "results": results})
+        else:
+            return jsonify({"has_results": False})
+
+    except Exception as e:
+        logger.error(f"Error checking cached results: {e}")
+        return jsonify({"has_results": False})
+
+
+def run_network_analysis_job(job_id: str, phecode: str, term: str):
+    """Run the network analysis in a background thread."""
+    try:
+        job_manager.update_job(
+            job_id, status="running", progress=10, message="Initializing analysis..."
+        )
+
+        # Get services and parameters
+        services = current_app.extensions["nomaly_services"]
+        phenotype_service = services.phenotype
+        nomaly_score_service = services.nomaly_score
+        genotype_service = services.genotype
+
+        ancestry = "EUR"  # TODO: Get from session in a thread-safe way
+
+        # Set up output directory
+        output_dir = Config.NETWORK_ANALYSIS_DIR / f"{ancestry}-{phecode}-{term}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        job_manager.update_job(job_id, progress=20, message="Reading data files...")
+
+        # Check if job was cancelled
+        job = job_manager.get_job(job_id)
+        if job and job["status"] == "cancelled":
+            return
+
+        # Run the original analysis function with progress updates
+        result = run_network_analysis_with_progress(
+            job_id,
+            phecode,
+            term,
+            phenotype_service,
+            nomaly_score_service,
+            genotype_service,
+            ancestry,
+            output_dir,
+        )
+
+        # Mark job as completed
+        job_manager.update_job(
+            job_id,
+            status="completed",
+            progress=100,
+            message="Analysis completed successfully",
+            completed_at=time.time(),
+            result_path=str(output_dir),
+        )
+
+    except Exception as e:
+        logger.error(f"Network analysis job {job_id} failed: {e}")
+        job_manager.update_job(
+            job_id, status="failed", error=str(e), message=f"Analysis failed: {str(e)}"
+        )
+
+
+def run_network_analysis_with_progress(
+    job_id: str,
+    phecode: str,
     term: str,
-    ancestry: str = "EUR",
-) -> None:
+    phenotype_service,
+    nomaly_score_service,
+    genotype_service,
+    ancestry: str,
+    output_dir: Path,
+):
+    """Run network analysis with progress updates."""
+
+    def update_progress(progress: int, message: str):
+        job = job_manager.get_job(job_id)
+        if job and job["status"] == "cancelled":
+            raise InterruptedError("Job was cancelled")
+        job_manager.update_job(job_id, progress=progress, message=message)
+
+    # Read files
+    update_progress(25, "Reading genomic data...")
+    scores, variants_info, variants_genotypes = read_files(
+        term,
+        phecode,
+        phenotype_service,
+        nomaly_score_service,
+        genotype_service,
+        ancestry,
+    )
+
+    # Process data
+    update_progress(40, "Processing data...")
+    genotypes_weighted, scores, genotypes_weighted2, sex_counts = process_data(
+        scores, variants_info, variants_genotypes
+    )
+
+    # FATHMM multiply
+    update_progress(50, "Applying FATHMM scores...")
+    variants_info, common_cols, genotypes_weighted = FATHMM_multiply(
+        genotypes_weighted, variants_info
+    )
+
+    # Impute and process
+    update_progress(60, "Imputing missing values...")
+    genotypes_weighted = impute_missing_values(genotypes_weighted)
+    genotypes_weighted = new_columns(genotypes_weighted, variants_info)
+
+    # Discretize
+    update_progress(70, "Discretizing genotypes...")
+    genotypes_weighted_discretised = discretise_genotypes(genotypes_weighted)
+    genotypes_weighted_discretised = genotypes_weighted_discretised.drop(
+        ["score"], axis=1
+    )
+    genotypes_weighted_discretised = genotypes_weighted_discretised.astype("category")
+    genotypes_weighted_discretised.index.name = None
+
+    # Undersample
+    update_progress(80, "Balancing dataset...")
+    genotypes_weighted_discretised = undersample(
+        genotypes_weighted_discretised, sex_counts
+    )
+    genotypes_weighted_discretised = genotypes_weighted_discretised.loc[
+        :, (genotypes_weighted_discretised != 0).any(axis=0)
+    ]
+
+    # Final checks and network analysis
+    update_progress(85, "Checking data quality...")
+    check_missing_values(genotypes_weighted_discretised)
+    genotypes_weighted_discretised = genotypes_weighted_discretised.drop(
+        ["sex", "pheno"], axis=1
+    )
+    genotypes_weighted_discretised = genotypes_weighted_discretised.apply(
+        pd.to_numeric, errors="ignore"
+    )
+
+    # Build Bayesian network
+    update_progress(90, "Building Bayesian network...")
+    root_node = root(genotypes_weighted_discretised, "score_disease")
+
+    update_progress(95, "Fitting network model...")
+    model_stats, dot_graph = fit_and_plot_bayesian_network(
+        genotypes_weighted_discretised,
+        GO_term=term,
+        disease=phecode,
+        class_node="score_disease",
+        root_node=root_node,
+        output_dir=output_dir,
+        genotypes_weighted_discretised=genotypes_weighted_discretised,
+    )
+
+    return True
+
+
+def load_analysis_results(result_path: str) -> Dict:
+    """Load analysis results from the output directory."""
+    result_dir = Path(result_path)
+    results = {}
+
+    # Load SVG if available
+    svg_path = result_dir / "bayesian_network_new.svg"
+    if svg_path.exists():
+        with open(svg_path, "r") as f:
+            results["network_svg"] = f.read()
+
+    # Load model statistics
+    stats_path = result_dir / "model_stats.csv"
+    if stats_path.exists():
+        stats_df = pd.read_csv(stats_path)
+        # Convert to summary statistics
+        results["model_stats"] = {
+            "total_tests": len(stats_df),
+            "significant_p005": len(stats_df[stats_df["p_value"] < 0.05]),
+            "significant_p001": len(stats_df[stats_df["p_value"] < 0.01]),
+            "min_p_value": float(stats_df["p_value"].min())
+            if len(stats_df) > 0
+            else None,
+        }
+
+    # Load contingency table
+    contingency_path = result_dir / "contingency_table.tsv"
+    if contingency_path.exists():
+        contingency_df = pd.read_csv(contingency_path, sep="\t")
+        if len(contingency_df) > 0:
+            results["contingency_data"] = {
+                "columns": [
+                    {"data": col, "title": col.replace("_", " ").title()}
+                    for col in contingency_df.columns
+                ],
+                "rows": contingency_df.to_dict("records"),
+            }
+
+    return results
+
+
+@network_analysis_bp.route("/network_analysis/<disease_code>/<term>/legacy")
+def do_a_thing(disease_code: str, term: str) -> Response:
     """Perform network analysis for a given disease and GO term."""
 
     GO_term = term

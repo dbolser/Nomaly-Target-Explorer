@@ -103,6 +103,9 @@ def get_term_names(terms_list: List[str]) -> Dict[str, str]:
                 if not results:
                     raise DataNotFoundError(f"No data found for terms: {terms_list}")
 
+                assert isinstance(results, list)
+                assert all(isinstance(result, dict) for result in results)
+
                 # Result is a list of dictionaries
                 term_name_dict = {result["term"]: result["name"] for result in results}
 
