@@ -6,32 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 
 
-def test_stream_isolation(unit_test_app_client_with_cache, monkeypatch):
+def test_stream_isolation(unit_test_app_client_with_cache):
     """Test that concurrent requests maintain proper data isolation."""
-    # Configure the mock to return a sample DataFrame
-    # This DataFrame should mimic the output of the actual db.get_term_variants
-    sample_variants_df = pd.DataFrame(
-        {
-            "variant_id": [
-                "1_100_A/T",
-                "2_200_C/G",
-                "1_186977737_A/G",
-                "1_186977780_G/A",
-            ],
-            "gene": ["GENEA", "GENEB", "GENEA", "GENEC"],
-            "aa": [
-                "A",
-                "C",
-                "A",
-                "G",
-            ],  # This column gets dropped, but include for realism
-            "hmm_score": [0.8, 0.9, 0.7, 0.85],
-        }
-    )
-    monkeypatch.setattr(
-        "blueprints.prioritisation_by_nomaly_scores.get_term_variants",
-        lambda term: sample_variants_df,
-    )
 
     # Just test two requests to keep it simple
     test_pairs = [
@@ -98,7 +74,7 @@ def test_cache_concurrency(unit_test_app_client_with_cache):
     """Test that concurrent requests get consistent results when using cache."""
     # Use a disease code the test user has access to
     test_pairs = [
-        ("250.2", "UP:UPA00246"),  # This user has access to 250.2
+        ("250.2", "GO:0030800"),  # This user has access to 250.2
     ]
 
     def make_request(disease_code, term):
@@ -151,7 +127,7 @@ def test_error_recovery(unit_test_app_client_with_cache):
     """Test error handling and recovery during concurrent requests."""
     # Mix of valid and invalid requests
     test_cases = [
-        ("250.2", "UP:UPA00246"),  # Valid
+        ("250.2", "GO:0030800"),  # Valid
         ("invalid", "invalid"),  # Invalid
         ("250.2", "invalid"),  # Partially invalid
     ]
@@ -175,7 +151,7 @@ def test_error_recovery(unit_test_app_client_with_cache):
 
     for disease_code, term, messages in results:
         # Valid request should complete normally
-        if (disease_code, term) == ("250.2", "UP:UPA00246"):
+        if (disease_code, term) == ("250.2", "GO:0030800"):
             assert any(m["type"] == "results" for m in messages)
             assert messages[-1]["type"] == "done"
 
