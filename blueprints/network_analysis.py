@@ -11,11 +11,16 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import scipy.stats
-from flask import Blueprint, Response, current_app, request, session
+# from flask import Blueprint, Response, current_app, request, session
 from sklearn.impute import SimpleImputer
 
 from config import Config
-from data_services import GenotypeService, NomalyScoreService, PhenotypeService
+from data_services import (
+    GenotypeService,
+    NomalyScoreService,
+    PhenotypeService,
+    ServiceRegistry,
+)
 from db import get_term_variants
 
 
@@ -50,7 +55,9 @@ def read_files(
 
     # read genotypes for variants
     variants_genotypes = genotype_service.get_genotypes(
-        eids=phenotypes.eid, vids=term_variants.variant_id, nomaly_ids=True
+        eids=phenotypes.eid,  # type: ignore
+        vids=term_variants.variant_id,  # type: ignore
+        nomaly_ids=True,
     )
 
     # Go consistency!
@@ -571,31 +578,36 @@ def fit_and_plot_bayesian_network(
     return model_stats, dot_graph
 
 
-network_analysis_bp = Blueprint("network_analysis", __name__)
+# network_analysis_bp = Blueprint("network_analysis", __name__)
 
 
 logger = logging.getLogger(__name__)
 
 
-@network_analysis_bp.route("/network_analysis/<disease_code>/<term>")
-def do_a_thing(disease_code: str, term: str) -> Response:
+# @network_analysis_bp.route("/network_analysis/<disease_code>/<term>")
+def do_a_thing(
+    services: ServiceRegistry,
+    disease_code: str,
+    term: str,
+    ancestry: str = "EUR",
+) -> None:
     """Perform network analysis for a given disease and GO term."""
 
     GO_term = term
     disease = disease_code
 
-    flush = bool(request.args.get("flush", False))
-    logger.info(f"Flush: {flush}")
+    # flush = bool(request.args.get("flush", False))
+    # logger.info(f"Flush: {flush}")
 
-    services = current_app.extensions["nomaly_services"]
+    # services = current_app.extensions["nomaly_services"]
     phenotype_service = services.phenotype
     nomaly_score_service = services.nomaly_score
     genotype_service = services.genotype
 
     # Get run version and ancestry from the session
     # TODO: Implement run version!
-    run_version = session.get("run_version", "Run-v1")
-    ancestry = session.get("ancestry", "EUR")
+    # run_version = session.get("run_version", "Run-v1")
+    # ancestry = session.get("ancestry", "EUR")
 
     output_dir = Config.NETWORK_ANALYSIS_DIR / f"{ancestry}-{disease}-{GO_term}"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -687,15 +699,18 @@ def do_a_thing(disease_code: str, term: str) -> Response:
         genotypes_weighted_discretised=genotypes_weighted_discretised,
     )
 
-    return Response(
-        "Network analysis completed successfully",
-        status=200,
-        mimetype="text/plain",
-    )
+    # return Response(
+    #     "Network analysis completed successfully",
+    #     status=200,
+    #     mimetype="text/plain",
+    # )
 
 
 def main():
-    do_a_thing("100001", "100001")
+    config = Config()
+    services = ServiceRegistry.from_config(config)
+
+    do_a_thing(services, "615", "MP:0001105", ancestry="EUR")
 
 
 if __name__ == "__main__":
