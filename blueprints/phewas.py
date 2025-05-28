@@ -95,11 +95,14 @@ def run_phewas(
     # Get the individual phenotype masks
     case_phenotype_mask = phenotype_matrix == 1
     ctrl_phenotype_mask = phenotype_matrix == 0
+    # skip_phenotype_mask = phenotype_matrix == 9  # For book keeping...
 
     # Get the individual genotype masks
     het_genotype_mask = genotype_matrix == 1
     ref_genotype_mask = genotype_matrix == 0
     alt_genotype_mask = genotype_matrix == 2
+
+    # mis_genotype_mask = genotype_matrix == -9  # For book keeping...
 
     # Now we get all the counts in two steps...
 
@@ -111,6 +114,10 @@ def run_phewas(
     ctrl_ref_mask = ctrl_phenotype_mask * ref_genotype_mask.T
     ctrl_alt_mask = ctrl_phenotype_mask * alt_genotype_mask.T
 
+    # For book keeping...
+    # case_mis_mask = case_phenotype_mask * mis_genotype_mask.T
+    # ctrl_mis_mask = ctrl_phenotype_mask * mis_genotype_mask.T
+
     # 2) Get the counts for each combination
     case_het_num = case_het_mask.sum(axis=0)
     case_hom_ref_num = case_ref_mask.sum(axis=0)
@@ -120,22 +127,24 @@ def run_phewas(
     ctrl_hom_ref_num = ctrl_ref_mask.sum(axis=0)
     ctrl_hom_alt_num = ctrl_alt_mask.sum(axis=0)
 
+    # For book keeping...
+    # case_mis_num = case_mis_mask.sum(axis=0)
+    # ctrl_mis_num = ctrl_mis_mask.sum(axis=0)
+
     # Sum alleles here for convenience
     case_ref_num = case_hom_ref_num * 2 + case_het_num
     case_alt_num = case_hom_alt_num * 2 + case_het_num
     ctrl_ref_num = ctrl_hom_ref_num * 2 + ctrl_het_num
     ctrl_alt_num = ctrl_hom_alt_num * 2 + ctrl_het_num
 
-    # Moving on...
-
     # Calculate allele frequencies here for convenience
-    case_ref_af = np.divide(
-        case_ref_num,
-        case_ref_num + case_alt_num,
-    )
-    case_alt_af = np.divide(case_alt_num, case_ref_num + case_alt_num)
-    ctrl_ref_af = np.divide(ctrl_ref_num, ctrl_ref_num + ctrl_alt_num)
-    ctrl_alt_af = np.divide(ctrl_alt_num, ctrl_ref_num + ctrl_alt_num)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        # TODO: We get zeros in the denominator due to missing genotypes...
+        #       At least that's what I think... (See book keeping above).
+        case_ref_af = np.divide(case_ref_num, case_ref_num + case_alt_num)
+        case_alt_af = np.divide(case_alt_num, case_ref_num + case_alt_num)
+        ctrl_ref_af = np.divide(ctrl_ref_num, ctrl_ref_num + ctrl_alt_num)
+        ctrl_alt_af = np.divide(ctrl_alt_num, ctrl_ref_num + ctrl_alt_num)
 
     if not sanity:
         # Create masks for non-NaN values

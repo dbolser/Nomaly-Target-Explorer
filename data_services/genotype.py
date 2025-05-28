@@ -149,7 +149,6 @@ class GenotypesHDF5:
         self.rsid: np.ndarray = rsid[...].astype(str)
 
         # NOTE:Load genotype_matrix as memmap!
-        # Load NPY file # TODO: What is mode?
         npy_file = hdf5_file.with_suffix(".npy")
         self.genotype_matrix = np.memmap(
             npy_file, dtype=np.int8, mode="r", shape=genotype_matrix.shape
@@ -313,6 +312,7 @@ class GenotypesHDF5:
 
         # Get the frequencies
         total = het_count + ref_count + alt_count + mis_count
+        assert np.all(total == genotypes.shape[1])
         het_freq = het_count / total
         ref_freq = ref_count / total
         alt_freq = alt_count / total

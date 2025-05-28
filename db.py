@@ -73,6 +73,7 @@ def get_phecode_info(phecode: str) -> dict:
                 if not results:
                     raise DataNotFoundError(f"No data found for phecode: {phecode}")
 
+                assert isinstance(results, dict)
                 return dict(results)
     except DatabaseConnectionError:
         raise
