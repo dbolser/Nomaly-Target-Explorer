@@ -672,9 +672,14 @@ def start_network_analysis(phecode: str, term: str):
         # Create job
         job_id = job_manager.create_job(phecode, term)
 
-        # Start background thread
+        # Get services from the current app context
+        services = current_app.extensions["nomaly_services"]
+        ancestry = "EUR"  # TODO: Get from session
+
+        # Start background thread with services
         thread = threading.Thread(
-            target=run_network_analysis_job, args=(job_id, phecode, term)
+            target=run_network_analysis_job,
+            args=(services, job_id, phecode, term, ancestry),
         )
         thread.daemon = True
         thread.start()
@@ -791,20 +796,19 @@ def check_cached_results(phecode: str, term: str):
         return jsonify({"has_results": False})
 
 
-def run_network_analysis_job(job_id: str, phecode: str, term: str):
+def run_network_analysis_job(
+    services, job_id: str, phecode: str, term: str, ancestry: str = "EUR"
+):
     """Run the network analysis in a background thread."""
     try:
         job_manager.update_job(
             job_id, status="running", progress=10, message="Initializing analysis..."
         )
 
-        # Get services and parameters
-        services = current_app.extensions["nomaly_services"]
+        # Extract services
         phenotype_service = services.phenotype
         nomaly_score_service = services.nomaly_score
         genotype_service = services.genotype
-
-        ancestry = "EUR"  # TODO: Get from session in a thread-safe way
 
         # Set up output directory
         output_dir = Config.NETWORK_ANALYSIS_DIR / f"{ancestry}-{phecode}-{term}"
@@ -979,25 +983,22 @@ def load_analysis_results(result_path: str) -> Dict:
     return results
 
 
-@network_analysis_bp.route("/network_analysis/<disease_code>/<term>/legacy")
-def do_a_thing(disease_code: str, term: str) -> Response:
+def run_network_analysis(
+    services: ServiceRegistry,
+    disease_code: str,
+    term: str,
+    run_version: str = "Run-v1",
+    ancestry: str = "EUR",
+) -> tuple[pd.DataFrame, Any]:
     """Perform network analysis for a given disease and GO term."""
 
     GO_term = term
     disease = disease_code
 
-    # flush = bool(request.args.get("flush", False))
-    # logger.info(f"Flush: {flush}")
-
     # services = current_app.extensions["nomaly_services"]
     phenotype_service = services.phenotype
     nomaly_score_service = services.nomaly_score
     genotype_service = services.genotype
-
-    # Get run version and ancestry from the session
-    # TODO: Implement run version!
-    # run_version = session.get("run_version", "Run-v1")
-    # ancestry = session.get("ancestry", "EUR")
 
     output_dir = Config.NETWORK_ANALYSIS_DIR / f"{ancestry}-{disease}-{GO_term}"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1089,18 +1090,46 @@ def do_a_thing(disease_code: str, term: str) -> Response:
         genotypes_weighted_discretised=genotypes_weighted_discretised,
     )
 
-    # return Response(
-    #     "Network analysis completed successfully",
-    #     status=200,
-    #     mimetype="text/plain",
-    # )
+    return model_stats, dot_graph
+
+
+@network_analysis_bp.route("/network_analysis/<disease_code>/<term>/legacy")
+def do_a_thing(disease_code: str, term: str) -> Response:
+    """Perform network analysis for a given disease and GO term."""
+
+    GO_term = term
+    disease = disease_code
+
+    flush = bool(request.args.get("flush", False))
+    logger.info(f"Flush: {flush}")
+
+    services = current_app.extensions["nomaly_services"]
+
+    # Get run version and ancestry from the session
+    # TODO: Implement run version!
+    run_version = session.get("run_version", "Run-v1")
+    ancestry = session.get("ancestry", "EUR")
+
+    model_stats, dot_graph = run_network_analysis(
+        services,
+        disease_code,
+        term,
+        run_version,
+        ancestry,
+    )
+
+    return Response(
+        "Network analysis completed successfully",
+        status=200,
+        mimetype="text/plain",
+    )
 
 
 def main():
     config = Config()
     services = ServiceRegistry.from_config(config)
 
-    do_a_thing(services, "615", "MP:0001105", ancestry="EUR")
+    run_network_analysis(services, "367", "GO:0033539", ancestry="EUR")
 
 
 if __name__ == "__main__":
