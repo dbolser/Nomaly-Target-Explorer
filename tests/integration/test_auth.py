@@ -55,7 +55,7 @@ def test_logout(auth_integration_app_client):
 def test_session_persistence(auth_integration_app_client):
     """Test that the session persists across requests."""
     # Make several requests and verify we stay logged in
-    protected_urls = ["/phecode/256", "/search", "/diseasesearch?query=bowel"]
+    protected_urls = ["/phecode/256", "/phecode/256/term/GO:0030800"]
 
     for url in protected_urls:
         response = auth_integration_app_client.get(url)
