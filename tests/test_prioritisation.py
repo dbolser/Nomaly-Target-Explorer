@@ -21,16 +21,16 @@ def mock_term_variants():
     )
 
 
-def test_fetch_nomaly_scores(nomaly_scores_service):
+def test_fetch_nomaly_scores(mock_nomaly_scores_service):
     """Test fetching Nomaly scores."""
     case_eids = np.array([1001, 1002, 1003])
     control_eids = np.array([1004, 1005, 1006, 1007, 1008])
     term = "TEST:001"
 
-    result_case_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
+    result_case_scores = mock_nomaly_scores_service.get_scores_by_eids_unsorted(
         case_eids, term
     )
-    result_control_scores = nomaly_scores_service.get_scores_by_eids_unsorted(
+    result_control_scores = mock_nomaly_scores_service.get_scores_by_eids_unsorted(
         control_eids, term
     )
 
@@ -42,12 +42,12 @@ def test_fetch_nomaly_scores(nomaly_scores_service):
     )
 
 
-def test_fetch_stats_data(stats_service):
+def test_fetch_stats_data(mock_stats_service):
     """Test fetching statistics data."""
     term = "TEST:001"
     phecode = "571.5"
 
-    stats = stats_service.get_term_stats(term, phecode=phecode)
+    stats = mock_stats_service.get_term_stats(term, phecode=phecode)
 
     assert len(stats) == 1
     stats = stats.iloc[0]

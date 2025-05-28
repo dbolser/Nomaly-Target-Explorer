@@ -43,50 +43,50 @@ def test_mock_genotype_hdf5_file_with_npy(mock_genotype_hdf5_file_with_npy):
     assert mock_genotype_hdf5_file_with_npy.with_suffix(".npy").exists()
 
 
-def test_stats_registry(stats_registry):
+def test_stats_registry(mock_stats_registry):
     """Test that the stats_registry fixture provides a working registry."""
     # Check that the registry is initialized
-    assert stats_registry.initialized is True
+    assert mock_stats_registry.initialized is True
 
     # Check that we can get services for different versions
-    service_v1 = stats_registry.get("Run-v1", "EUR")
+    service_v1 = mock_stats_registry.get("Run-v1", "EUR")
     assert service_v1 is not None
     assert hasattr(service_v1, "_hdf")
 
-    service_v2 = stats_registry.get("Run-v2", "EUR")
+    service_v2 = mock_stats_registry.get("Run-v2", "EUR")
     assert service_v2 is not None
     assert hasattr(service_v2, "_hdf")
 
 
-def test_stats_service(stats_service):
+def test_stats_service(mock_stats_service):
     """Test that the stats_service fixture provides a working service."""
     # Verify basic properties
-    assert stats_service is not None
-    assert hasattr(stats_service, "_hdf")
+    assert mock_stats_service is not None
+    assert hasattr(mock_stats_service, "_hdf")
 
     # Test accessing the test data through the service
-    df = stats_service.get_phecode_stats("250.2", term="GO:0030800")
+    df = mock_stats_service.get_phecode_stats("250.2", term="GO:0030800")
     assert df is not None
     assert not df.empty
     assert "num_rp" in df.columns
     assert df["num_rp"].iloc[0] == 3.0
 
     # Test the term_stats function
-    df2 = stats_service.get_term_stats("GO:0030800", phecode="250.2")
+    df2 = mock_stats_service.get_term_stats("GO:0030800", phecode="250.2")
     assert df2 is not None
     assert not df2.empty
     assert "num_rp" in df2.columns
     assert df2["num_rp"].iloc[0] == 3.0
 
 
-def test_phenotype_service(phenotype_service):
+def test_phenotype_service(mock_phenotype_service):
     """Test that the phenotype_service fixture provides a working service."""
     # Verify basic properties
-    assert phenotype_service is not None
-    assert hasattr(phenotype_service, "_hdf")
+    assert mock_phenotype_service is not None
+    assert hasattr(mock_phenotype_service, "_hdf")
 
     # Test the real service implementations using our mock data
-    df = phenotype_service.get_cases_for_phecode("250.2")
+    df = mock_phenotype_service.get_cases_for_phecode("250.2")
     assert df is not None
     assert not df.empty
     assert "eid" in df.columns
@@ -94,28 +94,28 @@ def test_phenotype_service(phenotype_service):
     assert "phenotype" in df.columns
 
 
-def test_genotype_service(genotype_service):
+def test_genotype_service(mock_genotype_service):
     """Test that the genotype_service fixture provides a working service."""
     # Verify basic properties
-    assert genotype_service is not None
-    assert hasattr(genotype_service, "_hdf")
+    assert mock_genotype_service is not None
+    assert hasattr(mock_genotype_service, "_hdf")
 
     # Check we can access the individuals
-    assert hasattr(genotype_service, "individual")
-    assert len(genotype_service.individual) > 0
+    assert hasattr(mock_genotype_service, "individual")
+    assert len(mock_genotype_service.individual) > 0
 
 
-def test_nomaly_scores_service(nomaly_scores_service):
+def test_nomaly_scores_service(mock_nomaly_scores_service):
     """Test that the nomaly_scores_service fixture provides a working service."""
     # Verify basic properties
-    assert nomaly_scores_service is not None
-    assert hasattr(nomaly_scores_service, "_hdf")
+    assert mock_nomaly_scores_service is not None
+    assert hasattr(mock_nomaly_scores_service, "_hdf")
 
     # Test the real service implementation
     import numpy as np
 
     test_eids = np.array([1001, 1002, 1003])
-    scores = nomaly_scores_service.get_scores_by_eids_unsorted(test_eids)
+    scores = mock_nomaly_scores_service.get_scores_by_eids_unsorted(test_eids)
     assert scores is not None
     assert len(scores) == len(test_eids)
     assert np.array_equal(scores[0], np.array([0.030, 0.020, 0.010, 0.001]))
