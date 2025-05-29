@@ -1,6 +1,5 @@
 """Library for causal analysis of genes to disease."""
 
-import json
 import logging
 import re
 import sys
@@ -822,7 +821,7 @@ def run_network_analysis_job(
             return
 
         # Run the original analysis function with progress updates
-        result = run_network_analysis_with_progress(
+        run_network_analysis_with_progress(
             job_id,
             phecode,
             term,
@@ -959,11 +958,21 @@ def load_analysis_results(result_path: str) -> Dict:
         stats_df = pd.read_csv(stats_path)
         # Convert to summary statistics
         min_p_value = stats_df["p_value"].min() if len(stats_df) > 0 else None
+
+        # Clean the min_p_value for JSON serialization
+        if min_p_value is not None and not pd.isna(min_p_value):
+            if np.isinf(min_p_value):
+                min_p_value = None
+            else:
+                min_p_value = float(min_p_value)
+        else:
+            min_p_value = None
+
         results["model_stats"] = {
             "total_tests": len(stats_df),
             "significant_p005": len(stats_df[stats_df["p_value"] < 0.05]),
             "significant_p001": len(stats_df[stats_df["p_value"] < 0.01]),
-            "min_p_value": float(min_p_value) if min_p_value is not None and not pd.isna(min_p_value) else None,
+            "min_p_value": min_p_value,
         }
 
     # Load contingency table
@@ -971,8 +980,26 @@ def load_analysis_results(result_path: str) -> Dict:
     if contingency_path.exists():
         contingency_df = pd.read_csv(contingency_path, sep="\t")
         if len(contingency_df) > 0:
-            # Replace NaN values with None and convert to JSON-safe format
-            contingency_df_clean = contingency_df.replace({np.nan: None})
+            # Comprehensive cleaning for JSON serialization
+            contingency_df_clean = contingency_df.copy()
+
+            # Replace problematic values with None
+            contingency_df_clean = contingency_df_clean.replace(
+                {np.nan: None, np.inf: None, -np.inf: None}
+            )
+
+            # Convert any remaining numpy types to native Python types
+            for col in contingency_df_clean.columns:
+                if contingency_df_clean[col].dtype == "object":
+                    continue
+                contingency_df_clean[col] = contingency_df_clean[col].astype(
+                    float, errors="ignore"
+                )
+                # Replace any remaining inf/-inf that might have been created
+                contingency_df_clean[col] = contingency_df_clean[col].replace(
+                    [np.inf, -np.inf], None
+                )
+
             results["contingency_data"] = {
                 "columns": [
                     {"data": col, "title": col.replace("_", " ").title()}
@@ -1097,9 +1124,6 @@ def run_network_analysis(
 @network_analysis_bp.route("/network_analysis/<disease_code>/<term>/legacy")
 def do_a_thing(disease_code: str, term: str) -> Response:
     """Perform network analysis for a given disease and GO term."""
-
-    GO_term = term
-    disease = disease_code
 
     flush = bool(request.args.get("flush", False))
     logger.info(f"Flush: {flush}")
