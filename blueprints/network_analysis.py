@@ -677,7 +677,9 @@ def start_network_analysis(phecode: str, term: str):
 
         # Get services from the current app context
         services = current_app.extensions["nomaly_services"]
-        ancestry = "EUR"  # TODO: Get from session
+
+        # Get ancestry from session
+        ancestry = session.get("ancestry", "EUR")
 
         # Start background thread with services
         thread = threading.Thread(
