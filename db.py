@@ -13,16 +13,20 @@ logger = logging.getLogger(__name__)
 
 def get_db_connection() -> MySQLConnectionAbstract:
     """Get a database connection using config values."""
-    print(
-        f"DEBUG DB_PY: MYSQL_HOST={Config.MYSQL_HOST}, MYSQL_PORT={Config.MYSQL_PORT}, MYSQL_DB={Config.MYSQL_DB}, MYSQL_USER={Config.MYSQL_USER}"
-    )  # DEBUG LINE
+    logger.debug(
+        f"MYSQL_HOST={Config.MYSQL_HOST}, "
+        f"MYSQL_PORT={Config.MYSQL_PORT}, "
+        f"MYSQL_DB={Config.MYSQL_DB}, "
+        f"MYSQL_USER={Config.MYSQL_USER}"
+    )
+
     try:
         conn = mysql.connector.connect(
             host=Config.MYSQL_HOST,
             port=Config.MYSQL_PORT,
             user=Config.MYSQL_USER,
-            # password=Config.MYSQL_PASSWORD,
-            unix_socket="/var/run/mysqld/mysqld.sock",
+            password=Config.MYSQL_PASSWORD,
+            # unix_socket="/var/run/mysqld/mysqld.sock",
             database=Config.MYSQL_DB,
         )
         assert isinstance(conn, MySQLConnectionAbstract)
