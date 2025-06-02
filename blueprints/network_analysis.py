@@ -14,6 +14,14 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import scipy.stats
+from config import Config
+from data_services import (
+    GenotypeService,
+    NomalyScoreService,
+    PhenotypeService,
+    ServiceRegistry,
+)
+from db import get_term_variants
 from flask import (
     Blueprint,
     Response,
@@ -25,15 +33,6 @@ from flask import (
     session,
 )
 from sklearn.impute import SimpleImputer
-
-from config import Config
-from data_services import (
-    GenotypeService,
-    NomalyScoreService,
-    PhenotypeService,
-    ServiceRegistry,
-)
-from db import get_term_variants
 
 
 def read_files(
