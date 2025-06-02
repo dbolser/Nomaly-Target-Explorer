@@ -7,19 +7,16 @@ import pytest
 from config import Config
 from data_services import StatsRegistry
 
-# === Configuration & Constants ===
-# Reuse constants from the old test file or define new ones as needed.
-# NOTE: These might need adjustment based on the actual data for the default run/ancestry.
-DEFAULT_RUN_VERSION = "Run-v1"  # Or whichever run is default/most stable
+DEFAULT_RUN_VERSION = "Run-v1"
 DEFAULT_ANCESTRY = "EUR"
 
 KNOWN_PHECODES = ["250.2", "290.11"]  # Type 2 diabetes, Dementia
 KNOWN_TERM = "GO:0030800"  # Example GO term from old tests
 
 EXPECTED_STATS_250_2_GO_0030800 = {
-    "num_rp": 37073,  # Placeholder
+    "num_rp": 37073,
     "num_rn": 302274,
-    "mwu_pvalue": 0.00665,  # Placeholder
+    "mwu_pvalue": 0.00665,
     "roc_stats_auc": 0.5019811469161224,
     "roc_stats_mcc_value": 0.0042109998036669,
     "roc_stats_yjs_threshold": 0.0001,
@@ -37,7 +34,13 @@ EXPECTED_STATS = [
     "roc_stats_mcc_value",
     "roc_stats_yjs_threshold",
     "roc_stats_lrp_protective_or",
-    # Add other expected stats columns based on the HDF5 file structure
+    "tti_pvalue",
+    # "tti_pvalue_corrected",
+    # "tti_pvalue_corrected_bonferroni",
+    # "tti_pvalue_corrected_fdr",
+    # "tti_pvalue_corrected_holm",
+    # "tti_pvalue_corrected_sidak",
+    # "tti_pvalue_corrected_holm_sidak",
 ]
 
 
@@ -265,41 +268,21 @@ def test_p_value_ranges(stats_service):
     "run_version,ancestry",
     [
         (DEFAULT_RUN_VERSION, DEFAULT_ANCESTRY),  # Default combo for baseline
-        # Add other combinations to test if available in your config
-        pytest.param(
-            "Run-v2", "EUR", marks=pytest.mark.xfail(reason="Only if Run-v2 exists")
-        ),
-        pytest.param(
-            DEFAULT_RUN_VERSION,
-            "AFR",
-            marks=pytest.mark.xfail(reason="Only if AFR ancestry exists"),
-        ),
+        pytest.param("Run-v2", DEFAULT_ANCESTRY),
+        pytest.param(DEFAULT_RUN_VERSION, "AFR"),
     ],
 )
 def test_run_version_ancestry_combinations(stats_registry, run_version, ancestry):
     """Test accessing stats for different run version and ancestry combinations."""
-    try:
-        service = stats_registry.get(run_version=run_version, ancestry=ancestry)
+    service = stats_registry.get(run_version=run_version, ancestry=ancestry)
 
-        # Basic test to verify service works
-        phecode = KNOWN_PHECODES[0]
-        stats_df = service.get_phecode_stats(phecode=phecode)
+    # Basic test to verify service works
+    phecode = KNOWN_PHECODES[0]
+    stats_df = service.get_phecode_stats(phecode=phecode)
 
-        assert isinstance(stats_df, pd.DataFrame)
-        assert not stats_df.empty
+    assert isinstance(stats_df, pd.DataFrame)
+    assert not stats_df.empty
 
-        # If we got here with a combination that should fail, remove the xfail mark
-        if run_version != DEFAULT_RUN_VERSION or ancestry != DEFAULT_ANCESTRY:
-            print(
-                f"Note: {run_version}/{ancestry} combination is working, remove xfail mark"
-            )
-
-    except ValueError as e:
-        if run_version == DEFAULT_RUN_VERSION and ancestry == DEFAULT_ANCESTRY:
-            pytest.fail(f"Default service combination failed: {e}")
-        else:
-            # For non-default combinations, just skip if not available
-            pytest.skip(f"Combination {run_version}/{ancestry} not available: {e}")
 
 
 def test_multiple_terms_query(stats_service):
