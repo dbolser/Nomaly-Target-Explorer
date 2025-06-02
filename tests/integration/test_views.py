@@ -328,6 +328,7 @@ def test_variant_phewas_results(auth_integration_app_client):
     # First check initial state
     response = auth_integration_app_client.get(f"/phewas-result/{variant}")
     assert response.status_code == 200
+
     initial_data = json.loads(response.data)
     assert initial_data["result"] == "Processing..."
     assert initial_data["associations"] == []

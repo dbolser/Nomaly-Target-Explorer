@@ -1,8 +1,8 @@
-import os
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 import pytest
-from pathlib import Path
-import numpy as np
 
 from config import Config
 from data_services import StatsRegistry
@@ -548,7 +548,7 @@ def test_data_slice_multi_term_single_phecode(stats_service):
             # Verify the result
             assert isinstance(stats_df, pd.DataFrame)
             assert not stats_df.empty
-            assert len(stats_df) <= len(terms), f"Got more rows than requested terms"
+            assert len(stats_df) <= len(terms), "Got more rows than requested terms"
 
             # Check that the returned terms are a subset of what we requested
             for term in stats_df.index:
