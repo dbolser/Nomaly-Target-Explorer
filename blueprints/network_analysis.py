@@ -3,6 +3,7 @@
 import logging
 import re
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -394,11 +395,15 @@ def fit_and_plot_bayesian_network(
     dot_graph = bn.plot_graphviz(model_pruned, edge_labels="pvalue")
 
     # TODO: Why is this dot file not being written to the output directory?
+
+    # Get a random temporary file name
+    dot_file = tempfile.NamedTemporaryFile(delete=False, suffix=".dot")
+
     if dot_graph is not None:
-        with open("/tmp/output.dot", "w") as f:
+        with open(dot_file.name, "w") as f:
             f.write(str(dot_graph.source))
 
-    nx_graph = nx.drawing.nx_agraph.read_dot("/tmp/output.dot")
+    nx_graph = nx.drawing.nx_agraph.read_dot(dot_file.name)
     nodes_with_path = [
         node for node in nx_graph.nodes() if nx.has_path(nx_graph, class_node, node)
     ]
