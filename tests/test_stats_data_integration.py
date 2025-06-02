@@ -98,27 +98,19 @@ def stats_registry():
     """Provides a configured StatsRegistry instance."""
     # Assuming Config.STATS_SELECTOR exists and is the required dict structure
     # e.g., {'Run-v1': {'EUR': Path(...), 'AFR': Path(...)}, ...}
-    if not hasattr(Config, "STATS_SELECTOR") or not Config.STATS_SELECTOR:
-        pytest.skip(
-            "STATS_SELECTOR not found or not configured in config.py. "
-            "Define it as a dict: {'run_version': {'ancestry': Path('/path/to/stats.hdf5')}}"
-        )
+    assert hasattr(Config, "STATS_SELECTOR") and Config.STATS_SELECTOR, (
+        "STATS_SELECTOR not found or not configured in config.py. "
+        "Define it as a dict: {'run_version': {'ancestry': Path('/path/to/stats.hdf5')}}"
+    )
     return StatsRegistry(Config.STATS_SELECTOR)
 
 
 @pytest.fixture(scope="session")
 def stats_service(stats_registry):
     """Provides a default StatsService instance (e.g., for Run-v1, EUR)."""
-    try:
-        return stats_registry.get(
-            run_version=DEFAULT_RUN_VERSION, ancestry=DEFAULT_ANCESTRY
-        )
-    except ValueError as e:
-        pytest.skip(
-            f"Could not load default stats service ({DEFAULT_RUN_VERSION}, {DEFAULT_ANCESTRY}): {e}"
-        )
-    except Exception as e:
-        pytest.fail(f"Unexpected error loading default stats service: {e}")
+    return stats_registry.get(
+        run_version=DEFAULT_RUN_VERSION, ancestry=DEFAULT_ANCESTRY
+    )
 
 
 # === Tests ===
@@ -268,8 +260,8 @@ def test_p_value_ranges(stats_service):
     "run_version,ancestry",
     [
         (DEFAULT_RUN_VERSION, DEFAULT_ANCESTRY),  # Default combo for baseline
-        pytest.param("Run-v2", DEFAULT_ANCESTRY),
-        pytest.param(DEFAULT_RUN_VERSION, "AFR"),
+        ("Run-v2", DEFAULT_ANCESTRY),
+        (DEFAULT_RUN_VERSION, "AFR"),
     ],
 )
 def test_run_version_ancestry_combinations(stats_registry, run_version, ancestry):
@@ -284,7 +276,6 @@ def test_run_version_ancestry_combinations(stats_registry, run_version, ancestry
     assert not stats_df.empty
 
 
-
 def test_multiple_terms_query(stats_service):
     """Test querying stats for multiple terms at once."""
     # This test might need to be modified based on actual API implementation
@@ -293,21 +284,18 @@ def test_multiple_terms_query(stats_service):
     # You'll need more than one known term that exists in the data
     terms = [KNOWN_TERM, "GO:0005829"]  # Add a second known term
 
-    try:
-        stats_df = stats_service.get_phecode_stats(phecode=phecode, terms=terms)
+    stats_df = stats_service.get_phecode_stats(phecode=phecode, terms=terms)
 
-        assert isinstance(stats_df, pd.DataFrame)
-        assert not stats_df.empty
-        assert len(stats_df) == len(terms), (
-            f"Expected {len(terms)} rows, got {len(stats_df)}"
-        )
+    assert isinstance(stats_df, pd.DataFrame)
+    assert not stats_df.empty
+    assert len(stats_df) == len(terms), (
+        f"Expected {len(terms)} rows, got {len(stats_df)}"
+    )
 
-        # Check that all requested terms are in the results
-        result_terms = stats_df.index.tolist()
-        for term in terms:
-            assert term in result_terms, f"Term {term} missing from results"
-    except (ValueError, NotImplementedError) as e:
-        pytest.skip(f"Multiple terms query not supported: {e}")
+    # Check that all requested terms are in the results
+    result_terms = stats_df.index.tolist()
+    for term in terms:
+        assert term in result_terms, f"Term {term} missing from results"
 
 
 def test_term_phecode_consistency(stats_service):
@@ -402,25 +390,22 @@ def test_phecode_cases_controls_ratio(stats_service):
     for phecode in KNOWN_PHECODES:
         # Pick a term that likely has data for this phecode
         term = KNOWN_TERM
-        try:
-            stats_df = stats_service.get_phecode_stats(phecode=phecode, term=term)
+        stats_df = stats_service.get_phecode_stats(phecode=phecode, term=term)
 
-            # If we have num_rp (cases) and num_rn (controls)
-            if "num_rp" in stats_df.columns and "num_rn" in stats_df.columns:
-                cases = stats_df["num_rp"].iloc[0]
-                controls = stats_df["num_rn"].iloc[0]
+        # If we have num_rp (cases) and num_rn (controls)
+        if "num_rp" in stats_df.columns and "num_rn" in stats_df.columns:
+            cases = stats_df["num_rp"].iloc[0]
+            controls = stats_df["num_rn"].iloc[0]
 
-                # Sanity check: we should have both cases and controls
-                assert cases > 0, f"Expected non-zero cases for {phecode}"
-                assert controls > 0, f"Expected non-zero controls for {phecode}"
+            # Sanity check: we should have both cases and controls
+            assert cases > 0, f"Expected non-zero cases for {phecode}"
+            assert controls > 0, f"Expected non-zero controls for {phecode}"
 
-                # Sanity check: case/control ratio should be reasonable
-                ratio = controls / cases if cases > 0 else float("inf")
-                assert 0.1 <= ratio <= 1000, (
-                    f"Unexpected case/control ratio for {phecode}: {ratio}"
-                )
-        except Exception as e:
-            pytest.skip(f"Could not test case/control ratio for {phecode}: {e}")
+            # Sanity check: case/control ratio should be reasonable
+            ratio = controls / cases if cases > 0 else float("inf")
+            assert 0.1 <= ratio <= 1000, (
+                f"Unexpected case/control ratio for {phecode}: {ratio}"
+            )
 
 
 # === Tests for StatsRegistry ===
@@ -474,10 +459,6 @@ def test_stats_registry_invalid_selector():
 # Additional test for the STATS_SELECTOR configuration in Config
 def test_config_stats_selector_structure():
     """Test that the STATS_SELECTOR configuration has the expected structure."""
-    # Skip if not defined
-    if not hasattr(Config, "STATS_SELECTOR"):
-        pytest.skip("STATS_SELECTOR not defined in Config")
-
     # Basic structure checks
     assert isinstance(Config.STATS_SELECTOR, dict), (
         "STATS_SELECTOR should be a dictionary"
@@ -520,52 +501,42 @@ def test_data_slice_multi_term_single_phecode(stats_service):
     # First get all terms for this phecode
     all_terms_df = stats_service.get_phecode_stats(phecode=phecode)
 
-    # If we have enough terms, select the first few
-    if len(all_terms_df) >= 3:
-        terms = all_terms_df.index[:3].tolist()
+    # Select the first few terms
+    assert len(all_terms_df) >= 3, f"Not enough terms found for phecode {phecode}"
+    terms = all_terms_df.index[:3].tolist()
 
-        try:
-            # Try querying with multiple terms
-            stats_df = stats_service.get_phecode_stats(phecode=phecode, terms=terms)
+    # Query with multiple terms
+    stats_df = stats_service.get_phecode_stats(phecode=phecode, terms=terms)
 
-            # Verify the result
-            assert isinstance(stats_df, pd.DataFrame)
-            assert not stats_df.empty
-            assert len(stats_df) <= len(terms), "Got more rows than requested terms"
+    # Verify the result
+    assert isinstance(stats_df, pd.DataFrame)
+    assert not stats_df.empty
+    assert len(stats_df) <= len(terms), "Got more rows than requested terms"
 
-            # Check that the returned terms are a subset of what we requested
-            for term in stats_df.index:
-                assert term in terms, f"Got unexpected term in results: {term}"
-
-        except (ValueError, NotImplementedError, TypeError) as e:
-            pytest.skip(f"Multiple terms slicing not supported: {e}")
-    else:
-        pytest.skip(f"Not enough terms found for phecode {phecode}")
+    # Check that the returned terms are a subset of what we requested
+    for term in stats_df.index:
+        assert term in terms, f"Got unexpected term in results: {term}"
 
 
 def test_data_slice_single_term_multi_phecode(stats_service):
     """Test slicing data with a single term for multiple phecodes."""
     term = KNOWN_TERM
 
-    try:
-        # Try querying with multiple phecodes
-        stats_df = stats_service.get_term_stats(term=term, phecodes=KNOWN_PHECODES)
+    # Query with multiple phecodes
+    stats_df = stats_service.get_term_stats(term=term, phecodes=KNOWN_PHECODES)
 
-        # Verify the result
-        assert isinstance(stats_df, pd.DataFrame)
-        assert not stats_df.empty
-        assert stats_df.shape[1] <= len(KNOWN_PHECODES), (
-            "Got more rows than requested phecodes"
+    # Verify the result
+    assert isinstance(stats_df, pd.DataFrame)
+    assert not stats_df.empty
+    assert stats_df.shape[1] <= len(KNOWN_PHECODES), (
+        "Got more rows than requested phecodes"
+    )
+
+    # Check that the returned phecodes are a subset of what we requested
+    for phecode in stats_df.columns:
+        assert phecode in KNOWN_PHECODES, (
+            f"Got unexpected phecode in results: {phecode}"
         )
-
-        # Check that the returned phecodes are a subset of what we requested
-        for phecode in stats_df.columns:
-            assert phecode in KNOWN_PHECODES, (
-                f"Got unexpected phecode in results: {phecode}"
-            )
-
-    except (ValueError, NotImplementedError, TypeError) as e:
-        pytest.skip(f"Multiple phecodes slicing not supported: {e}")
 
 
 def test_full_slice_all_stats_types(stats_service):
