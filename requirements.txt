@@ -22,6 +22,7 @@ bnlearn==0.10.2
 pgmpy==0.1.26
 networkx==3.4.2
 scikit-learn==1.6.1
+pygraphviz==1.14
 
 # Fisher's Exact Test
 git+https://github.com/marco-mariotti/fishers_exact_test
