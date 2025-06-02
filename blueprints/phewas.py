@@ -156,14 +156,18 @@ def run_phewas(
         assert np.allclose(ctrl_ref_af[ctrl_valid] + ctrl_alt_af[ctrl_valid], 1)
 
     # Calculate odds ratios
-    odds_ratio = (case_alt_num * ctrl_ref_num) / (case_ref_num * ctrl_alt_num)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        # TODO: We get zeros in the denominator due to missing genotypes...
+        #       At least that's what I think... (See book keeping above).
+        odds_ratio = (case_alt_num * ctrl_ref_num) / (case_ref_num * ctrl_alt_num)
 
     # Sanity check...
     if not sanity:
         odds_ratio_long = (case_alt_num / case_ref_num) / (ctrl_alt_num / ctrl_ref_num)
 
         # Create masks for non-NaN values
-        odds_ratio_valid = ~np.isnan(odds_ratio) | ~np.isnan(odds_ratio_long)
+        assert np.all(np.isnan(odds_ratio) == np.isnan(odds_ratio_long))
+        odds_ratio_valid = ~np.isnan(odds_ratio)
 
         # Sanity check only on positions with valid values
         assert np.allclose(
