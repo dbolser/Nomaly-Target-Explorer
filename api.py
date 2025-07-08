@@ -39,19 +39,13 @@ def main():
     stats_registry = StatsRegistry(Config.STATS_SELECTOR)
     stats_service = stats_registry.get("Run-v1", "EUR")
 
-    old = stats_service.get_stats_by_phecode("332")
     new = stats_service.get_phecode_stats("332")
-    assert old.equals(new)
     print(new)
 
-    old = stats_service.get_stats_by_phecode("332", stats_type=["num_rp"])
     new = stats_service.get_phecode_stats("332", stats_types=["num_rp"])
-    assert old.equals(new)
     print(new)
 
-    old = stats_service.get_stats_by_phecode("332", stats_type=["num_rp", "num_rn"])
     new = stats_service.get_phecode_stats("332", stats_types=["num_rp", "num_rn"])
-    assert old.equals(new)
     print(new)
 
     # The old method doesn't support this...

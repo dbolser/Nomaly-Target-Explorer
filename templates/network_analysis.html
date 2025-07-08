@@ -1,0 +1,382 @@
+{% extends "data_base.html" %}
+
+{% block title %}Network Analysis - {{ phecode }} - {{ term }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2>Causal Network Analysis</h2>
+            <p class="text-muted">Phecode: {{ phecode }} | Term: {{ term }}</p>
+            
+            <div class="alert alert-info">
+                <strong>About Network Analysis:</strong> This analysis builds a Bayesian network to identify causal relationships 
+                between genetic variants and disease phenotypes using NetworkX, bnlearn, and pgmpy. The analysis may take 
+                several minutes to complete.
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Control Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Analysis Control</h5>
+                </div>
+                <div class="card-body">
+                    <button id="startAnalysis" class="btn btn-primary" onclick="startNetworkAnalysis()">
+                        <i class="fas fa-play"></i> Start Network Analysis
+                    </button>
+                    <button id="cancelAnalysis" class="btn btn-danger d-none" onclick="cancelNetworkAnalysis()">
+                        <i class="fas fa-stop"></i> Cancel Analysis
+                    </button>
+                    <button id="refreshStatus" class="btn btn-outline-secondary ms-2" onclick="checkStatus()">
+                        <i class="fas fa-sync"></i> Refresh Status
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Section -->
+    <div class="row mb-4" id="progressSection" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Analysis Progress</h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div id="statusMessage" class="text-center">
+                        <em>Waiting to start...</em>
+                    </div>
+                    <div id="statusDetails" class="mt-2 small text-muted"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="row" id="resultsSection" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Analysis Results</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Network Visualization -->
+                    <div id="networkVisualization" class="mb-4">
+                        <h6>Bayesian Network Graph</h6>
+                        <div id="networkContainer" class="text-center">
+                            <!-- SVG will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Statistical Results -->
+                    <div id="statisticalResults" class="mb-4">
+                        <h6>Statistical Analysis</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div id="modelStatsTable"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <div id="contingencyTable"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Download Results -->
+                    <div id="downloadSection" class="mt-4">
+                        <h6>Download Results</h6>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-primary" onclick="downloadResult('svg')">
+                                <i class="fas fa-download"></i> Network Graph (SVG)
+                            </button>
+                            <button class="btn btn-outline-primary" onclick="downloadResult('model_stats')">
+                                <i class="fas fa-download"></i> Model Statistics (CSV)
+                            </button>
+                            <button class="btn btn-outline-primary" onclick="downloadResult('contingency')">
+                                <i class="fas fa-download"></i> Contingency Table (TSV)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Section -->
+    <div class="row" id="errorSection" style="display: none;">
+        <div class="col-12">
+            <div class="alert alert-danger">
+                <h5>Analysis Error</h5>
+                <p id="errorMessage"></p>
+                <button class="btn btn-outline-danger" onclick="resetAnalysis()">
+                    <i class="fas fa-redo"></i> Reset and Try Again
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const phecode = "{{ phecode }}";
+const term = "{{ term }}";
+let jobId = null;
+let pollInterval = null;
+
+// Start network analysis
+function startNetworkAnalysis() {
+    const startBtn = document.getElementById('startAnalysis');
+    const cancelBtn = document.getElementById('cancelAnalysis');
+    
+    startBtn.disabled = true;
+    startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+    
+    // Show progress section
+    document.getElementById('progressSection').style.display = 'block';
+    updateProgress(0, 'Initializing analysis...');
+    
+    fetch(`/network_analysis/${phecode}/${encodeURIComponent(term)}/start`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        jobId = data.job_id;
+        startBtn.style.display = 'none';
+        cancelBtn.classList.remove('d-none');
+        
+        // Start polling for progress
+        startProgressPolling();
+    })
+    .catch(error => {
+        console.error('Error starting analysis:', error);
+        showError(error.message);
+        resetAnalysis();
+    });
+}
+
+// Cancel analysis
+function cancelNetworkAnalysis() {
+    if (!jobId) return;
+    
+    fetch(`/network_analysis/${phecode}/${encodeURIComponent(term)}/cancel/${jobId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            stopProgressPolling();
+            resetAnalysis();
+            updateProgress(0, 'Analysis cancelled by user');
+        }
+    })
+    .catch(error => {
+        console.error('Error cancelling analysis:', error);
+    });
+}
+
+// Check status manually
+function checkStatus() {
+    if (!jobId) return;
+    
+    fetch(`/network_analysis/${phecode}/${encodeURIComponent(term)}/status/${jobId}`)
+    .then(response => response.json())
+    .then(data => {
+        handleStatusUpdate(data);
+    })
+    .catch(error => {
+        console.error('Error checking status:', error);
+    });
+}
+
+// Start polling for progress updates
+function startProgressPolling() {
+    pollInterval = setInterval(() => {
+        if (jobId) {
+            checkStatus();
+        }
+    }, 2000); // Poll every 2 seconds
+}
+
+// Stop polling
+function stopProgressPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+}
+
+// Handle status updates
+function handleStatusUpdate(data) {
+    if (data.status === 'completed') {
+        stopProgressPolling();
+        updateProgress(100, 'Analysis completed successfully!');
+        loadResults();
+        resetControls();
+    } else if (data.status === 'failed') {
+        stopProgressPolling();
+        showError(data.error || 'Analysis failed with unknown error');
+        resetControls();
+    } else if (data.status === 'running') {
+        updateProgress(data.progress || 50, data.message || 'Analysis in progress...');
+        if (data.details) {
+            document.getElementById('statusDetails').textContent = data.details;
+        }
+    }
+}
+
+// Update progress display
+function updateProgress(percent, message) {
+    const progressBar = document.getElementById('progressBar');
+    const statusMessage = document.getElementById('statusMessage');
+    
+    progressBar.style.width = percent + '%';
+    progressBar.setAttribute('aria-valuenow', percent);
+    statusMessage.textContent = message;
+    
+    if (percent === 100) {
+        progressBar.classList.remove('progress-bar-animated');
+        progressBar.classList.add('bg-success');
+    }
+}
+
+// Load and display results
+function loadResults() {
+    fetch(`/network_analysis/${phecode}/${encodeURIComponent(term)}/results/${jobId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        displayResults(data);
+        document.getElementById('resultsSection').style.display = 'block';
+    })
+    .catch(error => {
+        console.error('Error loading results:', error);
+        showError('Failed to load analysis results: ' + error.message);
+    });
+}
+
+// Display analysis results
+function displayResults(data) {
+    // Load network SVG
+    if (data.network_svg) {
+        document.getElementById('networkContainer').innerHTML = data.network_svg;
+    }
+    
+    // Display model statistics table
+    if (data.model_stats) {
+        displayModelStats(data.model_stats);
+    }
+    
+    // Display contingency table
+    if (data.contingency_data) {
+        displayContingencyTable(data.contingency_data);
+    }
+}
+
+// Display model statistics
+function displayModelStats(stats) {
+    // Create a simple table for model stats
+    let html = '<table class="table table-sm table-striped">';
+    html += '<thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>';
+    
+    for (const [key, value] of Object.entries(stats)) {
+        html += `<tr><td>${key}</td><td>${value}</td></tr>`;
+    }
+    
+    html += '</tbody></table>';
+    document.getElementById('modelStatsTable').innerHTML = html;
+}
+
+// Display contingency table
+function displayContingencyTable(data) {
+    // Create DataTable for contingency results
+    if ($.fn.DataTable.isDataTable('#contingencyTableData')) {
+        $('#contingencyTableData').DataTable().destroy();
+    }
+    
+    let html = '<table id="contingencyTableData" class="table table-sm table-striped" style="width:100%"></table>';
+    document.getElementById('contingencyTable').innerHTML = html;
+    
+    $('#contingencyTableData').DataTable({
+        data: data.rows || [],
+        columns: data.columns || [],
+        pageLength: 10,
+        responsive: true,
+        order: [[data.columns.findIndex(col => col.data === 'p_value'), 'asc']]
+    });
+}
+
+// Download results
+function downloadResult(type) {
+    if (!jobId) return;
+    
+    const url = `/network_analysis/${phecode}/${encodeURIComponent(term)}/download/${jobId}/${type}`;
+    window.open(url, '_blank');
+}
+
+// Show error
+function showError(message) {
+    document.getElementById('errorMessage').textContent = message;
+    document.getElementById('errorSection').style.display = 'block';
+    document.getElementById('progressSection').style.display = 'none';
+    document.getElementById('resultsSection').style.display = 'none';
+}
+
+// Reset analysis state
+function resetAnalysis() {
+    jobId = null;
+    stopProgressPolling();
+    resetControls();
+    document.getElementById('progressSection').style.display = 'none';
+    document.getElementById('resultsSection').style.display = 'none';
+    document.getElementById('errorSection').style.display = 'none';
+}
+
+// Reset control buttons
+function resetControls() {
+    const startBtn = document.getElementById('startAnalysis');
+    const cancelBtn = document.getElementById('cancelAnalysis');
+    
+    startBtn.disabled = false;
+    startBtn.innerHTML = '<i class="fas fa-play"></i> Start Network Analysis';
+    startBtn.style.display = 'inline-block';
+    cancelBtn.classList.add('d-none');
+}
+
+// Check for existing results on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if there are cached results available
+    fetch(`/network_analysis/${phecode}/${encodeURIComponent(term)}/check_cache`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.has_results) {
+            // Show existing results
+            displayResults(data.results);
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            // Update start button to indicate cached results
+            const startBtn = document.getElementById('startAnalysis');
+            startBtn.innerHTML = '<i class="fas fa-redo"></i> Re-run Analysis';
+        }
+    })
+    .catch(error => {
+        console.log('No cached results found');
+    });
+});
+</script>
+{% endblock %}

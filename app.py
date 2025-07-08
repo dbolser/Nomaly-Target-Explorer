@@ -27,6 +27,7 @@ from werkzeug.security import check_password_hash
 from auth import check_page_permission
 from blueprints.admin import admin_bp
 from blueprints.disease_sets import disease_sets_bp
+from blueprints.network_analysis import network_analysis_bp
 from blueprints.phecode import phecode_bp
 from blueprints.phecode_term import phecode_term_bp
 from blueprints.prioritisation_by_nomaly_scores import prioritisation_bp
@@ -102,10 +103,10 @@ def register_blueprints(app):
     app.register_blueprint(admin_bp)
     app.register_blueprint(prioritisation_bp)
     app.register_blueprint(user_bp)
+    app.register_blueprint(network_analysis_bp)
 
-    from api import stats_bp
-
-    app.register_blueprint(stats_bp)
+    # from api import stats_bp
+    # app.register_blueprint(stats_bp)
 
 
 def register_routes(app):
@@ -229,11 +230,6 @@ def register_routes(app):
     def page2():
         return render_template("page2.html")
 
-    @app.route("/search")
-    def search():
-        """Disease search page."""
-        return render_template("search.html")
-
     @app.route("/")
     def index():
         """Home page route."""
@@ -260,7 +256,9 @@ def register_error_handlers(app):
 
         if request.headers.get("Accept") == "application/json":
             return jsonify(response), status_code
-        return render_template("error.html", error=response["message"]), status_code
+        return render_template(
+            "errors/error.html", error=response["message"]
+        ), status_code
 
     @app.errorhandler(500)
     def internal_error(error):
@@ -278,7 +276,7 @@ def register_error_handlers(app):
     @app.errorhandler(DataNotFoundError)
     def handle_not_found(e):
         app.logger.warning(f"Data not found: {str(e)}")
-        return render_template("error.html", error=str(e)), 404
+        return render_template("errors/404.html", error=str(e)), 404
 
     # @app.errorhandler(DatabaseError)
     # def handle_database_error(error):
@@ -288,7 +286,9 @@ def register_error_handlers(app):
     @app.errorhandler(DatabaseConnectionError)
     def handle_db_error(e):
         app.logger.error(f"Database error: {str(e)}")
-        return render_template("error.html", error="Database connection error"), 503
+        return render_template(
+            "errors/503.html", error="Database connection error"
+        ), 503
 
 
 

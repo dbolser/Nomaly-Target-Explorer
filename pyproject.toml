@@ -13,10 +13,18 @@ dependencies = [
     "flask-login>=0.6.3",
     "flask-mysqldb>=2.0.0",
     "flask-session>=0.8.0",
+    "flask-wtf>=1.2.2",
+    "gunicorn>=23.0.0",
     "h5py>=3.13.0",
     "mysql-connector-python>=9.3.0",
     "plotly>=6.0.1",
+    "pygraphviz>=1.14",
 ]
 
 [tool.uv.sources]
 fisher = { git = "https://github.com/marco-mariotti/fishers_exact_test" }
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.3.2",
+]

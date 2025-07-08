@@ -1,13 +1,12 @@
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import h5py
 import numpy as np
-import pandas as pd
 import pytest
 from werkzeug.security import generate_password_hash
+import pandas as pd
 
 from app import create_app
 from db import get_db_connection
@@ -61,6 +60,187 @@ def test_app():
 
 
 @pytest.fixture(scope="session")
+def integration_app():
+    """App configured for integration tests with real services."""
+    # Use DEVELOPMENT instead of TESTING to allow ServiceRegistry to initialize
+    _app = create_app("development")
+
+    # IMPORTANT: Explicitly ensure TESTING is False to initialize data services
+    _app.config["TESTING"] = False
+
+    # Configure session for tests
+    _app.config["SESSION_TYPE"] = "filesystem"
+    _app.config["SESSION_PERMANENT"] = True
+    _app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour
+    _app.config["SECRET_KEY"] = "test-integration-secret-key"
+
+    # Server settings
+    _app.config.update(
+        {
+            "SERVER_NAME": "localhost.localdomain",
+            "PREFERRED_URL_SCHEME": "http",
+            "APPLICATION_ROOT": "/",
+        }
+    )
+
+    # Initialize the Flask session extension
+    from flask_session import Session
+
+    Session(_app)
+
+    return _app
+
+
+@pytest.fixture
+def integration_app_client(integration_app):
+    """Client for integration tests."""
+    with integration_app.test_client() as client:
+        yield client
+
+
+@pytest.fixture
+def test_admin():
+    """Create a test admin user with full permissions, cleaning up before and after."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    username = "test_admin"
+
+    # Pre-clean: Remove any existing test_admin user
+    cursor.execute(
+        "DELETE FROM user_permissions WHERE user_id IN (SELECT id FROM users2 WHERE username = %s)",
+        (username,),
+    )
+    cursor.execute("DELETE FROM users2 WHERE username = %s", (username,))
+    conn.commit()
+
+    try:
+        # Hash the password
+        hashed_password = generate_password_hash("test_password")
+
+        # Create test admin user
+        cursor.execute(
+            """
+            INSERT INTO users2 (username, password, email, is_active, is_admin)
+            VALUES (%s, %s, %s, TRUE, TRUE)
+            """,
+            (username, hashed_password, "test_admin@example.com"),
+        )
+        user_id = cursor.lastrowid
+
+        # Grant admin permissions
+        cursor.execute(
+            """
+            INSERT INTO user_permissions (user_id, allowed_paths)
+            VALUES (%s, '*')
+            """,
+            (user_id,),
+        )
+        conn.commit()
+
+        yield {"id": user_id, "username": username, "password": "test_password"}
+
+    finally:
+        # Cleanup: Remove the test admin user and permissions
+        cursor.execute(
+            "DELETE FROM user_permissions WHERE user_id IN (SELECT id FROM users2 WHERE username = %s)",
+            (username,),
+        )
+        cursor.execute("DELETE FROM users2 WHERE username = %s", (username,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+
+@pytest.fixture
+def auth_integration_app_client(integration_app_client, test_admin):
+    """Authenticated client for integration tests."""
+    # Use the simple login approach
+    response = integration_app_client.post(
+        "/login",
+        data={"username": test_admin["username"], "password": test_admin["password"]},
+        follow_redirects=True,
+    )
+
+    # Check login was successful
+    assert response.status_code == 200
+    assert b"welcome" in response.data.lower()
+
+    return integration_app_client
+
+
+@pytest.fixture
+def mock_phenotype_hdf5_file():
+    """Create a temporary mock HDF5 file with test phenotype data."""
+    with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
+        with h5py.File(Path(tmp.name), "w") as f:
+            # Use consistent EIDs 1001-1010
+            eids = np.arange(1001, 1011)
+            f.create_dataset("eids", data=eids)
+
+            # Phenotype matrix: rows are eids, columns are phecodes
+            # 1 = case, 0 = control, 9 = excluded
+            phenotype_data = np.array(
+                [
+                    [9, 1, 0, 1, 9],  # 1001 M EUR
+                    [0, 0, 1, 0, 1],  # 1002 F EUR
+                    [1, 9, 0, 1, 9],  # 1003 M EUR
+                    [0, 1, 0, 0, 1],  # 1004 F SAS
+                    [1, 0, 1, 0, 1],  # 1005 M AFR
+                    [0, 1, 0, 1, 0],  # 1006 F EAS
+                    [0, 0, 0, 0, 0],  # 1007 M EUR
+                    [1, 1, 1, 1, 1],  # 1008 F SAS
+                    [9, 9, 9, 9, 9],  # 1009 M AFR (Excluded for all)
+                    [0, 1, 0, 1, 0],  # 1010 F EAS
+                ],
+                dtype=np.int8,
+            )
+            f.create_dataset("phenotype_data", data=phenotype_data)
+
+            # Individual IDs (already defined above)
+            # f.create_dataset("eids", data=eids) # Redundant
+
+            affected_sex = np.array(
+                [b"M", b"F", b"M", b"F", b"M", b"F", b"M", b"F", b"M", b"F"]
+            )
+            f.create_dataset("affected_sex", data=affected_sex)
+
+            populations = np.array(
+                [
+                    b"EUR",
+                    b"EUR",
+                    b"EUR",
+                    b"SAS",
+                    b"AFR",
+                    b"EAS",
+                    b"EUR",
+                    b"SAS",
+                    b"AFR",
+                    b"EAS",
+                ]
+            )
+            f.create_dataset("populations", data=populations)
+
+            phecodes = np.array([b"250.2", b"401.1", b"635.2", b"601.1", b"571.5"])
+            f.create_dataset("phecodes", data=phecodes)
+
+            phecode_sex = np.array([b"B", b"B", b"F", b"M", b"B"])
+            f.create_dataset("phecode_sex", data=phecode_sex)
+
+        yield Path(tmp.name)
+
+
+@pytest.fixture
+def mock_phenotype_service(mock_phenotype_hdf5_file):
+    """Mock phenotype service for unit tests."""
+    from data_services.phenotype import PhenotypeService
+
+    # Create a real PhenotypeService instance with our mock file
+    service = PhenotypeService(mock_phenotype_hdf5_file)
+
+    return service
+
+
+@pytest.fixture(scope="session")
 def mock_genotype_hdf5_file():
     """Create a test HDF5 file with merged test data."""
     with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as f:
@@ -96,8 +276,10 @@ def mock_genotype_hdf5_file():
                     b"A",
                     b"C",
                     b"A",
+                    b"G",
                     b"A",
                     b"C",
+                    b"A",
                 ]
             )
             alt = np.array(
@@ -105,6 +287,8 @@ def mock_genotype_hdf5_file():
                     b"T",
                     b"G",
                     b"G",
+                    b"T",
+                    b"A",
                     b"A",
                     b"T",
                 ]
@@ -117,6 +301,8 @@ def mock_genotype_hdf5_file():
                 [
                     b"1:100_A/T",
                     b"2:200_C/G",
+                    b"3:200_A/G",
+                    b"4:300_T/C",
                     b"1:186977737_A/G",
                     b"1:186977780_A/G",
                     b"1:46813503_C/T",
@@ -129,6 +315,8 @@ def mock_genotype_hdf5_file():
                 [
                     b"1_100_A/T",
                     b"2_200_C/G",
+                    b"3_200_A/G",
+                    b"4_300_T/C",
                     b"1_186977737_A/G",
                     b"1_186977780_G/A",  # Note that it's flipped
                     b"Missing",
@@ -138,10 +326,12 @@ def mock_genotype_hdf5_file():
 
             rsIDs = np.array(
                 [
-                    b"rs123456789",
-                    b"rs123456790",
-                    b"rs123456791",
-                    b"rs123456792",
+                    b"rs100",
+                    b"rs200",
+                    b"rs300",
+                    b"rs400",
+                    b"rs186977737",
+                    b"rs186977780",
                     b"Missing",
                 ]
             )
@@ -150,34 +340,16 @@ def mock_genotype_hdf5_file():
             # Add test genotypes (5 variants x 10 individuals), use -9 for missing
             genotypes = np.array(
                 [
-                    [
-                        0,
-                        1,
-                        1,
-                        2,
-                        0,
-                        1,
-                        2,
-                        0,
-                        1,
-                        2,
-                    ],  # Variant 1 genotypes for Ind 1001-1010
+                    # genotypes for Ind 1001-1010
+                    [0, 1, 1, 2, 0, 1, 2, 0, 1, 2],  # Variant 1
                     [1, 0, 0, 1, 1, 0, 1, 2, 0, 1],  # Variant 2
                     [2, 2, 2, 0, 0, 1, 0, 1, 0, 1],  # Variant 3
-                    [
-                        -9,
-                        -9,
-                        2,
-                        1,
-                        1,
-                        0,
-                        -9,
-                        2,
-                        1,
-                        0,
-                    ],  # Variant 4 (using -9 for missing)
-                    [0, 1, 0, 2, 2, 1, 0, 1, 2, 0],  # Variant 5
-                ]
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Variant 4
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  # Variant 5
+                    [-9, -9, 2, 1, 1, 0, -9, 2, 1, 0],  # Variant 6
+                    [0, 1, 0, 2, 2, 1, 0, 1, 2, 0],  # Variant 7
+                ],
+                dtype=np.int8,
             )
             hdf.create_dataset("genotypes", data=genotypes)
 
@@ -192,128 +364,28 @@ def mock_genotype_hdf5_file_with_npy(mock_genotype_hdf5_file):
     with h5py.File(mock_genotype_hdf5_file, "r") as f:
         matrix = f["genotypes"]
         assert isinstance(matrix, h5py.Dataset)
-        np_matrix = matrix[:]
-        np.save(mock_genotype_hdf5_file.with_suffix(".npy"), np_matrix)
+
+        # Turns out we wrote the .npy file in a 'weird' way, which is why we
+        # don't read it like the scores equivalent.
+        genotype_array = np.memmap(
+            mock_genotype_hdf5_file.with_suffix(".npy"),
+            dtype=np.int8,
+            mode="w+",
+            shape=matrix.shape,
+        )
+        genotype_array[:] = matrix[:]
+        genotype_array.flush()
+        del genotype_array  # Close the memmap file
+
+        # Scores was a bit easier...
+        # np.save(mock_genotype_hdf5_file.with_suffix(".npy"), matrix)
+
         yield mock_genotype_hdf5_file
         os.unlink(mock_genotype_hdf5_file.with_suffix(".npy"))
 
 
 @pytest.fixture
-def mock_phenotype_hdf5_file():
-    """Create a temporary mock HDF5 file with test phenotype data."""
-    with tempfile.NamedTemporaryFile(suffix=".h5") as tmp:
-        with h5py.File(Path(tmp.name), "w") as f:
-            # Use consistent EIDs 1001-1010
-            eids = np.arange(1001, 1011)
-            f.create_dataset("eids", data=eids)
-
-            # Phenotype matrix: rows are eids, columns are phecodes
-            # 1 = case, 0 = control, 9 = excluded
-            phenotype_data = np.array(
-                [
-                    [9, 1, 0, 1, 9],  # 1001 M EUR
-                    [0, 0, 1, 0, 1],  # 1002 F EUR
-                    [1, 9, 0, 1, 9],  # 1003 M EUR
-                    [0, 1, 0, 0, 1],  # 1004 F SAS
-                    [1, 0, 1, 0, 1],  # 1005 M AFR
-                    [0, 1, 0, 1, 0],  # 1006 F EAS
-                    [0, 0, 0, 0, 0],  # 1007 M EUR
-                    [1, 1, 1, 1, 1],  # 1008 F SAS
-                    [9, 9, 9, 9, 9],  # 1009 M AFR (Excluded for all)
-                    [0, 1, 0, 1, 0],  # 1010 F EAS
-                ],
-                dtype=np.int8,
-            )
-            f.create_dataset("phenotype_data", data=phenotype_data)
-
-            # Individual IDs (already defined above)
-            # f.create_dataset("eids", data=eids) # Redundant
-
-            # Use explicit byte strings (b'...') to ensure correct dtype ('S') for h5py
-            affected_sex = np.array(
-                [b"M", b"F", b"M", b"F", b"M", b"F", b"M", b"F", b"M", b"F"]
-            )
-            f.create_dataset("affected_sex", data=affected_sex)
-
-            # Use explicit byte strings (b'...')
-            populations = np.array(
-                [
-                    b"EUR",
-                    b"EUR",
-                    b"EUR",
-                    b"SAS",
-                    b"AFR",
-                    b"EAS",
-                    b"EUR",
-                    b"SAS",
-                    b"AFR",
-                    b"EAS",
-                ]
-            )
-            f.create_dataset("populations", data=populations)
-
-            # These already use b'...', which is correct
-            phecodes = np.array([b"250.2", b"401.1", b"635.2", b"601.1", b"571.5"])
-            f.create_dataset("phecodes", data=phecodes)
-
-            # Affected sex labels for phecodes (remain the same) - ALL must be bytes!
-            phecode_sex = np.array([b"B", b"B", b"F", b"M", b"B"])
-            f.create_dataset("phecode_sex", data=phecode_sex)
-
-        yield Path(tmp.name)
-
-
-@pytest.fixture
-def unit_test_app(
-    test_app,
-    phenotype_service,
-    genotype_service,
-    nomaly_scores_service,
-    nomaly_data_service,
-    stats_registry,
-):
-    """App configured for unit tests with mocked services."""
-
-    # Override config for testing
-    test_app.config.update(
-        {
-            "LOGIN_DISABLED": True,
-        }
-    )
-
-    with test_app.app_context():
-        from data_services.registry import ServiceRegistry
-
-        # Create test services registry with our mock services
-        services = ServiceRegistry()
-
-        # Use our mock services instead of creating new ones
-        services.genotype = genotype_service
-        services.phenotype = phenotype_service
-        services.nomaly_score = nomaly_scores_service
-        services.nomaly_data = nomaly_data_service
-
-        services.stats_registry = stats_registry
-
-        # Register the services with the app
-        test_app.extensions["nomaly_services"] = services
-
-        yield test_app
-
-
-@pytest.fixture
-def phenotype_service(mock_phenotype_hdf5_file):
-    """Mock phenotype service for unit tests."""
-    from data_services.phenotype import PhenotypeService
-
-    # Create a real PhenotypeService instance with our mock file
-    service = PhenotypeService(mock_phenotype_hdf5_file)
-
-    return service
-
-
-@pytest.fixture
-def genotype_service(mock_genotype_hdf5_file_with_npy):
+def mock_genotype_service(mock_genotype_hdf5_file_with_npy):
     """Mock genotype service for unit tests."""
     from data_services.genotype import GenotypeService
 
@@ -332,7 +404,15 @@ def mock_stats_hdf5_file():
             # The stats are stored in a 3D array: (term, phecode, stat_type)
 
             # Define the terms we support
-            terms = np.array([b"GO:0030800", b"MP:0005179", b"GO:0006915", b"TEST:001"])
+            terms = np.array(
+                [
+                    b"GO:0030800",
+                    b"MP:0005179",
+                    b"GO:0006915",
+                    b"TEST:001",
+                    b"UP:UPA00246",
+                ]
+            )
 
             # Define the phecodes we support
             phecodes = np.array([b"250.2", b"290.11", b"401.1", b"635.2", b"571.5"])
@@ -456,7 +536,7 @@ def mock_stats_hdf5_file():
 
 
 @pytest.fixture
-def stats_registry(mock_stats_hdf5_file):
+def mock_stats_registry(mock_stats_hdf5_file):
     """Mock stats registry using real StatsRegistry with mock file."""
     from pathlib import Path
 
@@ -476,10 +556,10 @@ def stats_registry(mock_stats_hdf5_file):
 
 
 @pytest.fixture
-def stats_service(stats_registry):
+def mock_stats_service(mock_stats_registry):
     """Get a stats service from the registry for tests that need it directly."""
     # Get the default service (Run-v1, EUR)
-    return stats_registry.get("Run-v1", "EUR")
+    return mock_stats_registry.get("Run-v1", "EUR")
 
 
 @pytest.fixture
@@ -528,7 +608,7 @@ def mock_nomaly_scores_hdf5_file():
 
 
 @pytest.fixture
-def nomaly_scores_service(mock_nomaly_scores_hdf5_file):
+def mock_nomaly_scores_service(mock_nomaly_scores_hdf5_file):
     """Mock nomaly scores service for unit tests."""
     from data_services.nomaly_score import NomalyScoreService
 
@@ -539,7 +619,7 @@ def nomaly_scores_service(mock_nomaly_scores_hdf5_file):
 
 
 @pytest.fixture
-def nomaly_data_service():
+def mock_nomaly_data_service():
     """Mock nomaly data service for unit tests."""
     from unittest.mock import MagicMock
 
@@ -548,166 +628,106 @@ def nomaly_data_service():
     return mock_service
 
 
+def mock_get_term_variants(term):
+    # Return different DataFrames depending on the term, if you want
+    if term == "GO:0030800":
+        return pd.DataFrame(
+            {
+                "variant_id": [
+                    "1_100_A/T",
+                    "2_200_C/G",
+                    "1_186977737_A/G",
+                    "1_186977780_G/A",
+                ],
+                "gene": ["GENEA", "GENEB", "GENEA", "GENEC"],
+                "aa": ["A", "C", "A", "G"],
+                "hmm_score": [0.8, 0.9, 0.7, 0.85],
+            }
+        )
+    elif term == "UP:UPA00246":
+        return pd.DataFrame(
+            {
+                "variant_id": ["3_200_A/G", "4_300_T/C"],
+                "gene": ["GENEC", "GENED"],
+                "aa": ["G", "T"],
+                "hmm_score": [1.1, 1.2],
+            }
+        )
+    # Add more elifs for other terms as needed
+    else:
+        # Default mock: empty DataFrame with correct columns
+        return pd.DataFrame(
+            {
+                "variant_id": [],
+                "gene": [],
+                "aa": [],
+                "hmm_score": [],
+            }
+        )
+
+
+@pytest.fixture
+def unit_test_app(
+    monkeypatch,
+    test_app,
+    mock_phenotype_service,
+    mock_genotype_service,
+    mock_nomaly_scores_service,
+    mock_nomaly_data_service,
+    mock_stats_registry,
+):
+    """App configured for unit tests with mocked services."""
+
+    monkeypatch.setattr(
+        "blueprints.prioritisation_by_nomaly_scores.get_term_variants",
+        mock_get_term_variants,
+    )
+
+    # Override config for testing
+    test_app.config.update(
+        {
+            "LOGIN_DISABLED": True,
+        }
+    )
+
+    with test_app.app_context():
+        from data_services.registry import ServiceRegistry
+
+        # Create test services registry with our mock services
+        services = ServiceRegistry()
+
+        # Use our mock services instead of creating new ones
+        services.genotype = mock_genotype_service
+        services.phenotype = mock_phenotype_service
+        services.nomaly_score = mock_nomaly_scores_service
+        services.nomaly_data = mock_nomaly_data_service
+
+        services.stats_registry = mock_stats_registry
+
+        # Register the services with the app
+        test_app.extensions["nomaly_services"] = services
+
+        yield test_app
+
+
 @pytest.fixture
 def unit_test_app_client(unit_test_app):
     """Client for unit tests."""
     return unit_test_app.test_client()
 
 
-@pytest.fixture(scope="session")
-def integration_app():
-    """App configured for integration tests with real services."""
-    # Use DEVELOPMENT instead of TESTING to allow ServiceRegistry to initialize
-    _app = create_app("development")
-
-    # IMPORTANT: Explicitly ensure TESTING is False to initialize data services
-    _app.config["TESTING"] = False
-
-    # Configure session for tests
-    _app.config["SESSION_TYPE"] = "filesystem"
-    _app.config["SESSION_PERMANENT"] = True
-    _app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour
-    _app.config["SECRET_KEY"] = "test-integration-secret-key"
-
-    # Server settings
-    _app.config.update(
-        {
-            "SERVER_NAME": "localhost.localdomain",
-            "PREFERRED_URL_SCHEME": "http",
-            "APPLICATION_ROOT": "/",
-        }
-    )
-
-    # Initialize the Flask session extension
-    from flask_session import Session
-
-    Session(_app)
-
-    return _app
-
-
 @pytest.fixture
-def integration_app_client(integration_app):
-    """Client for integration tests."""
-    with integration_app.test_client() as client:
-        yield client
-
-
-@pytest.fixture
-def test_admin():
-    """Create a test admin user with full permissions."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # Hash the password
-    hashed_password = generate_password_hash("test_password")
-
-    # Create test admin user
-    cursor.execute(
-        """
-        INSERT INTO users2 (username, password, email, is_active, is_admin)
-        VALUES ('test_admin', %s, 'test_admin@example.com', TRUE, TRUE)
-    """,
-        (hashed_password,),
-    )
-    user_id = cursor.lastrowid
-
-    # Grant admin permissions
-    cursor.execute(
-        """
-        INSERT INTO user_permissions (user_id, allowed_paths)
-        VALUES (%s, '*')
-    """,
-        (user_id,),
-    )
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    yield {"id": user_id, "username": "test_admin", "password": "test_password"}
-
-    # Cleanup
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM user_permissions WHERE user_id = %s", (user_id,))
-    cursor.execute("DELETE FROM users2 WHERE id = %s", (user_id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-
-def cleanup_test_admin_after_test_timeout():
-    """Cleanup the test admin user."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        DELETE
-            user_permissions, users2
-        FROM
-            user_permissions 
-        INNER JOIN
-            users2
-        ON
-          user_permissions.user_id = users2.id
-        WHERE
-            username = "test_admin"
-        """
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-
-@pytest.fixture
-def auth_integration_app_client(integration_app_client, test_admin):
-    """Authenticated client for integration tests."""
-    # Use the simple login approach
-    response = integration_app_client.post(
-        "/login",
-        data={"username": test_admin["username"], "password": test_admin["password"]},
-        follow_redirects=True,
-    )
-
-    # Check login was successful
-    assert response.status_code == 200
-    assert b"welcome" in response.data.lower()
-
-    return integration_app_client
-
-
-@pytest.fixture
-def mock_cache_dir_config(tmp_path):
+def mock_cache_dir_config(tmp_path, monkeypatch):
     """Create a temporary directory for cache testing"""
-    with patch("config.Config") as mock_config:
-        mock_config.GWAS_PHENO_DIR = str(tmp_path)
-        mock_config.PHEWAS_PHENO_DIR = str(tmp_path)
-        mock_config.PHECODE_TERM_DIR = str(tmp_path)
-        mock_config.VARIANT_SCORES_DIR = str(tmp_path)
-
-        yield mock_config
+    monkeypatch.setattr("config.Config.GWAS_PHENO_DIR", str(tmp_path))
+    monkeypatch.setattr("config.Config.PHEWAS_PHENO_DIR", str(tmp_path))
+    monkeypatch.setattr("config.Config.PHECODE_TERM_DIR", str(tmp_path))
+    monkeypatch.setattr("config.Config.VARIANT_SCORES_DIR", str(tmp_path))
 
 
 @pytest.fixture
 def unit_test_app_client_with_cache(unit_test_app_client, mock_cache_dir_config):
     """Client for unit tests with mock cache directories configured."""
-    unit_test_app_client.application.config.update(
-        {
-            "GWAS_PHENO_DIR": mock_cache_dir_config.GWAS_PHENO_DIR,
-            "PHEWAS_PHENO_DIR": mock_cache_dir_config.PHEWAS_PHENO_DIR,
-            "PHECODE_TERM_DIR": mock_cache_dir_config.PHECODE_TERM_DIR,
-            "VARIANT_SCORES_DIR": mock_cache_dir_config.VARIANT_SCORES_DIR,
-        }
-    )
+    # No need to update application config, since monkeypatch already did it
     return unit_test_app_client
 
-
-def main():
-    # Disaster recovery...
-    cleanup_test_admin_after_test_timeout()
-    exit(0)
-
-
-if __name__ == "__main__":
-    main()

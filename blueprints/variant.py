@@ -38,7 +38,7 @@ def show_variant(variant):
         format_str = r"(\d+|MT|[XY])_\d+_[ACGT]+_[ACGT]+$"
         if not re.match(format_str, variant):
             return render_template(
-                "error.html", error="Invalid variant ID format: " + variant
+                "errors/400.html", error="Invalid variant ID format: " + variant
             )
 
         # Parse variant information from 'URL format' (e.g. "5_33951588_C_G")
@@ -76,7 +76,7 @@ def show_variant(variant):
             if plnkified_variant_id not in genotype_service.plink_variant_ids:
                 logger.info(f"Variant {chrom}:{pos} not found in genotype data!")
                 return render_template(
-                    "error.html",
+                    "errors/404.html",
                     error=f"Variant {chrom}:{pos} not found in genotype data!",
                 )
 
@@ -103,7 +103,7 @@ def show_variant(variant):
         error_msg = f"Error processing variant {variant}: {str(e)}"
         print(error_msg)
         print(traceback.format_exc())
-        return render_template("error.html", error=error_msg)
+        return render_template("errors/error.html", error=error_msg)
 
 
 @variant_bp.route("/run-phewas/<string:variant>", methods=["POST"])
