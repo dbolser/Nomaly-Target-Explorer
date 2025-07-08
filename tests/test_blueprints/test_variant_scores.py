@@ -1,5 +1,13 @@
 from flask import template_rendered
 from contextlib import contextmanager
+import pytest
+
+from tests.data_utils import production_data_available
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production data services",
+)
 
 
 @contextmanager

@@ -1,12 +1,20 @@
 """Tests for the phecode blueprint and related functionality."""
 
 import pytest
+from flask import url_for
+
+from tests.data_utils import production_data_available
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production data services",
+)
 
 
 def test_home_route_works(auth_integration_app_client):
     """Test that the home page is accessible when logged in."""
     # We can see from our debug output that the home page is accessible
-    response = auth_integration_app_client.get("/")
+    response = auth_integration_app_client.get(url_for("index"))
 
     # This page should work
     assert response.status_code == 200, "Home page should be accessible"
@@ -18,7 +26,7 @@ def test_home_route_works(auth_integration_app_client):
 def test_search_route_works(auth_integration_app_client):
     """Test that the search page is accessible when logged in."""
     # We can see from our debug output that the search page is accessible
-    response = auth_integration_app_client.get("/search")
+    response = auth_integration_app_client.get(url_for("search.show"))
 
     # This page should work
     assert response.status_code == 200, "Search page should be accessible"
@@ -34,7 +42,8 @@ def test_admin_phecode_access(auth_integration_app_client):
 
     # The admin should be able to access the phecode page directly
     response = auth_integration_app_client.get(
-        f"/phecode/{phecode}", follow_redirects=False
+        url_for("phecode.show_phecode", phecode=phecode),
+        follow_redirects=False,
     )
 
     # Print the result for debugging
@@ -54,7 +63,8 @@ def test_admin_phecode_access(auth_integration_app_client):
     # Now try a term page as well
     term = "GO:0030800"
     term_response = auth_integration_app_client.get(
-        f"/phecode/{phecode}/term/{term}", follow_redirects=False
+        url_for("phecode_term.show_phecode_term", phecode=phecode, term=term),
+        follow_redirects=False,
     )
 
     # Print the result for debugging
@@ -78,7 +88,8 @@ def test_phecode_route_permission(auth_integration_app_client):
 
     # The phecode page should redirect
     response = auth_integration_app_client.get(
-        f"/phecode/{phecode}", follow_redirects=False
+        url_for("phecode.show_phecode", phecode=phecode),
+        follow_redirects=False,
     )
 
     # Check that we get a redirect
@@ -89,7 +100,8 @@ def test_phecode_route_permission(auth_integration_app_client):
 
     # Now follow the redirect and check for the error message
     response = auth_integration_app_client.get(
-        f"/phecode/{phecode}", follow_redirects=True
+        url_for("phecode.show_phecode", phecode=phecode),
+        follow_redirects=True,
     )
     assert response.status_code == 200
 

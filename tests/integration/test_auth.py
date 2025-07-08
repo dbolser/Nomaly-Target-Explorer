@@ -1,6 +1,13 @@
 """Test authentication functionality."""
 
+import pytest
 
+from tests.data_utils import production_data_available
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production database",
+)
 def test_login_success(integration_app_client, test_admin):
     """Test successful login."""
     # First verify we're not logged in

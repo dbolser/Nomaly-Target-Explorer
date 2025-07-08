@@ -2,6 +2,13 @@ import json
 
 import pytest
 
+from tests.data_utils import production_data_available
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production database and HDF5 data",
+)
+
 # TODO: WHY DOES THE unit_test_app_client NEED .../genotypes_with_metadata.h5 TO EXISTS?
 # TODO: WHY DOES THE unit_test_app_client NEED .../phecode_cases_excludes_with_metadata.h5 TO EXISTS?
 # TODO: WHY DOES THE unit_test_app_client NEED .../stats-All-2025-02-10.h5 TO EXISTS?

@@ -1,4 +1,11 @@
 from flask import current_app
+import pytest
+from tests.data_utils import production_data_available
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production data services",
+)
 
 
 def test_test_app(test_app):

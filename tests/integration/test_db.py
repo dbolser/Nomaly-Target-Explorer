@@ -1,6 +1,13 @@
 import pytest
 import pandas as pd
 
+from tests.data_utils import production_data_available
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production database",
+)
+
 from db import (
     get_db_connection,
     get_all_phecodes,
