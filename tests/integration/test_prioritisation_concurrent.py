@@ -2,6 +2,14 @@
 
 import json
 from concurrent.futures import ThreadPoolExecutor
+import pytest
+
+from tests.data_utils import production_data_available
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production dataset and services",
+)
 
 import pandas as pd
 

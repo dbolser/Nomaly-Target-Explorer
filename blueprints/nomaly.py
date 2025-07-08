@@ -14,14 +14,23 @@ pharos_path = Config.PHAROS_DATA_DIR / "pharos_api_query.out"
 pp_path = Config.PHAROS_DATA_DIR / "pp_by_gene.tsv"
 
 # TODO: MAKE A DATA SERVICE FOR THIS
-pharos = pd.read_csv(pharos_path, sep="\t", encoding="ISO-8859-1").rename(
-    columns={"#symbol": "gene"}
-)
+try:
+    pharos = pd.read_csv(pharos_path, sep="\t", encoding="ISO-8859-1").rename(
+        columns={"#symbol": "gene"}
+    )
 
-pp = pd.read_csv(pp_path, sep="\t", index_col=0).rename(
-    columns={"Description": "drug_program_indication"}
-)
-pp["gene"] = pp.index
+    pp = pd.read_csv(pp_path, sep="\t", index_col=0).rename(
+        columns={"Description": "drug_program_indication"}
+    )
+    pp["gene"] = pp.index
+except FileNotFoundError:
+    logger.warning("Pharos data not found, continuing with empty frames")
+    pharos = pd.DataFrame()
+    pp = pd.DataFrame()
+except Exception:
+    logger.exception("Error loading Pharos data")
+    pharos = pd.DataFrame()
+    pp = pd.DataFrame()
 
 
 # ------------------------------------------------------------------------------#

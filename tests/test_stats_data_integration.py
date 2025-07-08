@@ -2,7 +2,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from tests.data_utils import production_data_available
 import pytest
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production stats HDF5 data"
+)
 
 from config import Config
 from data_services import StatsRegistry

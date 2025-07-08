@@ -1,10 +1,15 @@
 import numpy as np
+import pytest
+from tests.data_utils import production_data_available
 
 from data_services import GenotypeService
 
 from config import Config
 
-import pytest
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production genotype HDF5 data"
+)
 
 # config = Config()
 

@@ -1,6 +1,13 @@
 import numpy as np
+from tests.data_utils import production_data_available
 import pandas as pd
 import pytest
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+
+    reason="requires production phenotype HDF5 data"
+)
 
 from config import Config
 from data_services import PhenotypeService

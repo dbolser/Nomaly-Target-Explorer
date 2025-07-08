@@ -1,4 +1,3 @@
-import pytest
 from pathlib import Path
 from config import (
     Config,
@@ -7,6 +6,15 @@ from config import (
     ProductionConfig,
     StagingConfig,
     config as config_dict,
+)
+
+import pytest
+
+from tests.data_utils import production_data_available
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production configuration files",
 )
 
 

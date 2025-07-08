@@ -2,6 +2,14 @@ import json
 import time
 import pytest
 
+from tests.data_utils import production_data_available
+
+
+pytestmark = pytest.mark.skipif(
+    not production_data_available(),
+    reason="requires production dataset and services",
+)
+
 def test_search_route_unauthenticated(integration_app_client):
     """Test a random route redirects to index when not authenticated."""
     response = integration_app_client.get("/search")
