@@ -24,6 +24,30 @@ dependencies = [
 [tool.uv.sources]
 fisher = { git = "https://github.com/marco-mariotti/fishers_exact_test" }
 
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = [
+    "api",
+    "app",
+    "auth",
+    "config",
+    "db",
+    "errors",
+    "hash_password",
+    "logging_config",
+    "main",
+    "utils",
+    "wsgi",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["blueprints*", "data_services*"]
+exclude = ["aidocs*", "static*", "templates*", "tests*"]
+
 [project.optional-dependencies]
 test = [
     "pytest>=8.3.2",
